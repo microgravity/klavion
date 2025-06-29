@@ -39,6 +39,8 @@ class PianoVisualizer {
         this.hasMidiInput = false;
         this.midiActivityLog = [];
         this.midiDevices = [];
+        this.midiInputs = new Map(); // Store MIDI input devices
+        this.selectedInputDevice = 'keyboard'; // Default to computer keyboard
         
         this.noteNames = [
             'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
@@ -130,6 +132,7 @@ class PianoVisualizer {
         this.setupEventListeners();
         this.setupKeyboardListeners();
         this.setupMidiControls();
+        this.setupMidiDeviceSelection();
         this.initBackgroundSystem();
         this.startVisualization();
         
@@ -261,13 +264,17 @@ class PianoVisualizer {
             // Check if any MIDI inputs are available
             let hasInputs = false;
             this.midiDevices = [];
+            this.midiInputs.clear();
+            
             for (let input of this.midiAccess.inputs.values()) {
-                input.onmidimessage = (message) => this.handleMIDIMessage(message);
                 console.log(`MIDI Input connected: ${input.name}`);
                 this.midiDevices.push(input.name);
+                this.midiInputs.set(input.id, input);
                 hasInputs = true;
             }
             
+            this.updateMidiDeviceList();
+            this.setupMidiInputHandlers();
             this.updateMidiStatus();
             
             if (hasInputs) {
@@ -283,7 +290,6 @@ class PianoVisualizer {
                 const port = event.port;
                 if (port.type === 'input') {
                     if (port.state === 'connected') {
-                        port.onmidimessage = (message) => this.handleMIDIMessage(message);
                         console.log(`MIDI Input connected: ${port.name}`);
                         
                         if (!this.hasMidiInput) {
@@ -299,6 +305,9 @@ class PianoVisualizer {
                         if (!this.midiDevices.includes(port.name)) {
                             this.midiDevices.push(port.name);
                         }
+                        this.midiInputs.set(port.id, port);
+                        this.updateMidiDeviceList();
+                        this.setupMidiInputHandlers();
                         this.updateMidiStatus();
                     } else if (port.state === 'disconnected') {
                         console.log(`MIDI Input disconnected: ${port.name}`);
@@ -315,6 +324,9 @@ class PianoVisualizer {
                         
                         // Remove device from list
                         this.midiDevices = this.midiDevices.filter(name => name !== port.name);
+                        this.midiInputs.delete(port.id);
+                        this.updateMidiDeviceList();
+                        this.setupMidiInputHandlers();
                         this.updateMidiStatus();
                     }
                 }
@@ -327,6 +339,17 @@ class PianoVisualizer {
     }
     
     handleMIDIMessage(message) {
+        // Check if MIDI input is selected (not computer keyboard)
+        if (this.selectedInputDevice === 'keyboard') {
+            return; // Ignore MIDI messages when keyboard is selected
+        }
+        
+        // Check if message is from selected device
+        const selectedInput = this.getSelectedMidiInput();
+        if (!selectedInput) {
+            return; // No valid MIDI device selected
+        }
+        
         const [command, note, velocity] = message.data;
         const timestamp = message.timeStamp || performance.now();
         
@@ -1212,6 +1235,9 @@ class PianoVisualizer {
     
     setupKeyboardListeners() {
         document.addEventListener('keydown', (e) => {
+            // Only handle keyboard input when computer keyboard is selected
+            if (this.selectedInputDevice !== 'keyboard') return;
+            
             if (this.activeKeys.has(e.code)) return;
             
             const midiNote = this.keyboardMapping[e.code];
@@ -1220,16 +1246,21 @@ class PianoVisualizer {
                 this.activeKeys.add(e.code);
                 this.playNote(midiNote, 100, performance.now());
                 this.highlightPianoKey(midiNote, true);
+                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote)} (${midiNote}) vel:100`);
             }
         });
         
         document.addEventListener('keyup', (e) => {
+            // Only handle keyboard input when computer keyboard is selected
+            if (this.selectedInputDevice !== 'keyboard') return;
+            
             const midiNote = this.keyboardMapping[e.code];
             if (midiNote) {
                 e.preventDefault();
                 this.activeKeys.delete(e.code);
                 this.stopNote(midiNote);
                 this.highlightPianoKey(midiNote, false);
+                this.logMidiActivity(`⏹ ${this.midiNoteToNoteName(midiNote)} (${midiNote})`);
             }
         });
     }
@@ -1448,6 +1479,67 @@ class PianoVisualizer {
         // Update the display
         activityElement.textContent = this.midiActivityLog.join('\n');
         activityElement.scrollTop = 0; // Scroll to top to show newest entries
+    }
+    
+    updateMidiDeviceList() {
+        const selectElement = document.getElementById('midi-input-select');
+        
+        // Clear existing options except computer keyboard
+        while (selectElement.children.length > 1) {
+            selectElement.removeChild(selectElement.lastChild);
+        }
+        
+        // Add MIDI devices to select
+        for (const [id, input] of this.midiInputs) {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = input.name;
+            selectElement.appendChild(option);
+        }
+    }
+    
+    setupMidiDeviceSelection() {
+        const selectElement = document.getElementById('midi-input-select');
+        
+        selectElement.addEventListener('change', (e) => {
+            const selectedValue = e.target.value;
+            this.selectedInputDevice = selectedValue;
+            
+            // Setup MIDI message handlers based on selection
+            this.setupMidiInputHandlers();
+            
+            // Log device change
+            if (selectedValue === 'keyboard') {
+                this.logMidiActivity('Input switched to: Computer Keyboard');
+            } else {
+                const selectedInput = this.midiInputs.get(selectedValue);
+                if (selectedInput) {
+                    this.logMidiActivity(`Input switched to: ${selectedInput.name}`);
+                }
+            }
+        });
+    }
+    
+    setupMidiInputHandlers() {
+        // Clear all existing handlers
+        for (const [id, input] of this.midiInputs) {
+            input.onmidimessage = null;
+        }
+        
+        // Set up handler for selected device only
+        if (this.selectedInputDevice !== 'keyboard') {
+            const selectedInput = this.midiInputs.get(this.selectedInputDevice);
+            if (selectedInput) {
+                selectedInput.onmidimessage = (message) => this.handleMIDIMessage(message);
+            }
+        }
+    }
+    
+    getSelectedMidiInput() {
+        if (this.selectedInputDevice === 'keyboard') {
+            return null;
+        }
+        return this.midiInputs.get(this.selectedInputDevice);
     }
 }
 
