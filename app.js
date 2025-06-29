@@ -25,7 +25,7 @@ class PianoVisualizer {
             motionBlur: 0.3,
             glowIntensity: 1.0,
             fontFamily: 'Inter',
-            pianoRange: '88-key'
+            pianoRange: '3-octave'
         };
         
         // Piano configuration
@@ -35,8 +35,6 @@ class PianoVisualizer {
             '88-key': { startNote: 21, endNote: 108, startOctave: 0, octaves: 8 }   // A0-C8
         };
         
-        // Debug: Log piano range on initialization
-        console.log('Piano configs:', this.pianoConfigs);
         
         this.hasMidiInput = false;
         
@@ -105,18 +103,18 @@ class PianoVisualizer {
         
         // Key to keyword mapping
         this.keyKeywords = {
-            'C': ['piano', 'classical music', 'concert hall'],
-            'C#': ['sharp', 'modern architecture', 'crystal'],
-            'D': ['nature', 'sunrise', 'golden hour'],
-            'D#': ['contrast', 'shadows', 'dramatic'],
-            'E': ['energy', 'lightning', 'electric'],
-            'F': ['forest', 'peaceful', 'green nature'],
-            'F#': ['cutting edge', 'technology', 'futuristic'],
-            'G': ['gentle', 'flowers', 'pastel colors'],
-            'G#': ['mysterious', 'dark forest', 'moonlight'],
-            'A': ['harmony', 'balance', 'zen garden'],
-            'A#': ['intense', 'fire', 'passion'],
-            'B': ['blue', 'ocean', 'calm water']
+            'C': ['piano', 'nature', 'forest'],
+            'C#': ['crystal', 'electric', 'moonlight'],
+            'D': ['nature', 'ocean', 'piano'],
+            'D#': ['fire', 'crystal', 'electric'],
+            'E': ['electric', 'nature', 'fire'],
+            'F': ['forest', 'nature', 'ocean'],
+            'F#': ['crystal', 'electric', 'fire'],
+            'G': ['nature', 'forest', 'piano'],
+            'G#': ['moonlight', 'crystal', 'ocean'],
+            'A': ['piano', 'nature', 'forest'],
+            'A#': ['fire', 'electric', 'crystal'],
+            'B': ['ocean', 'moonlight', 'nature']
         };
         
         this.init();
@@ -332,9 +330,6 @@ class PianoVisualizer {
         const startNote = config.startNote;
         const endNote = config.endNote;
         
-        console.log(`Creating piano with range: ${this.settings.pianoRange}`);
-        console.log(`Notes from ${startNote} to ${endNote} (total: ${endNote - startNote + 1} keys)`);
-        
         // Calculate key size based on range
         const totalKeys = endNote - startNote + 1;
         const whiteKeyCount = this.countWhiteKeys(startNote, endNote);
@@ -346,8 +341,6 @@ class PianoVisualizer {
         } else {
             keyWidth = Math.max(20, Math.min(40, containerWidth / whiteKeyCount));
         }
-        
-        console.log(`Key width: ${keyWidth}px, White keys: ${whiteKeyCount}`);
         
         for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
             const noteIndex = midiNote % 12;
@@ -399,8 +392,6 @@ class PianoVisualizer {
             this.pianoKeyboard.style.minWidth = 'auto';
             this.pianoKeyboard.style.paddingBottom = '0';
         }
-        
-        console.log(`Piano keyboard created with ${totalKeys} keys`);
     }
     
     countWhiteKeys(startNote, endNote) {
@@ -731,53 +722,99 @@ class PianoVisualizer {
     
     async loadImagesForKeyword(keyword) {
         try {
-            // Using Unsplash API (Note: For production, you'd need an API key)
-            // For demo purposes, we'll use the public endpoint with some limitations
-            const response = await fetch(`https://source.unsplash.com/featured/?${encodeURIComponent(keyword)}&sig=${Math.random()}`);
+            // Use Unsplash with different approach to avoid CORS issues
+            const imageUrl = `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}`;
             
-            if (response.ok) {
-                // For Unsplash source API, we get a direct image URL
-                const imageUrl = response.url;
+            // Create a test image to check if URL is accessible
+            const testImg = new Image();
+            testImg.crossOrigin = 'anonymous';
+            
+            testImg.onload = () => {
                 this.currentImages = [imageUrl];
                 this.currentImageIndex = 0;
                 this.updateBackgroundImage();
-                
                 document.getElementById('current-keyword').textContent = `Current: ${keyword}`;
                 
-                // Pre-load additional images
+                // Pre-load additional images with different parameters
                 this.preloadAdditionalImages(keyword);
-            }
+            };
+            
+            testImg.onerror = () => {
+                console.log(`Image load failed for keyword: ${keyword}, using fallback`);
+                this.useFallbackBackground(keyword);
+            };
+            
+            testImg.src = imageUrl;
+            
         } catch (error) {
             console.error('Error loading images:', error);
-            // Fallback to gradient background
-            this.backgroundElement.style.backgroundImage = 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)';
+            this.useFallbackBackground(keyword);
         }
     }
     
+    useFallbackBackground(keyword) {
+        // Use beautiful gradient backgrounds based on keywords
+        const gradients = {
+            'piano': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'nature': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'ocean': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'forest': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'fire': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'crystal': 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+            'electric': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+            'moonlight': 'linear-gradient(135deg, #667db6 0%, #0082c8 100%)',
+            'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        };
+        
+        const gradient = gradients[keyword] || gradients['default'];
+        this.backgroundElement.style.backgroundImage = gradient;
+        document.getElementById('current-keyword').textContent = `Current: ${keyword} (gradient)`;
+        
+        this.currentImages = [gradient];
+        this.currentImageIndex = 0;
+    }
+    
     async preloadAdditionalImages(keyword) {
-        const additionalImages = [];
-        const promises = [];
+        // Create additional gradient variations for slideshow
+        const additionalGradients = [
+            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&nature`,
+            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&art`,
+            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&abstract`,
+            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&minimal`
+        ];
         
-        // Load multiple images for slideshow
-        for (let i = 1; i < 5; i++) {
-            const promise = fetch(`https://source.unsplash.com/featured/?${encodeURIComponent(keyword)}&sig=${Math.random() + i}`)
-                .then(response => response.ok ? response.url : null)
-                .catch(() => null);
-            promises.push(promise);
-        }
+        // Test each image and use fallback gradients if they fail
+        const workingImages = [];
         
-        try {
-            const results = await Promise.allSettled(promises);
-            results.forEach(result => {
-                if (result.status === 'fulfilled' && result.value) {
-                    additionalImages.push(result.value);
+        for (const imageUrl of additionalGradients) {
+            try {
+                const testImg = new Image();
+                testImg.crossOrigin = 'anonymous';
+                
+                const loadPromise = new Promise((resolve) => {
+                    testImg.onload = () => resolve(imageUrl);
+                    testImg.onerror = () => resolve(null);
+                    testImg.src = imageUrl;
+                });
+                
+                const result = await Promise.race([
+                    loadPromise,
+                    new Promise(resolve => setTimeout(() => resolve(null), 3000)) // 3 second timeout
+                ]);
+                
+                if (result) {
+                    workingImages.push(result);
                 }
-            });
-            
-            this.currentImages = [...this.currentImages, ...additionalImages];
-        } catch (error) {
-            console.error('Error preloading additional images:', error);
+            } catch (error) {
+                console.log(`Failed to load additional image: ${imageUrl}`);
+            }
         }
+        
+        // Add working images to current images
+        if (workingImages.length > 0) {
+            this.currentImages = [...this.currentImages, ...workingImages];
+        }
+        
     }
     
     updateBackgroundForKey(noteKey) {
