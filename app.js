@@ -1244,13 +1244,29 @@ class PianoVisualizer {
                 });
             }
             
-            // Try different codecs based on browser support
-            let options = { mimeType: 'video/webm;codecs=vp9' };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'video/webm;codecs=vp8' };
-                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                    options = { mimeType: 'video/webm' };
+            // Try iPhone-compatible codecs first (H.264 MP4)
+            const codecOptions = [
+                { mimeType: 'video/mp4;codecs=avc1.42E01E', name: 'H.264 Baseline (iPhone最適)' },
+                { mimeType: 'video/mp4;codecs=avc1.4D401E', name: 'H.264 Main (iPhone対応)' },
+                { mimeType: 'video/mp4;codecs=h264', name: 'H.264 汎用' },
+                { mimeType: 'video/mp4', name: 'MP4コンテナ' },
+                { mimeType: 'video/webm;codecs=vp9', name: 'WebM VP9 (フォールバック)' },
+                { mimeType: 'video/webm;codecs=vp8', name: 'WebM VP8 (フォールバック)' },
+                { mimeType: 'video/webm', name: 'WebM (フォールバック)' }
+            ];
+            
+            let options = null;
+            for (const codec of codecOptions) {
+                if (MediaRecorder.isTypeSupported(codec.mimeType)) {
+                    options = { mimeType: codec.mimeType };
+                    console.log(`✅ Selected codec: ${codec.name} (${codec.mimeType})`);
+                    break;
                 }
+            }
+            
+            if (!options) {
+                console.warn('⚠️ No supported video codecs found, using default');
+                options = {};
             }
             
             console.log(`🎥 Using codec: ${options.mimeType}`);
@@ -1303,18 +1319,48 @@ class PianoVisualizer {
     downloadRecording() {
         if (this.recordedChunks.length === 0) return;
         
-        const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+        // Determine the appropriate MIME type and extension based on what was recorded
+        let mimeType = 'video/mp4';
+        let extension = 'mp4';
+        
+        // Check if the recorded data is MP4 compatible
+        if (this.mediaRecorder && this.mediaRecorder.mimeType) {
+            const recordedMimeType = this.mediaRecorder.mimeType;
+            console.log(`📹 Recorded with MIME type: ${recordedMimeType}`);
+            
+            if (recordedMimeType.includes('mp4')) {
+                mimeType = 'video/mp4';
+                extension = 'mp4';
+            } else if (recordedMimeType.includes('webm')) {
+                mimeType = 'video/webm';
+                extension = 'webm';
+            }
+        }
+        
+        const blob = new Blob(this.recordedChunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `piano-recording-${timestamp}.${extension}`;
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = `piano-recording-${Date.now()}.webm`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         
         URL.revokeObjectURL(url);
         document.getElementById('download-recording').disabled = true;
+        
+        console.log(`💾 Downloaded: ${filename} (${mimeType})`);
+        
+        // Show user-friendly message
+        if (extension === 'mp4') {
+            alert(`📱 MP4動画をダウンロードしました！\niPhoneのカメラロールでも再生できます。\nファイル名: ${filename}`);
+        } else {
+            alert(`📹 ${extension.toUpperCase()}動画をダウンロードしました。\nファイル名: ${filename}`);
+        }
     }
     
     updateMidiStatus() {
