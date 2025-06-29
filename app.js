@@ -25,7 +25,7 @@ class PianoVisualizer {
             motionBlur: 0.3,
             glowIntensity: 1.0,
             fontFamily: 'Inter',
-            pianoRange: '3-octave'
+            pianoRange: '88-key'
         };
         
         // Piano configuration
@@ -34,6 +34,9 @@ class PianoVisualizer {
             '5-octave': { startNote: 36, endNote: 96, startOctave: 2, octaves: 5 }, // C2-C7
             '88-key': { startNote: 21, endNote: 108, startOctave: 0, octaves: 8 }   // A0-C8
         };
+        
+        // Debug: Log piano range on initialization
+        console.log('Piano configs:', this.pianoConfigs);
         
         this.hasMidiInput = false;
         
@@ -329,6 +332,9 @@ class PianoVisualizer {
         const startNote = config.startNote;
         const endNote = config.endNote;
         
+        console.log(`Creating piano with range: ${this.settings.pianoRange}`);
+        console.log(`Notes from ${startNote} to ${endNote} (total: ${endNote - startNote + 1} keys)`);
+        
         // Calculate key size based on range
         const totalKeys = endNote - startNote + 1;
         const whiteKeyCount = this.countWhiteKeys(startNote, endNote);
@@ -336,10 +342,12 @@ class PianoVisualizer {
         let keyWidth;
         
         if (this.settings.pianoRange === '88-key') {
-            keyWidth = Math.max(12, containerWidth / 52); // 52 white keys in 88-key piano
+            keyWidth = Math.max(8, containerWidth / 52); // 52 white keys in 88-key piano
         } else {
             keyWidth = Math.max(20, Math.min(40, containerWidth / whiteKeyCount));
         }
+        
+        console.log(`Key width: ${keyWidth}px, White keys: ${whiteKeyCount}`);
         
         for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
             const noteIndex = midiNote % 12;
@@ -351,7 +359,16 @@ class PianoVisualizer {
             keyElement.className = `piano-key ${key.type}`;
             keyElement.dataset.note = midiNote;
             keyElement.dataset.noteName = noteName;
-            keyElement.style.width = key.type === 'white' ? `${keyWidth}px` : `${keyWidth * 0.7}px`;
+            if (key.type === 'white') {
+                keyElement.style.width = `${keyWidth}px`;
+                keyElement.style.height = '80px';
+            } else {
+                keyElement.style.width = `${keyWidth * 0.6}px`;
+                keyElement.style.height = '50px';
+                keyElement.style.marginLeft = `${-keyWidth * 0.3}px`;
+                keyElement.style.marginRight = `${-keyWidth * 0.3}px`;
+                keyElement.style.zIndex = '2';
+            }
             
             keyElement.addEventListener('mousedown', (e) => {
                 e.preventDefault();
@@ -373,8 +390,17 @@ class PianoVisualizer {
         }
         
         // Update keyboard container size
-        this.pianoKeyboard.style.overflowX = totalKeys > 36 ? 'auto' : 'visible';
-        this.pianoKeyboard.style.minWidth = totalKeys > 36 ? '100%' : 'auto';
+        if (this.settings.pianoRange === '88-key') {
+            this.pianoKeyboard.style.overflowX = 'auto';
+            this.pianoKeyboard.style.minWidth = `${whiteKeyCount * keyWidth}px`;
+            this.pianoKeyboard.style.paddingBottom = '10px'; // Space for scrollbar
+        } else {
+            this.pianoKeyboard.style.overflowX = 'visible';
+            this.pianoKeyboard.style.minWidth = 'auto';
+            this.pianoKeyboard.style.paddingBottom = '0';
+        }
+        
+        console.log(`Piano keyboard created with ${totalKeys} keys`);
     }
     
     countWhiteKeys(startNote, endNote) {
