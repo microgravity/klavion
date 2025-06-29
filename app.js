@@ -44,6 +44,10 @@ class PianoVisualizer {
         this.midiInputs = new Map(); // Store MIDI input devices
         this.selectedInputDevice = 'keyboard'; // Default to computer keyboard
         
+        // Screen recording settings
+        this.screenRecordingEnabled = true;
+        this.screenRecordingStream = null;
+        
         this.noteNames = [
             'ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'
         ];
@@ -111,6 +115,7 @@ class PianoVisualizer {
         this.setupMidiControls();
         this.setupMidiDeviceSelection();
         this.setupAudioControls();
+        this.setupScreenRecording();
         this.startVisualization();
         
         window.addEventListener('resize', () => this.onWindowResize());
@@ -1204,13 +1209,13 @@ class PianoVisualizer {
     
     async startRecording() {
         try {
-            console.log('🎬 Starting full-screen recording with piano keyboard...');
-            
-            // Capture the entire main content area (including piano keyboard)
-            const mainContent = document.querySelector('.main-content');
-            if (!mainContent) {
-                throw new Error('Main content area not found');
+            // Check if screen recording is enabled
+            if (!this.screenRecordingEnabled) {
+                alert('❌ 画面録画が無効になっています。\nチェックボックスをONにしてから録画してください。');
+                return;
             }
+            
+            console.log('🎬 Starting full-screen recording with piano keyboard...');
             
             // Use getDisplayMedia for screen capture with audio
             let stream;
@@ -1590,6 +1595,83 @@ class PianoVisualizer {
             console.log('🔧 Re-setting up MIDI handlers after auto-selection...');
         } else {
             console.log('⌨️ No MIDI devices available, using computer keyboard');
+        }
+    }
+    
+    async setupScreenRecording() {
+        const enableCheckbox = document.getElementById('screen-recording-enabled');
+        
+        // Setup checkbox event listener
+        enableCheckbox.addEventListener('change', (e) => {
+            this.screenRecordingEnabled = e.target.checked;
+            console.log(`🎬 Screen recording ${this.screenRecordingEnabled ? 'enabled' : 'disabled'}`);
+            
+            if (!this.screenRecordingEnabled && this.screenRecordingStream) {
+                // Stop existing stream if disabled
+                this.screenRecordingStream.getTracks().forEach(track => track.stop());
+                this.screenRecordingStream = null;
+                console.log('🛑 Screen recording stream stopped');
+            }
+        });
+        
+        // Show permission dialog on load if enabled
+        if (this.screenRecordingEnabled) {
+            setTimeout(() => {
+                this.requestScreenRecordingPermission();
+            }, 1000); // Wait 1 second after load
+        }
+    }
+    
+    async requestScreenRecordingPermission() {
+        if (!this.screenRecordingEnabled) return;
+        
+        const userConfirmed = confirm(
+            '🎬 画面録画機能を使用しますか？\n\n' +
+            '「OK」を選択すると：\n' +
+            '• ピアノ演奏を音付きでMP4録画できます\n' +
+            '• iPhoneでも再生可能な形式で保存されます\n' +
+            '• 録画時の権限確認をスキップできます\n\n' +
+            '「キャンセル」を選択すると：\n' +
+            '• 録画機能は無効になります\n' +
+            '• 後でチェックボックスから有効にできます'
+        );
+        
+        if (userConfirmed) {
+            try {
+                console.log('🎬 Requesting screen recording permission...');
+                
+                // Request permission and keep the stream for later use
+                this.screenRecordingStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        mediaSource: 'screen',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        sampleRate: 44100
+                    }
+                });
+                
+                console.log('✅ Screen recording permission granted');
+                alert('✅ 画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。');
+                
+                // Stop the stream for now - we'll create a new one when recording starts
+                this.screenRecordingStream.getTracks().forEach(track => track.stop());
+                this.screenRecordingStream = null;
+                
+            } catch (error) {
+                console.log('❌ Screen recording permission denied:', error);
+                this.screenRecordingEnabled = false;
+                document.getElementById('screen-recording-enabled').checked = false;
+                alert('❌ 画面録画の許可が拒否されました。\n録画機能を無効にしました。');
+            }
+        } else {
+            this.screenRecordingEnabled = false;
+            document.getElementById('screen-recording-enabled').checked = false;
+            console.log('👤 User declined screen recording permission');
         }
     }
 }
