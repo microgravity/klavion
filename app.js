@@ -95,31 +95,6 @@ class PianoVisualizer {
         this.animationFrameId = null;
         this.clock = null;
         
-        // Background image system
-        this.backgroundElement = null;
-        this.currentImages = [];
-        this.currentImageIndex = 0;
-        this.isSlideshow = false;
-        this.slideshowInterval = null;
-        this.backgroundOpacity = 0.3;
-        this.currentKeyword = '';
-        this.keywordHistory = new Set();
-        
-        // Key to keyword mapping
-        this.keyKeywords = {
-            'C': ['piano', 'nature', 'forest'],
-            'C#': ['crystal', 'electric', 'moonlight'],
-            'D': ['nature', 'ocean', 'piano'],
-            'D#': ['fire', 'crystal', 'electric'],
-            'E': ['electric', 'nature', 'fire'],
-            'F': ['forest', 'nature', 'ocean'],
-            'F#': ['crystal', 'electric', 'fire'],
-            'G': ['nature', 'forest', 'piano'],
-            'G#': ['moonlight', 'crystal', 'ocean'],
-            'A': ['piano', 'nature', 'forest'],
-            'A#': ['fire', 'electric', 'crystal'],
-            'B': ['ocean', 'moonlight', 'nature']
-        };
         
         this.init();
     }
@@ -133,7 +108,6 @@ class PianoVisualizer {
         this.setupKeyboardListeners();
         this.setupMidiControls();
         this.setupMidiDeviceSelection();
-        this.initBackgroundSystem();
         this.startVisualization();
         
         window.addEventListener('resize', () => this.onWindowResize());
@@ -496,9 +470,6 @@ class PianoVisualizer {
         this.synthesizeNote(frequency, velocity);
         this.visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp);
         
-        // Detect key and update background
-        const noteKey = this.noteNames[midiNote % 12];
-        this.updateBackgroundForKey(noteKey);
     }
     
     stopNote(midiNote, timestamp = performance.now()) {
@@ -756,215 +727,6 @@ class PianoVisualizer {
         document.getElementById('start-recording').addEventListener('click', () => this.startRecording());
         document.getElementById('stop-recording').addEventListener('click', () => this.stopRecording());
         document.getElementById('download-recording').addEventListener('click', () => this.downloadRecording());
-    }
-    
-    initBackgroundSystem() {
-        this.backgroundElement = document.getElementById('background-slideshow');
-        
-        // Set initial keyword
-        this.currentKeyword = 'piano';
-        this.loadImagesForKeyword(this.currentKeyword);
-        
-        // Setup background controls
-        const searchInput = document.getElementById('image-search');
-        const searchBtn = document.getElementById('search-images');
-        const prevBtn = document.getElementById('prev-image');
-        const nextBtn = document.getElementById('next-image');
-        const toggleBtn = document.getElementById('toggle-slideshow');
-        const opacitySlider = document.getElementById('bg-opacity');
-        const opacityValue = document.getElementById('opacity-value');
-        
-        searchBtn.addEventListener('click', () => {
-            const keyword = searchInput.value.trim();
-            if (keyword) {
-                this.currentKeyword = keyword;
-                this.loadImagesForKeyword(keyword);
-                searchInput.value = '';
-            }
-        });
-        
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                searchBtn.click();
-            }
-        });
-        
-        prevBtn.addEventListener('click', () => this.previousImage());
-        nextBtn.addEventListener('click', () => this.nextImage());
-        toggleBtn.addEventListener('click', () => this.toggleSlideshow());
-        
-        opacitySlider.addEventListener('input', (e) => {
-            this.backgroundOpacity = parseFloat(e.target.value);
-            opacityValue.textContent = e.target.value;
-            this.backgroundElement.style.opacity = this.backgroundOpacity;
-        });
-    }
-    
-    async loadImagesForKeyword(keyword) {
-        try {
-            // Use Unsplash with different approach to avoid CORS issues
-            const imageUrl = `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}`;
-            
-            // Create a test image to check if URL is accessible
-            const testImg = new Image();
-            testImg.crossOrigin = 'anonymous';
-            
-            testImg.onload = () => {
-                this.currentImages = [imageUrl];
-                this.currentImageIndex = 0;
-                this.updateBackgroundImage();
-                document.getElementById('current-keyword').textContent = `Current: ${keyword}`;
-                
-                // Pre-load additional images with different parameters
-                this.preloadAdditionalImages(keyword);
-            };
-            
-            testImg.onerror = () => {
-                console.log(`Image load failed for keyword: ${keyword}, using fallback`);
-                this.useFallbackBackground(keyword);
-            };
-            
-            testImg.src = imageUrl;
-            
-        } catch (error) {
-            console.error('Error loading images:', error);
-            this.useFallbackBackground(keyword);
-        }
-    }
-    
-    useFallbackBackground(keyword) {
-        // Use beautiful gradient backgrounds based on keywords
-        const gradients = {
-            'piano': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            'nature': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            'ocean': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-            'forest': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-            'fire': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            'crystal': 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-            'electric': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-            'moonlight': 'linear-gradient(135deg, #667db6 0%, #0082c8 100%)',
-            'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-        };
-        
-        const gradient = gradients[keyword] || gradients['default'];
-        this.backgroundElement.style.backgroundImage = gradient;
-        document.getElementById('current-keyword').textContent = `Current: ${keyword} (gradient)`;
-        
-        this.currentImages = [gradient];
-        this.currentImageIndex = 0;
-    }
-    
-    async preloadAdditionalImages(keyword) {
-        // Create additional gradient variations for slideshow
-        const additionalGradients = [
-            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&nature`,
-            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&art`,
-            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&abstract`,
-            `https://source.unsplash.com/1920x1080/?${encodeURIComponent(keyword)}&minimal`
-        ];
-        
-        // Test each image and use fallback gradients if they fail
-        const workingImages = [];
-        
-        for (const imageUrl of additionalGradients) {
-            try {
-                const testImg = new Image();
-                testImg.crossOrigin = 'anonymous';
-                
-                const loadPromise = new Promise((resolve) => {
-                    testImg.onload = () => resolve(imageUrl);
-                    testImg.onerror = () => resolve(null);
-                    testImg.src = imageUrl;
-                });
-                
-                const result = await Promise.race([
-                    loadPromise,
-                    new Promise(resolve => setTimeout(() => resolve(null), 3000)) // 3 second timeout
-                ]);
-                
-                if (result) {
-                    workingImages.push(result);
-                }
-            } catch (error) {
-                console.log(`Failed to load additional image: ${imageUrl}`);
-            }
-        }
-        
-        // Add working images to current images
-        if (workingImages.length > 0) {
-            this.currentImages = [...this.currentImages, ...workingImages];
-        }
-        
-    }
-    
-    updateBackgroundForKey(noteKey) {
-        const keywords = this.keyKeywords[noteKey];
-        if (keywords && keywords.length > 0) {
-            // Randomly select a keyword for this key
-            const keyword = keywords[Math.floor(Math.random() * keywords.length)];
-            
-            // For MIDI playback, allow more frequent changes
-            const shouldUpdate = keyword !== this.currentKeyword && 
-                (this.isPlaying || !this.keywordHistory.has(keyword));
-            
-            if (shouldUpdate) {
-                this.currentKeyword = keyword;
-                this.keywordHistory.add(keyword);
-                
-                // Keep history size manageable
-                if (this.keywordHistory.size > 20) {
-                    const firstItem = this.keywordHistory.values().next().value;
-                    this.keywordHistory.delete(firstItem);
-                }
-                
-                this.loadImagesForKeyword(keyword);
-            } else if (this.isPlaying && Math.random() < 0.3) {
-                // 30% chance to change image even with same keyword during MIDI playback
-                this.nextImage();
-            }
-        }
-    }
-    
-    updateBackgroundImage() {
-        if (this.currentImages.length > 0) {
-            const imageUrl = this.currentImages[this.currentImageIndex];
-            this.backgroundElement.style.backgroundImage = `url('${imageUrl}')`;
-            this.backgroundElement.style.opacity = this.backgroundOpacity;
-        }
-    }
-    
-    nextImage() {
-        if (this.currentImages.length > 1) {
-            this.currentImageIndex = (this.currentImageIndex + 1) % this.currentImages.length;
-            this.updateBackgroundImage();
-        }
-    }
-    
-    previousImage() {
-        if (this.currentImages.length > 1) {
-            this.currentImageIndex = this.currentImageIndex === 0 
-                ? this.currentImages.length - 1 
-                : this.currentImageIndex - 1;
-            this.updateBackgroundImage();
-        }
-    }
-    
-    toggleSlideshow() {
-        const toggleBtn = document.getElementById('toggle-slideshow');
-        
-        if (this.isSlideshow) {
-            // Stop slideshow
-            clearInterval(this.slideshowInterval);
-            this.isSlideshow = false;
-            toggleBtn.textContent = '▶ Auto';
-        } else {
-            // Start slideshow
-            this.slideshowInterval = setInterval(() => {
-                this.nextImage();
-            }, 5000); // Change image every 5 seconds
-            this.isSlideshow = true;
-            toggleBtn.textContent = '⏸ Auto';
-        }
     }
     
     setupMidiControls() {
