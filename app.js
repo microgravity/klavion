@@ -25,7 +25,9 @@ class PianoVisualizer {
             motionBlur: 0.3,
             glowIntensity: 1.0,
             fontFamily: 'Inter',
-            pianoRange: '3-octave'
+            pianoRange: '3-octave',
+            volume: 0.7,
+            isMuted: false
         };
         
         // Piano configuration
@@ -108,6 +110,7 @@ class PianoVisualizer {
         this.setupKeyboardListeners();
         this.setupMidiControls();
         this.setupMidiDeviceSelection();
+        this.setupAudioControls();
         this.startVisualization();
         
         window.addEventListener('resize', () => this.onWindowResize());
@@ -491,14 +494,23 @@ class PianoVisualizer {
     synthesizeNote(frequency, velocity) {
         if (!this.audioContext) return;
         
+        // Check if audio is muted
+        if (this.settings.isMuted) {
+            console.log(`🔇 Audio synthesis skipped - muted`);
+            return;
+        }
+        
         const oscillator = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
         
-        const volume = (velocity / 127) * 0.3;
-        gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
+        // Apply both velocity and global volume settings
+        const velocityVolume = (velocity / 127) * 0.3;
+        const finalVolume = velocityVolume * this.settings.volume;
+        
+        gainNode.gain.setValueAtTime(finalVolume, this.audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1);
         
         oscillator.connect(gainNode);
@@ -506,6 +518,8 @@ class PianoVisualizer {
         
         oscillator.start();
         oscillator.stop(this.audioContext.currentTime + 1);
+        
+        console.log(`🎵 Synthesized note: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${finalVolume.toFixed(3)}`);
     }
     
     visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp) {
@@ -1345,6 +1359,34 @@ class PianoVisualizer {
             return null;
         }
         return this.midiInputs.get(this.selectedInputDevice);
+    }
+    
+    setupAudioControls() {
+        const volumeSlider = document.getElementById('volume-control');
+        const volumeValue = document.getElementById('volume-value');
+        const muteButton = document.getElementById('mute-button');
+        
+        // Volume slider
+        volumeSlider.addEventListener('input', (e) => {
+            this.settings.volume = parseFloat(e.target.value);
+            volumeValue.textContent = e.target.value;
+            console.log(`🔊 Volume changed: ${this.settings.volume}`);
+        });
+        
+        // Mute button
+        muteButton.addEventListener('click', () => {
+            this.settings.isMuted = !this.settings.isMuted;
+            
+            if (this.settings.isMuted) {
+                muteButton.textContent = '🔇 Muted';
+                muteButton.classList.add('muted');
+                console.log(`🔇 Audio muted`);
+            } else {
+                muteButton.textContent = '🔊 Unmuted';
+                muteButton.classList.remove('muted');
+                console.log(`🔊 Audio unmuted`);
+            }
+        });
     }
 }
 
