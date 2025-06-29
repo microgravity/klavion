@@ -37,6 +37,8 @@ class PianoVisualizer {
         
         
         this.hasMidiInput = false;
+        this.midiActivityLog = [];
+        this.midiDevices = [];
         
         this.noteNames = [
             'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
@@ -258,11 +260,15 @@ class PianoVisualizer {
             
             // Check if any MIDI inputs are available
             let hasInputs = false;
+            this.midiDevices = [];
             for (let input of this.midiAccess.inputs.values()) {
                 input.onmidimessage = (message) => this.handleMIDIMessage(message);
                 console.log(`MIDI Input connected: ${input.name}`);
+                this.midiDevices.push(input.name);
                 hasInputs = true;
             }
+            
+            this.updateMidiStatus();
             
             if (hasInputs) {
                 this.hasMidiInput = true;
@@ -288,6 +294,12 @@ class PianoVisualizer {
                             this.recreatePianoKeyboard();
                             console.log('MIDI input detected - enabled 88-key mode');
                         }
+                        
+                        // Update device list
+                        if (!this.midiDevices.includes(port.name)) {
+                            this.midiDevices.push(port.name);
+                        }
+                        this.updateMidiStatus();
                     } else if (port.state === 'disconnected') {
                         console.log(`MIDI Input disconnected: ${port.name}`);
                         
@@ -300,6 +312,10 @@ class PianoVisualizer {
                             }
                         }
                         this.hasMidiInput = stillHasInputs;
+                        
+                        // Remove device from list
+                        this.midiDevices = this.midiDevices.filter(name => name !== port.name);
+                        this.updateMidiStatus();
                     }
                 }
             };
@@ -314,11 +330,29 @@ class PianoVisualizer {
         const [command, note, velocity] = message.data;
         const timestamp = message.timeStamp || performance.now();
         
+        // Log MIDI activity
+        this.logMidiActivity(`CMD:${command} Note:${note} Vel:${velocity}`);
+        
         // Handle with minimal latency
         if (command === 144 && velocity > 0) {
+            // Note On
+            const noteName = this.midiNoteToNoteName(note);
+            this.logMidiActivity(`▶ ${noteName} (${note}) vel:${velocity}`);
             this.playNote(note, velocity, timestamp);
         } else if (command === 128 || (command === 144 && velocity === 0)) {
+            // Note Off
+            const noteName = this.midiNoteToNoteName(note);
+            this.logMidiActivity(`⏹ ${noteName} (${note})`);
             this.stopNote(note, timestamp);
+        } else if ((command & 0xF0) === 0xB0) {
+            // Control Change
+            this.logMidiActivity(`CC:${note} Val:${velocity}`);
+        } else if ((command & 0xF0) === 0xC0) {
+            // Program Change
+            this.logMidiActivity(`PC:${note}`);
+        } else {
+            // Other MIDI messages
+            this.logMidiActivity(`Other: ${command}:${note}:${velocity}`);
         }
     }
     
@@ -1388,6 +1422,32 @@ class PianoVisualizer {
         
         URL.revokeObjectURL(url);
         document.getElementById('download-recording').disabled = true;
+    }
+    
+    updateMidiStatus() {
+        const midiDevicesElement = document.getElementById('midi-devices');
+        if (this.midiDevices.length > 0) {
+            midiDevicesElement.textContent = `Connected: ${this.midiDevices.join(', ')}`;
+        } else {
+            midiDevicesElement.textContent = 'No MIDI devices connected';
+        }
+    }
+    
+    logMidiActivity(message) {
+        const activityElement = document.getElementById('midi-activity');
+        const timestamp = new Date().toLocaleTimeString();
+        
+        // Add new activity log entry
+        this.midiActivityLog.unshift(`[${timestamp}] ${message}`);
+        
+        // Keep only the last 10 entries
+        if (this.midiActivityLog.length > 10) {
+            this.midiActivityLog = this.midiActivityLog.slice(0, 10);
+        }
+        
+        // Update the display
+        activityElement.textContent = this.midiActivityLog.join('\n');
+        activityElement.scrollTop = 0; // Scroll to top to show newest entries
     }
 }
 
