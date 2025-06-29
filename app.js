@@ -502,10 +502,15 @@ class PianoVisualizer {
     synthesizeNote(frequency, velocity) {
         if (!this.audioContext) return;
         
-        // Check if audio is muted
-        if (this.settings.isMuted) {
+        // Check if audio is muted (but allow during recording)
+        if (this.settings.isMuted && !this.isRecording) {
             console.log(`🔇 Audio synthesis skipped - muted`);
             return;
+        }
+        
+        // Always play audio during recording
+        if (this.isRecording) {
+            console.log(`🎬 Recording mode: Audio synthesis enabled`);
         }
         
         const oscillator = this.audioContext.createOscillator();
@@ -1199,7 +1204,45 @@ class PianoVisualizer {
     
     async startRecording() {
         try {
-            const stream = this.renderer.domElement.captureStream(30);
+            console.log('🎬 Starting full-screen recording with piano keyboard...');
+            
+            // Capture the entire main content area (including piano keyboard)
+            const mainContent = document.querySelector('.main-content');
+            if (!mainContent) {
+                throw new Error('Main content area not found');
+            }
+            
+            // Use getDisplayMedia for screen capture with audio
+            let stream;
+            try {
+                // Try to capture with audio
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        mediaSource: 'screen',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        sampleRate: 44100
+                    }
+                });
+                console.log('✅ Screen capture with audio enabled');
+            } catch (audioError) {
+                console.log('⚠️ Audio capture failed, using video only:', audioError);
+                // Fallback to video only
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        mediaSource: 'screen',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                });
+            }
             
             // Try different codecs based on browser support
             let options = { mimeType: 'video/webm;codecs=vp9' };
@@ -1210,6 +1253,8 @@ class PianoVisualizer {
                 }
             }
             
+            console.log(`🎥 Using codec: ${options.mimeType}`);
+            
             this.mediaRecorder = new MediaRecorder(stream, options);
             
             this.recordedChunks = [];
@@ -1217,11 +1262,15 @@ class PianoVisualizer {
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     this.recordedChunks.push(event.data);
+                    console.log(`📹 Recorded chunk: ${event.data.size} bytes`);
                 }
             };
             
             this.mediaRecorder.onstop = () => {
+                console.log('🛑 Recording stopped');
                 document.getElementById('download-recording').disabled = false;
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
             };
             
             this.mediaRecorder.start();
@@ -1230,18 +1279,24 @@ class PianoVisualizer {
             document.getElementById('start-recording').disabled = true;
             document.getElementById('stop-recording').disabled = false;
             
+            console.log('🔴 Recording started successfully');
+            
         } catch (error) {
             console.error('Failed to start recording:', error);
+            alert('録画を開始できませんでした。ブラウザで画面共有の許可が必要です。');
         }
     }
     
     stopRecording() {
         if (this.mediaRecorder && this.isRecording) {
+            console.log('🛑 Stopping recording...');
             this.mediaRecorder.stop();
             this.isRecording = false;
             
             document.getElementById('start-recording').disabled = false;
             document.getElementById('stop-recording').disabled = true;
+            
+            console.log('📹 Recording stopped, audio synthesis reverted to normal mode');
         }
     }
     
