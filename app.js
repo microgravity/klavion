@@ -257,6 +257,7 @@ class PianoVisualizer {
             }
             
             this.updateMidiDeviceList();
+            this.autoSelectMidiDevice();
             this.setupMidiInputHandlers();
             this.updateMidiStatus();
             
@@ -290,6 +291,7 @@ class PianoVisualizer {
                         }
                         this.midiInputs.set(port.id, port);
                         this.updateMidiDeviceList();
+                        this.autoSelectMidiDevice();
                         this.setupMidiInputHandlers();
                         this.updateMidiStatus();
                     } else if (port.state === 'disconnected') {
@@ -341,11 +343,15 @@ class PianoVisualizer {
             return; // Ignore MIDI messages when keyboard is selected
         }
         
-        // Check if message is from selected device
-        const selectedInput = this.getSelectedMidiInput();
-        if (!selectedInput) {
-            console.log(`⚠️ MIDI input ignored - No valid device selected`);
-            return; // No valid MIDI device selected
+        // Check if message is from selected device (only if we have multiple devices)
+        if (this.midiInputs.size > 1) {
+            const selectedInput = this.getSelectedMidiInput();
+            if (!selectedInput) {
+                console.log(`⚠️ MIDI input ignored - No valid device selected`);
+                return; // No valid MIDI device selected
+            }
+        } else {
+            console.log(`✅ MIDI input accepted - Single device mode`);
         }
         
         // Log MIDI activity
@@ -358,12 +364,14 @@ class PianoVisualizer {
             console.log(`🎵 Note ON: ${noteName} (MIDI:${note}) velocity:${velocity}`);
             this.logMidiActivity(`▶ ${noteName} (${note}) vel:${velocity}`);
             this.playNote(note, velocity, timestamp);
+            this.highlightPianoKey(note, true); // Highlight the key
         } else if (command === 128 || (command === 144 && velocity === 0)) {
             // Note Off
             const noteName = this.midiNoteToNoteName(note);
             console.log(`🎵 Note OFF: ${noteName} (MIDI:${note})`);
             this.logMidiActivity(`⏹ ${noteName} (${note})`);
             this.stopNote(note, timestamp);
+            this.highlightPianoKey(note, false); // Remove highlight
         } else if ((command & 0xF0) === 0xB0) {
             // Control Change
             console.log(`🎛️ Control Change: CC${note} = ${velocity}`);
@@ -1331,6 +1339,7 @@ class PianoVisualizer {
     
     setupMidiInputHandlers() {
         console.log(`🔧 Setting up MIDI input handlers for device: ${this.selectedInputDevice}`);
+        console.log(`📊 Available devices:`, Array.from(this.midiInputs.keys()));
         
         // Clear all existing handlers
         let clearedCount = 0;
@@ -1340,14 +1349,27 @@ class PianoVisualizer {
         }
         console.log(`🧹 Cleared ${clearedCount} existing MIDI handlers`);
         
-        // Set up handler for selected device only
+        // Set up handler for selected device or all devices if single device
         if (this.selectedInputDevice !== 'keyboard') {
-            const selectedInput = this.midiInputs.get(this.selectedInputDevice);
-            if (selectedInput) {
-                selectedInput.onmidimessage = (message) => this.handleMIDIMessage(message);
-                console.log(`✅ MIDI handler set for: ${selectedInput.name} (ID: ${this.selectedInputDevice})`);
+            if (this.midiInputs.size === 1) {
+                // If only one device, set handler for that device regardless of selection
+                const singleDevice = this.midiInputs.values().next().value;
+                singleDevice.onmidimessage = (message) => this.handleMIDIMessage(message);
+                console.log(`✅ Single device mode - MIDI handler set for: ${singleDevice.name}`);
             } else {
-                console.log(`❌ Failed to find selected MIDI device: ${this.selectedInputDevice}`);
+                // Multiple devices - use selected device
+                const selectedInput = this.midiInputs.get(this.selectedInputDevice);
+                if (selectedInput) {
+                    selectedInput.onmidimessage = (message) => this.handleMIDIMessage(message);
+                    console.log(`✅ MIDI handler set for selected device: ${selectedInput.name} (ID: ${this.selectedInputDevice})`);
+                } else {
+                    console.log(`❌ Failed to find selected MIDI device: ${this.selectedInputDevice}`);
+                    // Fallback: set handlers for all devices
+                    for (const [id, input] of this.midiInputs) {
+                        input.onmidimessage = (message) => this.handleMIDIMessage(message);
+                        console.log(`🔄 Fallback: Set handler for ${input.name}`);
+                    }
+                }
             }
         } else {
             console.log(`⌨️ Computer keyboard mode - MIDI handlers disabled`);
@@ -1387,6 +1409,87 @@ class PianoVisualizer {
                 console.log(`🔊 Audio unmuted`);
             }
         });
+    }
+    
+    autoSelectMidiDevice() {
+        // If already using a MIDI device (not keyboard), don't change
+        if (this.selectedInputDevice !== 'keyboard') {
+            return;
+        }
+        
+        // Look for 88-key piano keywords in device names
+        const pianoKeywords = [
+            'piano', 'keyboard', 'stage', 'digital piano', 'electric piano',
+            'clavinova', 'rd-', 'fp-', 'p-', 'ca-', 'es-', 'cp-', 'ydp-',
+            'kawai', 'yamaha', 'roland', 'korg', 'casio', 'nord',
+            '88', 'weighted', 'hammer'
+        ];
+        
+        let bestDevice = null;
+        let highestScore = 0;
+        
+        console.log('🔍 Searching for 88-key MIDI device...');
+        
+        for (const [id, input] of this.midiInputs) {
+            const deviceName = input.name.toLowerCase();
+            let score = 0;
+            
+            // Score based on piano-related keywords
+            for (const keyword of pianoKeywords) {
+                if (deviceName.includes(keyword)) {
+                    score += 1;
+                    console.log(`  ✓ "${input.name}" matches keyword: "${keyword}"`);
+                }
+            }
+            
+            // Higher score for devices with explicit 88-key indicators
+            if (deviceName.includes('88')) {
+                score += 3;
+                console.log(`  ⭐ "${input.name}" has 88-key indicator (+3 points)`);
+            }
+            
+            // Prefer devices with "piano" or "keyboard" in name
+            if (deviceName.includes('piano') || deviceName.includes('keyboard')) {
+                score += 2;
+                console.log(`  🎹 "${input.name}" is identified as piano/keyboard (+2 points)`);
+            }
+            
+            console.log(`  📊 "${input.name}" total score: ${score}`);
+            
+            if (score > highestScore) {
+                bestDevice = { id, input };
+                highestScore = score;
+            }
+        }
+        
+        // Auto-select the best device if found
+        if (bestDevice && highestScore >= 1) {
+            const oldDevice = this.selectedInputDevice;
+            this.selectedInputDevice = bestDevice.id;
+            document.getElementById('midi-input-select').value = bestDevice.id;
+            
+            console.log(`🎹 Auto-selected MIDI device: "${bestDevice.input.name}" (score: ${highestScore})`);
+            console.log(`🔄 Device changed from "${oldDevice}" to "${bestDevice.id}"`);
+            this.logMidiActivity(`Auto-selected: ${bestDevice.input.name}`);
+            
+            // Force re-setup of MIDI handlers after auto-selection
+            console.log('🔧 Re-setting up MIDI handlers after auto-selection...');
+        } else if (this.midiInputs.size > 0) {
+            // If no piano-like device found, select the first available MIDI device
+            const firstDevice = this.midiInputs.entries().next().value;
+            const oldDevice = this.selectedInputDevice;
+            this.selectedInputDevice = firstDevice[0];
+            document.getElementById('midi-input-select').value = firstDevice[0];
+            
+            console.log(`🎛️ Auto-selected first MIDI device: "${firstDevice[1].name}"`);
+            console.log(`🔄 Device changed from "${oldDevice}" to "${firstDevice[0]}"`);
+            this.logMidiActivity(`Auto-selected: ${firstDevice[1].name}`);
+            
+            // Force re-setup of MIDI handlers after auto-selection
+            console.log('🔧 Re-setting up MIDI handlers after auto-selection...');
+        } else {
+            console.log('⌨️ No MIDI devices available, using computer keyboard');
+        }
     }
 }
 
