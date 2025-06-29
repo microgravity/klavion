@@ -24,7 +24,7 @@ class PianoVisualizer {
             particleCount: 200,
             motionBlur: 0.3,
             glowIntensity: 1.0,
-            fontFamily: 'Inter',
+            fontFamily: 'Noto Sans JP',
             pianoRange: '3-octave',
             volume: 0.7,
             isMuted: false
@@ -45,7 +45,7 @@ class PianoVisualizer {
         this.selectedInputDevice = 'keyboard'; // Default to computer keyboard
         
         this.noteNames = [
-            'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
+            'ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'
         ];
         
         this.keyLayout = [
