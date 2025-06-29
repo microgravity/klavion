@@ -1,0 +1,476 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: white;
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+}
+
+.sidebar {
+    width: 280px;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    overflow-y: auto;
+    max-height: 100vh;
+}
+
+.sidebar h2 {
+    margin-bottom: 20px;
+    color: #4FC3F7;
+}
+
+.sidebar h3 {
+    margin: 20px 0 10px 0;
+    color: #81C784;
+}
+
+.control-group {
+    margin-bottom: 15px;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    color: #E0E0E0;
+}
+
+.control-group input[type="range"] {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.control-group span {
+    font-size: 12px;
+    color: #FFB74D;
+}
+
+.control-group select {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 12px;
+}
+
+.control-group select option {
+    background: #333;
+    color: white;
+}
+
+.recording-controls button {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    border: none;
+    border-radius: 5px;
+    background: #4FC3F7;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.recording-controls button:hover:not(:disabled) {
+    background: #29B6F6;
+}
+
+.recording-controls button:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+
+.midi-controls {
+    margin: 20px 0;
+}
+
+.midi-controls h3 {
+    margin-bottom: 10px;
+    color: #E91E63;
+}
+
+.midi-controls button {
+    width: 100%;
+    padding: 8px;
+    margin: 3px 0;
+    border: none;
+    border-radius: 5px;
+    background: #E91E63;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.3s;
+}
+
+.midi-controls button:hover:not(:disabled) {
+    background: #C2185B;
+}
+
+.midi-controls button:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+
+.tempo-control {
+    margin: 10px 0;
+}
+
+.tempo-control label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #E0E0E0;
+}
+
+.tempo-control input[type="range"] {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.tempo-control span {
+    font-size: 12px;
+    color: #FFB74D;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+#progress-fill {
+    height: 100%;
+    background: #E91E63;
+    width: 0%;
+    transition: width 0.1s ease;
+}
+
+#midi-info {
+    font-size: 11px;
+    color: #B0B0B0;
+    margin-top: 5px;
+}
+
+.background-controls {
+    margin: 20px 0;
+}
+
+.background-controls h3 {
+    margin-bottom: 10px;
+    color: #9C27B0;
+}
+
+.search-container {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.search-container input {
+    flex: 1;
+    padding: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 12px;
+}
+
+.search-container button {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 3px;
+    background: #9C27B0;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.slideshow-controls {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.slideshow-controls button {
+    flex: 1;
+    padding: 5px;
+    border: none;
+    border-radius: 3px;
+    background: #9C27B0;
+    color: white;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.slideshow-controls button:hover {
+    background: #7B1FA2;
+}
+
+.opacity-control {
+    margin-bottom: 10px;
+}
+
+.opacity-control label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #E0E0E0;
+}
+
+.opacity-control input[type="range"] {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.opacity-control span {
+    font-size: 12px;
+    color: #FFB74D;
+}
+
+#current-keyword {
+    font-size: 11px;
+    color: #B0B0B0;
+    font-style: italic;
+}
+
+#background-slideshow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.3;
+    transition: opacity 0.5s ease, background-image 1s ease;
+    z-index: 1;
+}
+
+.keyboard-help {
+    margin: 20px 0;
+}
+
+.keyboard-help h3 {
+    margin-bottom: 10px;
+    color: #FFB74D;
+}
+
+.key-mapping {
+    font-size: 12px;
+}
+
+.mapping-row {
+    display: flex;
+    margin-bottom: 5px;
+    gap: 5px;
+}
+
+.mapping-row .key {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    min-width: 20px;
+    text-align: center;
+    font-weight: bold;
+    color: #4FC3F7;
+}
+
+.mapping-row .note {
+    background: rgba(129, 199, 132, 0.2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    min-width: 25px;
+    text-align: center;
+    color: #81C784;
+    margin-right: 10px;
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+#three-container {
+    width: 100%;
+    height: calc(100vh - 120px);
+    background: linear-gradient(45deg, #0d1421, #1a252f);
+    position: relative;
+    overflow: hidden;
+    z-index: 2;
+}
+
+#three-container canvas {
+    display: block;
+}
+
+.piano-container {
+    position: fixed;
+    bottom: 0;
+    left: 280px;
+    right: 0;
+    height: 120px;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    z-index: 100;
+}
+
+.piano-keyboard {
+    display: flex;
+    height: 80px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 100%;
+}
+
+.piano-keyboard::-webkit-scrollbar {
+    height: 8px;
+}
+
+.piano-keyboard::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.piano-keyboard::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.piano-keyboard::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.piano-key {
+    position: relative;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    user-select: none;
+}
+
+.piano-key.white {
+    width: 40px;
+    height: 80px;
+    background: linear-gradient(180deg, #ffffff, #f0f0f0);
+    border: 1px solid #ccc;
+    border-radius: 0 0 4px 4px;
+}
+
+.piano-key.black {
+    width: 28px;
+    height: 50px;
+    background: linear-gradient(180deg, #2d2d2d, #1a1a1a);
+    border: 1px solid #000;
+    border-radius: 0 0 2px 2px;
+    margin-left: -14px;
+    margin-right: -14px;
+    z-index: 2;
+}
+
+.piano-key:hover {
+    transform: translateY(1px);
+}
+
+.piano-key.pressed {
+    transform: translateY(2px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.piano-key.white.pressed {
+    background: linear-gradient(180deg, #e0e0e0, #d0d0d0);
+}
+
+.piano-key.black.pressed {
+    background: linear-gradient(180deg, #1a1a1a, #0d0d0d);
+}
+
+.note-display {
+    position: fixed;
+    font-weight: bold;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.6), 
+                 0 0 40px rgba(255, 255, 255, 0.3),
+                 2px 2px 8px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    z-index: 1000;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    letter-spacing: 0.05em;
+    animation: noteAnimation 3s ease-out forwards;
+    backdrop-filter: blur(1px);
+    border-radius: 8px;
+    padding: 4px 8px;
+    background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1), 
+                rgba(255, 255, 255, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transform-style: preserve-3d;
+    perspective: 1000px;
+}
+
+@keyframes noteAnimation {
+    0% {
+        opacity: 0;
+        transform: scale(0.1) translateY(50px) translateZ(-200px);
+        filter: blur(8px);
+    }
+    15% {
+        opacity: 0.3;
+        transform: scale(0.4) translateY(0px) translateZ(-150px);
+        filter: blur(5px);
+    }
+    35% {
+        opacity: 0.8;
+        transform: scale(0.8) translateY(-50px) translateZ(-50px);
+        filter: blur(2px);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.2) translateY(-150px) translateZ(0px);
+        filter: blur(0px);
+    }
+    75% {
+        opacity: 0.9;
+        transform: scale(1.1) translateY(-300px) translateZ(20px);
+        filter: blur(0px);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.6) translateY(-500px) translateZ(50px);
+        filter: blur(4px);
+    }
+}
+
+.note-display.large {
+    font-size: 2.5em;
+}
+
+.note-display.medium {
+    font-size: 2em;
+}
+
+.note-display.small {
+    font-size: 1.5em;
+}
