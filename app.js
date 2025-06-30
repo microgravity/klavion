@@ -192,14 +192,6 @@ class PianoVisualizer {
         this.setupScreenRecording();
         this.startVisualization();
         
-        // Test sprite creation after initialization
-        setTimeout(() => {
-            if (this.scene && this.renderer) {
-                console.log('🧪 Creating test sprite...');
-                this.visualizeNoteThreeJS('テスト', 60, 100, performance.now());
-            }
-        }, 1000);
-        
         window.addEventListener('resize', () => this.onWindowResize());
     }
     
