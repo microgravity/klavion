@@ -8,6 +8,7 @@ class PianoVisualizer {
         this.camera = null;
         this.renderer = null;
         this.noteObjects = [];
+        this.activeNoteSprites = new Map(); // Track active note sprites by MIDI note
         this.particleSystem = null;
         this.audioContext = null;
         this.midiAccess = null;
@@ -652,7 +653,19 @@ class PianoVisualizer {
     }
     
     stopNote(midiNote, timestamp = performance.now()) {
-        // If sustain pedal is pressed, don't stop the note immediately
+        // Mark visual note as inactive
+        if (this.activeNoteSprites.has(midiNote)) {
+            const sprite = this.activeNoteSprites.get(midiNote);
+            if (sprite.userData) {
+                sprite.userData.isActive = false;
+                sprite.userData.movementPhase = 'falling';
+                sprite.userData.noteOffTime = timestamp;
+                console.log(`🎵 Note ${this.midiNoteToNoteName(midiNote)} marked for visual fade`);
+            }
+            this.activeNoteSprites.delete(midiNote);
+        }
+        
+        // If sustain pedal is pressed, don't stop the audio immediately
         if (this.sustainPedalPressed) {
             this.sustainedNotes.add(midiNote);
             console.log(`🦶 Note ${this.midiNoteToNoteName(midiNote)} sustained by pedal`);
@@ -1285,33 +1298,54 @@ class PianoVisualizer {
         const displaySize = size * (2 + this.settings.sizeMultiplier);
         sprite.scale.set(displaySize, displaySize * 0.7, 1);
         
-        // Animation properties with velocity-based duration
-        const velocityDurationMultiplier = 1 + (velocity / 127) * 0.5; // Faster notes last slightly longer
+        // Enhanced animation properties for sustained notes
         sprite.userData = {
             startTime: timestamp,
-            duration: this.settings.fadeDuration * 1000 * velocityDurationMultiplier,
+            midiNote: midiNote,
             startY: -10,
             endY: 10, // Go to top of screen
             velocity: velocity,
             originalScale: size,
-            displaySize: displaySize
+            displaySize: displaySize,
+            isActive: true, // Track if note is still being played
+            sustainStartTime: timestamp, // When the sustained phase started
+            movementPhase: 'rising' // 'rising', 'sustained', 'falling'
         };
         
         this.scene.add(sprite);
         this.noteObjects.push(sprite);
         
+        // Track active note sprite
+        if (this.activeNoteSprites.has(midiNote)) {
+            // If there's already an active note, mark the old one for fading
+            const oldSprite = this.activeNoteSprites.get(midiNote);
+            if (oldSprite.userData) {
+                oldSprite.userData.isActive = false;
+                oldSprite.userData.movementPhase = 'falling';
+            }
+        }
+        this.activeNoteSprites.set(midiNote, sprite);
+        
         // Debug: Log sprite creation and positioning
         console.log(`🎨 Sprite created: ${mainText}, position: (${x.toFixed(2)}, ${sprite.position.y}, ${sprite.position.z}), scale: ${displaySize.toFixed(2)}`);
         console.log(`📊 Scene stats: ${this.noteObjects.length} sprites, camera pos: (${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z})`);
         
-        // Clean up old notes
-        if (this.noteObjects.length > 50) {
+        // Clean up old notes (less aggressive cleanup since notes last longer now)
+        if (this.noteObjects.length > 100) {
             const oldSprite = this.noteObjects.shift();
             this.scene.remove(oldSprite);
             if (oldSprite.material.map) {
                 oldSprite.material.map.dispose();
             }
             oldSprite.material.dispose();
+            
+            // Also clean up from activeNoteSprites if it exists there
+            for (const [midiNote, sprite] of this.activeNoteSprites.entries()) {
+                if (sprite === oldSprite) {
+                    this.activeNoteSprites.delete(midiNote);
+                    break;
+                }
+            }
         }
     }
     
@@ -2203,53 +2237,99 @@ class PianoVisualizer {
                 console.log(`🎵 Animation loop running - Active sprites: ${this.noteObjects.length}`);
             }
             
-            // Update note sprites
+            // Update note sprites with sustained note logic
             for (let i = this.noteObjects.length - 1; i >= 0; i--) {
                 const sprite = this.noteObjects[i];
                 const userData = sprite.userData;
-                const elapsed = currentTime - userData.startTime;
-                const progress = elapsed / userData.duration;
+                const velocityIntensity = userData.velocity / 127;
+                const motionBlurFactor = this.settings.motionBlur;
                 
-                if (progress >= 1.0) {
-                    // Remove completed animation
+                let shouldRemove = false;
+                
+                if (userData.movementPhase === 'rising') {
+                    // Rising phase: 0.5 seconds to reach sustain position
+                    const risingDuration = 500; // 0.5 seconds
+                    const elapsed = currentTime - userData.startTime;
+                    const progress = Math.min(1, elapsed / risingDuration);
+                    
+                    if (progress >= 1.0) {
+                        // Transition to sustained phase
+                        userData.movementPhase = userData.isActive ? 'sustained' : 'falling';
+                        userData.sustainStartTime = currentTime;
+                        sprite.position.y = 2; // Sustain position
+                    } else {
+                        // Animate upward with smooth easing
+                        const easeOut = 1 - Math.pow(1 - progress, 2);
+                        sprite.position.y = userData.startY + easeOut * (2 - userData.startY); // Rise to y=2
+                        
+                        // Fade in
+                        sprite.material.opacity = Math.min(1, progress * 3);
+                    }
+                } else if (userData.movementPhase === 'sustained') {
+                    // Sustained phase: gentle floating animation
+                    sprite.position.y = 2; // Stay at sustain position
+                    
+                    // Gentle floating effect
+                    const floatTime = (currentTime - userData.sustainStartTime) / 1000;
+                    const floatOffset = Math.sin(floatTime * 2) * 0.2; // Gentle up/down
+                    sprite.position.y += floatOffset;
+                    
+                    // Gentle pulsing
+                    const pulseScale = 1 + Math.sin(floatTime * 1.5) * 0.05;
+                    sprite.scale.set(
+                        userData.displaySize * pulseScale, 
+                        userData.displaySize * 0.7 * pulseScale, 
+                        1
+                    );
+                    
+                    // Stable opacity with slight breathing effect
+                    const breathingOpacity = 0.8 + Math.sin(floatTime) * 0.1;
+                    sprite.material.opacity = Math.min(1, breathingOpacity + velocityIntensity * 0.2);
+                    
+                    // Check if note should start falling
+                    if (!userData.isActive) {
+                        userData.movementPhase = 'falling';
+                        userData.fallStartTime = currentTime;
+                    }
+                } else if (userData.movementPhase === 'falling') {
+                    // Falling phase: fade out and move upward to disappear
+                    const fallDuration = 1000; // 1 second to fade out
+                    const elapsed = currentTime - (userData.noteOffTime || userData.fallStartTime || currentTime);
+                    const progress = Math.min(1, elapsed / fallDuration);
+                    
+                    if (progress >= 1.0) {
+                        shouldRemove = true;
+                    } else {
+                        // Continue moving upward while fading
+                        const easeIn = Math.pow(progress, 1.5);
+                        sprite.position.y = 2 + easeIn * 8; // Move from sustain position to top
+                        
+                        // Fade out
+                        sprite.material.opacity = (1 - progress) * (0.8 + velocityIntensity * 0.2);
+                        
+                        // Slight scale reduction
+                        const fadeScale = 1 - progress * 0.2;
+                        sprite.scale.set(
+                            userData.displaySize * fadeScale, 
+                            userData.displaySize * 0.7 * fadeScale, 
+                            1
+                        );
+                    }
+                }
+                
+                // Add motion blur and rotation effects for all phases
+                sprite.position.z = Math.sin((currentTime - userData.startTime) / 1000 * Math.PI) * (1 + motionBlurFactor * 2);
+                const rotationIntensity = motionBlurFactor * velocityIntensity * 0.1;
+                sprite.material.rotation = Math.sin((currentTime - userData.startTime) / 1000 * Math.PI * 2) * rotationIntensity;
+                
+                // Remove sprite if needed
+                if (shouldRemove) {
                     this.scene.remove(sprite);
                     if (sprite.material.map) {
                         sprite.material.map.dispose();
                     }
                     sprite.material.dispose();
                     this.noteObjects.splice(i, 1);
-                } else {
-                    // Update animation with smooth easing and motion blur
-                    const easeOut = 1 - Math.pow(1 - progress, 2.5);
-                    
-                    // Position animation (flying upward across full screen)
-                    const totalDistance = userData.endY - userData.startY;
-                    sprite.position.y = userData.startY + easeOut * totalDistance;
-                    
-                    // Add motion blur effect
-                    const motionBlurFactor = this.settings.motionBlur;
-                    sprite.position.z = Math.sin(progress * Math.PI) * (2 + motionBlurFactor * 3);
-                    
-                    // Scale animation with velocity-based bounce
-                    const velocityIntensity = userData.velocity / 127;
-                    const bounceIntensity = 0.1 + velocityIntensity * 0.3;
-                    const bounceScale = 1 + Math.sin(progress * Math.PI * 2) * bounceIntensity;
-                    const scale = userData.originalScale * bounceScale;
-                    sprite.scale.set(userData.displaySize * bounceScale, userData.displaySize * 0.7 * bounceScale, 1);
-                    
-                    // Velocity-based opacity animation
-                    const fadeSpeed = 4 + velocityIntensity * 4; // Stronger notes fade differently
-                    if (progress < 0.15) {
-                        sprite.material.opacity = progress * fadeSpeed;
-                    } else if (progress > 0.85) {
-                        sprite.material.opacity = (1 - progress) * fadeSpeed;
-                    } else {
-                        sprite.material.opacity = Math.min(1, 0.7 + velocityIntensity * 0.3);
-                    }
-                    
-                    // Add rotation based on velocity and motion blur
-                    const rotationIntensity = motionBlurFactor * velocityIntensity;
-                    sprite.material.rotation = Math.sin(progress * Math.PI * 3) * rotationIntensity * 0.2;
                 }
             }
             
