@@ -40,7 +40,7 @@ class PianoVisualizer {
             isMuted: false,
             colorScale: 'chromatic', // Will be overridden in initializeRetroColors()
             showOctaveNumbers: false,
-            showVelocityNumbers: false,
+            showVelocityNumbers: true,
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
             customBaseColor: '#ffffff'
