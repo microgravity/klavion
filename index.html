@@ -14,8 +14,77 @@
 <body>
     <div class="app-container">
         <div class="sidebar">
-            <h2>Effects</h2>
-            <div class="controls">
+            <div class="midi-status">
+                <h3 data-section="midi-input">MIDI Input <span class="toggle-icon">▼</span></h3>
+                <div class="collapsible-content" data-section="midi-input">
+                <div class="control-group">
+                    <label for="midi-input-select">Input Device</label>
+                    <select id="midi-input-select">
+                        <option value="keyboard" selected>Computer Keyboard</option>
+                    </select>
+                </div>
+                <div id="midi-devices"></div>
+                <div id="midi-activity"></div>
+                </div>
+            </div>
+            <div class="midi-controls">
+                <h3 data-section="midi-playback">MIDI Playback <span class="toggle-icon">▼</span></h3>
+                <div class="collapsible-content" data-section="midi-playback">
+                <input type="file" id="midi-file-input" accept=".mid,.midi" style="display: none;">
+                <button id="load-midi">Load MIDI File</button>
+                <button id="play-midi" disabled>Play</button>
+                <button id="pause-midi" disabled>Pause</button>
+                <button id="stop-midi" disabled>Stop</button>
+                <div class="tempo-control">
+                    <label for="tempo-slider">Tempo (1% precision)</label>
+                    <input type="range" id="tempo-slider" min="25" max="200" step="1" value="100">
+                    <span id="tempo-value">100%</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill"></div>
+                </div>
+                <div id="midi-info"></div>
+                </div>
+            </div>
+            <div class="keyboard-help">
+                <h3 data-section="keyboard">Keyboard Controls <span class="toggle-icon">▼</span></h3>
+                <div class="collapsible-content" data-section="keyboard">
+                <div class="key-mapping">
+                    <div class="mapping-row">
+                        <span class="key">A</span><span class="note">ド4</span>
+                        <span class="key">W</span><span class="note">ド#4</span>
+                        <span class="key">S</span><span class="note">レ4</span>
+                        <span class="key">E</span><span class="note">レ#4</span>
+                    </div>
+                    <div class="mapping-row">
+                        <span class="key">D</span><span class="note">ミ4</span>
+                        <span class="key">F</span><span class="note">ファ4</span>
+                        <span class="key">T</span><span class="note">ファ#4</span>
+                        <span class="key">G</span><span class="note">ソ4</span>
+                    </div>
+                    <div class="mapping-row">
+                        <span class="key">Y</span><span class="note">ソ#4</span>
+                        <span class="key">H</span><span class="note">ラ4</span>
+                        <span class="key">U</span><span class="note">ラ#4</span>
+                        <span class="key">J</span><span class="note">シ4</span>
+                    </div>
+                    <div class="mapping-row">
+                        <span class="key">K</span><span class="note">ド5</span>
+                        <span class="key">O</span><span class="note">ド#5</span>
+                        <span class="key">L</span><span class="note">レ5</span>
+                        <span class="key">P</span><span class="note">レ#5</span>
+                    </div>
+                    <div class="mapping-row">
+                        <span class="key">;</span><span class="note">ミ5</span>
+                        <span class="key">'</span><span class="note">ファ5</span>
+                        <span class="key">]</span><span class="note">ファ#5</span>
+                        <span class="key">\</span><span class="note">ソ5</span>
+                    </div>
+                </div>
+                </div>
+            </div>
+            <h3 data-section="effects">Effects <span class="toggle-icon">▼</span></h3>
+            <div class="collapsible-content" data-section="effects">
                 <div class="control-group">
                     <label for="animation-speed">Animation Speed</label>
                     <input type="range" id="animation-speed" min="0.1" max="3" step="0.1" value="1">
@@ -153,81 +222,12 @@
                 </div>
                 <div class="control-group">
                     <label for="volume-control">Volume</label>
-                    <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.7">
-                    <span id="volume-value">0.7</span>
+                    <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.75">
+                    <span id="volume-value">0.75</span>
                 </div>
                 <div class="control-group">
                     <button id="mute-button" class="mute-btn">🔊 Unmuted</button>
                 </div>
-                </div>
-            </div>
-            <div class="keyboard-help">
-                <h3 data-section="keyboard">Keyboard Controls <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content" data-section="keyboard">
-                <div class="key-mapping">
-                    <div class="mapping-row">
-                        <span class="key">A</span><span class="note">ド4</span>
-                        <span class="key">W</span><span class="note">ド#4</span>
-                        <span class="key">S</span><span class="note">レ4</span>
-                        <span class="key">E</span><span class="note">レ#4</span>
-                    </div>
-                    <div class="mapping-row">
-                        <span class="key">D</span><span class="note">ミ4</span>
-                        <span class="key">F</span><span class="note">ファ4</span>
-                        <span class="key">T</span><span class="note">ファ#4</span>
-                        <span class="key">G</span><span class="note">ソ4</span>
-                    </div>
-                    <div class="mapping-row">
-                        <span class="key">Y</span><span class="note">ソ#4</span>
-                        <span class="key">H</span><span class="note">ラ4</span>
-                        <span class="key">U</span><span class="note">ラ#4</span>
-                        <span class="key">J</span><span class="note">シ4</span>
-                    </div>
-                    <div class="mapping-row">
-                        <span class="key">K</span><span class="note">ド5</span>
-                        <span class="key">O</span><span class="note">ド#5</span>
-                        <span class="key">L</span><span class="note">レ5</span>
-                        <span class="key">P</span><span class="note">レ#5</span>
-                    </div>
-                    <div class="mapping-row">
-                        <span class="key">;</span><span class="note">ミ5</span>
-                        <span class="key">'</span><span class="note">ファ5</span>
-                        <span class="key">]</span><span class="note">ファ#5</span>
-                        <span class="key">\</span><span class="note">ソ5</span>
-                    </div>
-                </div>
-                </div>
-            </div>
-            <div class="midi-controls">
-                <h3 data-section="midi-playback">MIDI Playback <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content" data-section="midi-playback">
-                <input type="file" id="midi-file-input" accept=".mid,.midi" style="display: none;">
-                <button id="load-midi">Load MIDI File</button>
-                <button id="play-midi" disabled>Play</button>
-                <button id="pause-midi" disabled>Pause</button>
-                <button id="stop-midi" disabled>Stop</button>
-                <div class="tempo-control">
-                    <label for="tempo-slider">Tempo (1% precision)</label>
-                    <input type="range" id="tempo-slider" min="25" max="200" step="1" value="100">
-                    <span id="tempo-value">100%</span>
-                </div>
-                <div class="progress-bar">
-                    <div id="progress-fill"></div>
-                </div>
-                <div id="midi-info"></div>
-                </div>
-            </div>
-            <div class="midi-status">
-                <h3 data-section="midi-input">MIDI Input <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content" data-section="midi-input">
-                <div class="control-group">
-                    <label for="midi-input-select">Input Device</label>
-                    <select id="midi-input-select">
-                        <option value="keyboard" selected>Computer Keyboard</option>
-                    </select>
-                </div>
-                <div id="midi-devices"></div>
-                <div id="midi-activity"></div>
                 </div>
             </div>
             <div class="recording-controls">
