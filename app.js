@@ -1857,91 +1857,72 @@ class PianoVisualizer {
     }
     
     async loadBackgroundImage() {
+        console.log('🎨 Starting background image creation...');
+        
+        // まずThree.jsの基本的なテクスチャが動作するかテスト
+        this.createTestBackground();
+    }
+    
+    createTestBackground() {
+        console.log('🧪 Creating test background directly in Three.js...');
+        
+        if (!this.scene || !this.camera) {
+            console.warn('⚠️ Scene or camera not ready for test background');
+            return;
+        }
+        
         try {
-            // ローカル環境で確実に動作する美しいグラデーション背景を作成
-            const svgGradients = [
-                // ピアノキー風グラデーション（白黒）
-                `<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <radialGradient id="pianoGrad" cx="50%" cy="30%" r="70%">
-                            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.1"/>
-                            <stop offset="40%" stop-color="#f8f9fa" stop-opacity="0.05"/>
-                            <stop offset="100%" stop-color="#343a40" stop-opacity="0.02"/>
-                        </radialGradient>
-                        <pattern id="pianoKeys" patternUnits="userSpaceOnUse" width="120" height="1080">
-                            <rect width="120" height="1080" fill="url(#pianoGrad)"/>
-                            <rect x="0" y="0" width="80" height="600" fill="#ffffff" fill-opacity="0.03"/>
-                            <rect x="80" y="0" width="40" height="400" fill="#000000" fill-opacity="0.02"/>
-                        </pattern>
-                    </defs>
-                    <rect width="1920" height="1080" fill="url(#pianoKeys)"/>
-                </svg>`,
-                
-                // 音楽波形グラデーション
-                `<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="musicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#667eea" stop-opacity="0.1"/>
-                            <stop offset="25%" stop-color="#764ba2" stop-opacity="0.08"/>
-                            <stop offset="50%" stop-color="#f093fb" stop-opacity="0.06"/>
-                            <stop offset="75%" stop-color="#f5576c" stop-opacity="0.08"/>
-                            <stop offset="100%" stop-color="#4facfe" stop-opacity="0.1"/>
-                        </linearGradient>
-                        <path id="wave" d="M0,540 Q480,440 960,540 T1920,540" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.1"/>
-                    </defs>
-                    <rect width="1920" height="1080" fill="url(#musicGrad)"/>
-                    <use href="#wave" transform="translate(0,-100)"/>
-                    <use href="#wave" transform="translate(0,0)"/>
-                    <use href="#wave" transform="translate(0,100)"/>
-                </svg>`,
-                
-                // シンプルな円形グラデーション
-                `<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <radialGradient id="simpleGrad" cx="50%" cy="50%" r="70%">
-                            <stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.1"/>
-                            <stop offset="50%" stop-color="#162331" stop-opacity="0.08"/>
-                            <stop offset="100%" stop-color="#0f0f23" stop-opacity="0.05"/>
-                        </radialGradient>
-                    </defs>
-                    <rect width="1920" height="1080" fill="url(#simpleGrad)"/>
-                </svg>`
-            ];
+            // Canvas要素を作成して直接描画
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
             
-            // ランダムに一つ選択
-            const selectedSvg = svgGradients[Math.floor(Math.random() * svgGradients.length)];
+            // シンプルなグラデーション描画
+            const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.2)');
+            gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
             
-            // Blob URLではなく、data URLを使用（ローカル環境でより安全）
-            const svgBase64 = btoa(unescape(encodeURIComponent(selectedSvg)));
-            const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
             
-            console.log('🎨 Generated SVG data URL length:', svgDataUrl.length);
-            console.log('🎨 SVG preview:', selectedSvg.substring(0, 200) + '...');
+            // Canvas要素からテクスチャを作成
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
             
-            const img = new Image();
-            return new Promise((resolve) => {
-                img.onload = () => {
-                    this.backgroundImage = img;
-                    console.log('✅ SVG gradient background loaded successfully', {
-                        width: img.width,
-                        height: img.height,
-                        src: img.src.substring(0, 100) + '...'
-                    });
-                    // Delay to ensure Three.js scene is ready
-                    setTimeout(() => {
-                        this.applyBackgroundToScene(); // Apply to Three.js scene
-                    }, 100);
-                    resolve();
-                };
-                img.onerror = (error) => {
-                    console.warn('⚠️ Failed to load SVG background:', error);
-                    resolve(); // Continue without background image
-                };
-                console.log('🔄 Loading SVG image...');
-                img.src = svgDataUrl;
+            // Calculate plane size to cover entire canvas view
+            const distance = 30;
+            const fov = this.camera.fov * (Math.PI / 180);
+            const planeHeight = 2 * Math.tan(fov / 2) * distance;
+            const planeWidth = planeHeight * this.camera.aspect;
+            
+            console.log(`📐 Test background plane size: ${planeWidth.toFixed(2)} x ${planeHeight.toFixed(2)}`);
+            
+            const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true, 
+                opacity: 0.5,  // Higher opacity for testing
+                side: THREE.DoubleSide
             });
+            
+            const backgroundPlane = new THREE.Mesh(geometry, material);
+            backgroundPlane.position.z = -20;
+            this.scene.add(backgroundPlane);
+            
+            this.backgroundPlane = backgroundPlane;
+            
+            console.log('✅ Test background created and added to scene');
+            
+            // 追加のデバッグ情報
+            console.log('🔍 Scene children count:', this.scene.children.length);
+            console.log('🔍 Camera position:', this.camera.position);
+            console.log('🔍 Background plane position:', backgroundPlane.position);
+            
         } catch (error) {
-            console.warn('⚠️ Error creating background image:', error);
+            console.error('❌ Error creating test background:', error);
         }
     }
     
