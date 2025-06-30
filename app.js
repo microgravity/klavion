@@ -8,12 +8,20 @@ class PianoVisualizer {
         this.camera = null;
         this.renderer = null;
         this.noteObjects = [];
+        this.activeNoteSprites = new Map(); // Track active note sprites by MIDI note
         this.particleSystem = null;
         this.audioContext = null;
         this.midiAccess = null;
         this.isRecording = false;
         this.mediaRecorder = null;
         this.recordedChunks = [];
+        this.backgroundPlane = null;
+        
+        // Canvas recording properties
+        this.recordingCanvas = null;
+        this.recordingContext = null;
+        this.audioDestination = null;
+        this.combinedStream = null;
         
         this.settings = {
             animationSpeed: 1.0,
@@ -138,6 +146,10 @@ class PianoVisualizer {
         
         
         this.lastDebugTime = 0; // For debug logging
+        
+        // Check for mobile device and show warning if needed
+        this.checkMobileDevice();
+        
         this.loadSettings();
         this.init();
     }
@@ -176,6 +188,56 @@ class PianoVisualizer {
         }
     }
     
+    checkMobileDevice() {
+        // Enhanced mobile detection
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                         (navigator.maxTouchPoints > 0 && window.matchMedia("(max-width: 768px)").matches) ||
+                         window.screen.width <= 768;
+        
+        const isTablet = /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) ||
+                        (navigator.maxTouchPoints > 0 && window.screen.width > 768 && window.screen.width <= 1024);
+        
+        // Show warning for phones only (not tablets)
+        if (isMobile && !isTablet) {
+            console.log('📱 Mobile device detected, showing compatibility warning');
+            this.showMobileWarning();
+        } else if (isTablet) {
+            console.log('📱 Tablet device detected, proceeding normally');
+        } else {
+            console.log('💻 Desktop device detected, proceeding normally');
+        }
+    }
+    
+    showMobileWarning() {
+        const warningElement = document.getElementById('mobile-warning');
+        const continueBtn = document.getElementById('mobile-continue-btn');
+        
+        if (warningElement && continueBtn) {
+            // Show the warning screen
+            warningElement.style.display = 'flex';
+            document.body.classList.add('mobile-warning-shown');
+            
+            // Set up continue button event
+            continueBtn.addEventListener('click', () => {
+                warningElement.style.display = 'none';
+                document.body.classList.remove('mobile-warning-shown');
+                console.log('📱 User chose to continue on mobile device');
+                
+                // Store preference in localStorage
+                localStorage.setItem('mobileWarningDismissed', 'true');
+            });
+            
+            // Check if user previously dismissed the warning
+            const dismissed = localStorage.getItem('mobileWarningDismissed');
+            if (dismissed === 'true') {
+                // Auto-hide if previously dismissed
+                setTimeout(() => {
+                    continueBtn.click();
+                }, 100);
+            }
+        }
+    }
+    
     async init() {
         await this.initAudio();
         await this.initMIDI();
@@ -208,6 +270,8 @@ class PianoVisualizer {
         
         // Scene
         this.scene = new THREE.Scene();
+        
+        // Set default background color (background image will be applied later)
         this.scene.background = new THREE.Color(0x0d1421);
         
         // Camera
@@ -219,7 +283,8 @@ class PianoVisualizer {
             this.renderer = new THREE.WebGLRenderer({ 
                 antialias: true, 
                 alpha: true,
-                powerPreference: "high-performance"
+                powerPreference: "high-performance",
+                preserveDrawingBuffer: true // Required for canvas recording
             });
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -253,8 +318,10 @@ class PianoVisualizer {
         directionalLight.shadow.camera.bottom = -10;
         this.scene.add(directionalLight);
         
-        // Simple static background (fluid background removed for debugging)
-        console.log('✅ Three.js scene initialized with static background');
+        // Initialize canvas background after scene setup
+        this.createCanvasBackground();
+        
+        console.log('✅ Three.js scene initialized with canvas background');
     }
     
     
@@ -276,10 +343,13 @@ class PianoVisualizer {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.audioContextResumed = false;
             
+            // Create audio destination for recording
+            this.audioDestination = this.audioContext.createMediaStreamDestination();
+            
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
             
-            console.log('🎵 AudioContext created, waiting for user interaction to start');
+            console.log('🎵 AudioContext created with recording destination, waiting for user interaction to start');
         } catch (error) {
             console.error('Audio context initialization failed:', error);
         }
@@ -593,7 +663,19 @@ class PianoVisualizer {
     }
     
     stopNote(midiNote, timestamp = performance.now()) {
-        // If sustain pedal is pressed, don't stop the note immediately
+        // Mark visual note as inactive
+        if (this.activeNoteSprites.has(midiNote)) {
+            const sprite = this.activeNoteSprites.get(midiNote);
+            if (sprite.userData) {
+                sprite.userData.isActive = false;
+                sprite.userData.movementPhase = 'falling';
+                sprite.userData.noteOffTime = timestamp;
+                console.log(`🎵 Note ${this.midiNoteToNoteName(midiNote)} marked for visual fade`);
+            }
+            this.activeNoteSprites.delete(midiNote);
+        }
+        
+        // If sustain pedal is pressed, don't stop the audio immediately
         if (this.sustainPedalPressed) {
             this.sustainedNotes.add(midiNote);
             console.log(`🦶 Note ${this.midiNoteToNoteName(midiNote)} sustained by pedal`);
@@ -768,6 +850,17 @@ class PianoVisualizer {
         return gainNode;
     }
     
+    // Helper function to connect audio nodes to both speakers and recording destination
+    connectAudioOutput(node) {
+        // Always connect to speakers
+        node.connect(this.audioContext.destination);
+        
+        // Also connect to recording destination if it exists
+        if (this.audioDestination) {
+            node.connect(this.audioDestination);
+        }
+    }
+    
     getTimbreDuration(timbre) {
         const durations = {
             'acoustic-piano': 2.5,
@@ -811,7 +904,7 @@ class PianoVisualizer {
         osc2.connect(gainNode);
         osc3.connect(gainNode);
         gainNode.connect(filter);
-        filter.connect(this.audioContext.destination);
+        this.connectAudioOutput(filter);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -845,7 +938,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(filter);
-        filter.connect(this.audioContext.destination);
+        this.connectAudioOutput(filter);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -872,7 +965,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -900,7 +993,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         osc3.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -930,7 +1023,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -963,7 +1056,7 @@ class PianoVisualizer {
         
         osc1.connect(gainNode);
         osc2.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -992,7 +1085,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1021,7 +1114,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(filter);
-        filter.connect(this.audioContext.destination);
+        this.connectAudioOutput(filter);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1051,7 +1144,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         osc3.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1082,7 +1175,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1139,9 +1232,9 @@ class PianoVisualizer {
         context.textBaseline = 'middle';
         
         // Calculate line positions based on font size, line-height, and canvas size
-        const mainFontSize = !this.hasMidiInput ? 60 * size : 80 * size;
-        const velocityFontSize = !this.hasMidiInput ? 35 * size : 50 * size;
-        const lineHeight = 2.0; // Line-height multiplier for spacing
+        const mainFontSize = !this.hasMidiInput ? 55 * size : 80 * size;
+        const velocityFontSize = !this.hasMidiInput ? 30 * size : 50 * size;
+        const lineHeight = !this.hasMidiInput ? 1.6 : 2.0; // Tighter spacing for PC keyboard input
         const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
         
         let mainTextY = canvasCenter; // Default center position
@@ -1226,33 +1319,54 @@ class PianoVisualizer {
         const displaySize = size * (2 + this.settings.sizeMultiplier);
         sprite.scale.set(displaySize, displaySize * 0.7, 1);
         
-        // Animation properties with velocity-based duration
-        const velocityDurationMultiplier = 1 + (velocity / 127) * 0.5; // Faster notes last slightly longer
+        // Enhanced animation properties for sustained notes
         sprite.userData = {
             startTime: timestamp,
-            duration: this.settings.fadeDuration * 1000 * velocityDurationMultiplier,
+            midiNote: midiNote,
             startY: -10,
             endY: 10, // Go to top of screen
             velocity: velocity,
             originalScale: size,
-            displaySize: displaySize
+            displaySize: displaySize,
+            isActive: true, // Track if note is still being played
+            sustainStartTime: timestamp, // When the sustained phase started
+            movementPhase: 'rising' // 'rising', 'sustained', 'falling'
         };
         
         this.scene.add(sprite);
         this.noteObjects.push(sprite);
         
+        // Track active note sprite
+        if (this.activeNoteSprites.has(midiNote)) {
+            // If there's already an active note, mark the old one for fading
+            const oldSprite = this.activeNoteSprites.get(midiNote);
+            if (oldSprite.userData) {
+                oldSprite.userData.isActive = false;
+                oldSprite.userData.movementPhase = 'falling';
+            }
+        }
+        this.activeNoteSprites.set(midiNote, sprite);
+        
         // Debug: Log sprite creation and positioning
         console.log(`🎨 Sprite created: ${mainText}, position: (${x.toFixed(2)}, ${sprite.position.y}, ${sprite.position.z}), scale: ${displaySize.toFixed(2)}`);
         console.log(`📊 Scene stats: ${this.noteObjects.length} sprites, camera pos: (${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z})`);
         
-        // Clean up old notes
-        if (this.noteObjects.length > 50) {
+        // Clean up old notes (less aggressive cleanup since notes last longer now)
+        if (this.noteObjects.length > 100) {
             const oldSprite = this.noteObjects.shift();
             this.scene.remove(oldSprite);
             if (oldSprite.material.map) {
                 oldSprite.material.map.dispose();
             }
             oldSprite.material.dispose();
+            
+            // Also clean up from activeNoteSprites if it exists there
+            for (const [midiNote, sprite] of this.activeNoteSprites.entries()) {
+                if (sprite === oldSprite) {
+                    this.activeNoteSprites.delete(midiNote);
+                    break;
+                }
+            }
         }
     }
     
@@ -1301,8 +1415,8 @@ class PianoVisualizer {
     getNoteFontSize(velocity) {
         const baseSize = 20;
         if (!this.hasMidiInput) {
-            // When no MIDI device is connected, use smaller default font size (velocity ~50)
-            const defaultSize = baseSize + (50 / 127) * 30 * this.settings.sizeMultiplier;
+            // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
+            const defaultSize = baseSize + (60 / 127) * 30 * this.settings.sizeMultiplier;
             return Math.max(defaultSize, 16);
         }
         const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
@@ -1843,6 +1957,62 @@ class PianoVisualizer {
         console.log('✅ Collapsible sections initialized');
     }
     
+    createCanvasBackground() {
+        console.log('🎨 Creating canvas gradient background...');
+        
+        if (!this.scene || !this.camera) {
+            console.warn('⚠️ Scene or camera not ready for background');
+            return;
+        }
+        
+        try {
+            // Canvas要素を作成して直接描画
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // 美しい放射状グラデーション描画
+            const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
+            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
+            gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // Canvas要素からテクスチャを作成
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            
+            // ビューポート全体をカバーするプレーンサイズを計算
+            const distance = 30;
+            const fov = this.camera.fov * (Math.PI / 180);
+            const planeHeight = 2 * Math.tan(fov / 2) * distance;
+            const planeWidth = planeHeight * this.camera.aspect;
+            
+            const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true, 
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            
+            const backgroundPlane = new THREE.Mesh(geometry, material);
+            backgroundPlane.position.z = -20;
+            this.scene.add(backgroundPlane);
+            
+            this.backgroundPlane = backgroundPlane;
+            
+            console.log('✅ Canvas gradient background created successfully');
+            
+        } catch (error) {
+            console.error('❌ Error creating canvas background:', error);
+        }
+    }
+    
     generateCustomColors(baseColor, count = 12) {
         // Special handling for white color - generate rainbow colors
         if (baseColor === '#ffffff' || baseColor.toLowerCase() === '#ffffff') {
@@ -1997,9 +2167,9 @@ class PianoVisualizer {
             if (midiNote) {
                 e.preventDefault();
                 this.activeKeys.add(e.code);
-                this.playNote(midiNote, 100, performance.now());
+                this.playNote(midiNote, 60, performance.now());
                 this.highlightPianoKey(midiNote, true);
-                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 100)} (${midiNote}) vel:100`);
+                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 60)} (${midiNote}) vel:60`);
             }
         });
         
@@ -2088,60 +2258,135 @@ class PianoVisualizer {
                 console.log(`🎵 Animation loop running - Active sprites: ${this.noteObjects.length}`);
             }
             
-            // Update note sprites
+            // Update note sprites with sustained note logic
             for (let i = this.noteObjects.length - 1; i >= 0; i--) {
                 const sprite = this.noteObjects[i];
                 const userData = sprite.userData;
-                const elapsed = currentTime - userData.startTime;
-                const progress = elapsed / userData.duration;
+                const velocityIntensity = userData.velocity / 127;
+                const motionBlurFactor = this.settings.motionBlur;
                 
-                if (progress >= 1.0) {
-                    // Remove completed animation
+                let shouldRemove = false;
+                
+                if (userData.movementPhase === 'rising') {
+                    // Rising phase: 0.5 seconds to reach sustain position
+                    const risingDuration = 500; // 0.5 seconds
+                    const elapsed = currentTime - userData.startTime;
+                    const progress = Math.min(1, elapsed / risingDuration);
+                    
+                    if (progress >= 1.0) {
+                        // Transition to sustained phase
+                        userData.movementPhase = userData.isActive ? 'sustained' : 'falling';
+                        userData.sustainStartTime = currentTime;
+                        sprite.position.y = 2; // Sustain position
+                    } else {
+                        // Animate upward with smooth easing
+                        const easeOut = 1 - Math.pow(1 - progress, 2);
+                        sprite.position.y = userData.startY + easeOut * (2 - userData.startY); // Rise to y=2
+                        
+                        // Fade in
+                        sprite.material.opacity = Math.min(1, progress * 3);
+                    }
+                } else if (userData.movementPhase === 'sustained') {
+                    // Sustained phase: gentle floating animation
+                    sprite.position.y = 2; // Stay at sustain position
+                    
+                    // Gentle floating effect
+                    const floatTime = (currentTime - userData.sustainStartTime) / 1000;
+                    const floatOffset = Math.sin(floatTime * 2) * 0.2; // Gentle up/down
+                    sprite.position.y += floatOffset;
+                    
+                    // Gentle pulsing
+                    const pulseScale = 1 + Math.sin(floatTime * 1.5) * 0.05;
+                    sprite.scale.set(
+                        userData.displaySize * pulseScale, 
+                        userData.displaySize * 0.7 * pulseScale, 
+                        1
+                    );
+                    
+                    // Stable opacity with slight breathing effect
+                    const breathingOpacity = 0.8 + Math.sin(floatTime) * 0.1;
+                    sprite.material.opacity = Math.min(1, breathingOpacity + velocityIntensity * 0.2);
+                    
+                    // Check if note should start falling
+                    if (!userData.isActive) {
+                        userData.movementPhase = 'falling';
+                        userData.fallStartTime = currentTime;
+                    }
+                } else if (userData.movementPhase === 'falling') {
+                    // Falling phase: fade out and move upward to disappear
+                    const fallDuration = 1000; // 1 second to fade out
+                    const elapsed = currentTime - (userData.noteOffTime || userData.fallStartTime || currentTime);
+                    const progress = Math.min(1, elapsed / fallDuration);
+                    
+                    if (progress >= 1.0) {
+                        shouldRemove = true;
+                    } else {
+                        // Continue moving upward while fading
+                        const easeIn = Math.pow(progress, 1.5);
+                        sprite.position.y = 2 + easeIn * 8; // Move from sustain position to top
+                        
+                        // Fade out
+                        sprite.material.opacity = (1 - progress) * (0.8 + velocityIntensity * 0.2);
+                        
+                        // Slight scale reduction
+                        const fadeScale = 1 - progress * 0.2;
+                        sprite.scale.set(
+                            userData.displaySize * fadeScale, 
+                            userData.displaySize * 0.7 * fadeScale, 
+                            1
+                        );
+                    }
+                }
+                
+                // Add motion blur and rotation effects for all phases
+                sprite.position.z = Math.sin((currentTime - userData.startTime) / 1000 * Math.PI) * (1 + motionBlurFactor * 2);
+                const rotationIntensity = motionBlurFactor * velocityIntensity * 0.1;
+                sprite.material.rotation = Math.sin((currentTime - userData.startTime) / 1000 * Math.PI * 2) * rotationIntensity;
+                
+                // Remove sprite if needed
+                if (shouldRemove) {
                     this.scene.remove(sprite);
                     if (sprite.material.map) {
                         sprite.material.map.dispose();
                     }
                     sprite.material.dispose();
                     this.noteObjects.splice(i, 1);
-                } else {
-                    // Update animation with smooth easing and motion blur
-                    const easeOut = 1 - Math.pow(1 - progress, 2.5);
-                    
-                    // Position animation (flying upward across full screen)
-                    const totalDistance = userData.endY - userData.startY;
-                    sprite.position.y = userData.startY + easeOut * totalDistance;
-                    
-                    // Add motion blur effect
-                    const motionBlurFactor = this.settings.motionBlur;
-                    sprite.position.z = Math.sin(progress * Math.PI) * (2 + motionBlurFactor * 3);
-                    
-                    // Scale animation with velocity-based bounce
-                    const velocityIntensity = userData.velocity / 127;
-                    const bounceIntensity = 0.1 + velocityIntensity * 0.3;
-                    const bounceScale = 1 + Math.sin(progress * Math.PI * 2) * bounceIntensity;
-                    const scale = userData.originalScale * bounceScale;
-                    sprite.scale.set(userData.displaySize * bounceScale, userData.displaySize * 0.7 * bounceScale, 1);
-                    
-                    // Velocity-based opacity animation
-                    const fadeSpeed = 4 + velocityIntensity * 4; // Stronger notes fade differently
-                    if (progress < 0.15) {
-                        sprite.material.opacity = progress * fadeSpeed;
-                    } else if (progress > 0.85) {
-                        sprite.material.opacity = (1 - progress) * fadeSpeed;
-                    } else {
-                        sprite.material.opacity = Math.min(1, 0.7 + velocityIntensity * 0.3);
-                    }
-                    
-                    // Add rotation based on velocity and motion blur
-                    const rotationIntensity = motionBlurFactor * velocityIntensity;
-                    sprite.material.rotation = Math.sin(progress * Math.PI * 3) * rotationIntensity * 0.2;
                 }
             }
             
             this.renderer.render(this.scene, this.camera);
+            
+            // Copy canvas for recording if needed
+            this.copyCanvasForRecording();
+            
             requestAnimationFrame(animate);
         };
         animate();
+    }
+    
+    copyCanvasForRecording() {
+        // Only copy if recording with fallback canvas
+        if (!this.isRecording || !this.recordingContext || !this.renderer) {
+            return;
+        }
+        
+        try {
+            const sourceCanvas = this.renderer.domElement;
+            
+            // Clear and copy in sync with render
+            this.recordingContext.clearRect(0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            this.recordingContext.drawImage(sourceCanvas, 0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            
+            // Add recording indicator
+            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.8)';
+            this.recordingContext.fillRect(10, 10, 20, 20);
+            this.recordingContext.fillStyle = 'white';
+            this.recordingContext.font = '12px Arial';
+            this.recordingContext.fillText('REC', 35, 25);
+            
+        } catch (error) {
+            // Fail silently to avoid spamming console
+        }
     }
     
     async startRecording() {
@@ -2152,38 +2397,54 @@ class PianoVisualizer {
                 return;
             }
             
-            console.log('🎬 Starting full-screen recording with piano keyboard...');
+            console.log('🎬 Starting canvas-only recording with audio...');
             
-            // Use getDisplayMedia for screen capture with audio
-            let stream;
+            // Check if Three.js canvas is available
+            if (!this.renderer || !this.renderer.domElement) {
+                alert('❌ Three.jsキャンバスが見つかりません。しばらく待ってから再試行してください。');
+                return;
+            }
+            
+            // Get the Three.js canvas
+            const sourceCanvas = this.renderer.domElement;
+            
+            console.log(`📐 Source canvas: ${sourceCanvas.width}x${sourceCanvas.height}`);
+            console.log(`📐 Source canvas client: ${sourceCanvas.clientWidth}x${sourceCanvas.clientHeight}`);
+            
+            // Get video stream directly from Three.js canvas
+            let videoStream;
             try {
-                // Try to capture with audio
-                stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        mediaSource: 'screen',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        sampleRate: 44100
-                    }
-                });
-                console.log('✅ Screen capture with audio enabled');
-            } catch (audioError) {
-                console.log('⚠️ Audio capture failed, using video only:', audioError);
-                // Fallback to video only
-                stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        mediaSource: 'screen',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: false
-                });
+                videoStream = sourceCanvas.captureStream(30); // 30 FPS
+                console.log('✅ Direct canvas capture successful');
+            } catch (error) {
+                console.warn('⚠️ Direct canvas capture failed, creating intermediate canvas:', error);
+                
+                // Fallback: Create intermediate canvas
+                this.recordingCanvas = document.createElement('canvas');
+                this.recordingCanvas.width = sourceCanvas.width || sourceCanvas.clientWidth;
+                this.recordingCanvas.height = sourceCanvas.height || sourceCanvas.clientHeight;
+                this.recordingContext = this.recordingCanvas.getContext('2d');
+                
+                // Start copying process immediately
+                this.startCanvasCopyLoop();
+                
+                videoStream = this.recordingCanvas.captureStream(30);
+                console.log(`📐 Fallback canvas: ${this.recordingCanvas.width}x${this.recordingCanvas.height}`);
+            }
+            
+            // Get audio stream from our audio destination
+            let combinedStream;
+            if (this.audioDestination && this.audioDestination.stream) {
+                // Combine video and audio streams
+                combinedStream = new MediaStream([
+                    ...videoStream.getVideoTracks(),
+                    ...this.audioDestination.stream.getAudioTracks()
+                ]);
+                console.log('✅ Combined video and audio streams');
+            } else {
+                // Video only if audio destination not available
+                combinedStream = videoStream;
+                console.log('⚠️ Audio destination not available, using video only');
             }
             
             // Try iPhone-compatible codecs first (H.264 MP4)
@@ -2211,10 +2472,8 @@ class PianoVisualizer {
                 options = {};
             }
             
-            console.log(`🎥 Using codec: ${options.mimeType}`);
-            
-            this.mediaRecorder = new MediaRecorder(stream, options);
-            
+            this.mediaRecorder = new MediaRecorder(combinedStream, options);
+            this.combinedStream = combinedStream;
             this.recordedChunks = [];
             
             this.mediaRecorder.ondataavailable = (event) => {
@@ -2227,9 +2486,22 @@ class PianoVisualizer {
             this.mediaRecorder.onstop = () => {
                 console.log('🛑 Recording stopped');
                 document.getElementById('download-recording').disabled = false;
-                // Stop all tracks
-                stream.getTracks().forEach(track => track.stop());
+                
+                // Clean up streams
+                if (this.combinedStream) {
+                    this.combinedStream.getTracks().forEach(track => track.stop());
+                }
+                
+                // Clean up recording canvas
+                this.recordingCanvas = null;
+                this.recordingContext = null;
+                this.combinedStream = null;
             };
+            
+            // Start the canvas copying process only if using fallback
+            if (this.recordingCanvas) {
+                this.startCanvasCopyLoop();
+            }
             
             this.mediaRecorder.start();
             this.isRecording = true;
@@ -2237,24 +2509,29 @@ class PianoVisualizer {
             document.getElementById('start-recording').disabled = true;
             document.getElementById('stop-recording').disabled = false;
             
-            console.log('🔴 Recording started successfully');
+            console.log('🔴 Canvas recording started successfully');
             
         } catch (error) {
             console.error('Failed to start recording:', error);
-            alert('録画を開始できませんでした。ブラウザで画面共有の許可が必要です。');
+            alert('録画を開始できませんでした: ' + error.message);
         }
+    }
+    
+    startCanvasCopyLoop() {
+        // This function is now deprecated - canvas copying happens in main animation loop
+        console.log('Canvas copying is now handled in the main animation loop');
     }
     
     stopRecording() {
         if (this.mediaRecorder && this.isRecording) {
-            console.log('🛑 Stopping recording...');
+            console.log('🛑 Stopping canvas recording...');
             this.mediaRecorder.stop();
             this.isRecording = false;
             
             document.getElementById('start-recording').disabled = false;
             document.getElementById('stop-recording').disabled = true;
             
-            console.log('📹 Recording stopped, audio synthesis reverted to normal mode');
+            console.log('📹 Canvas recording stopped, audio synthesis reverted to normal mode');
         }
     }
     
