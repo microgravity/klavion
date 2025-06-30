@@ -283,7 +283,8 @@ class PianoVisualizer {
             this.renderer = new THREE.WebGLRenderer({ 
                 antialias: true, 
                 alpha: true,
-                powerPreference: "high-performance"
+                powerPreference: "high-performance",
+                preserveDrawingBuffer: true // Required for canvas recording
             });
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -2354,9 +2355,38 @@ class PianoVisualizer {
             }
             
             this.renderer.render(this.scene, this.camera);
+            
+            // Copy canvas for recording if needed
+            this.copyCanvasForRecording();
+            
             requestAnimationFrame(animate);
         };
         animate();
+    }
+    
+    copyCanvasForRecording() {
+        // Only copy if recording with fallback canvas
+        if (!this.isRecording || !this.recordingContext || !this.renderer) {
+            return;
+        }
+        
+        try {
+            const sourceCanvas = this.renderer.domElement;
+            
+            // Clear and copy in sync with render
+            this.recordingContext.clearRect(0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            this.recordingContext.drawImage(sourceCanvas, 0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            
+            // Add recording indicator
+            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.8)';
+            this.recordingContext.fillRect(10, 10, 20, 20);
+            this.recordingContext.fillStyle = 'white';
+            this.recordingContext.font = '12px Arial';
+            this.recordingContext.fillText('REC', 35, 25);
+            
+        } catch (error) {
+            // Fail silently to avoid spamming console
+        }
     }
     
     async startRecording() {
@@ -2378,16 +2408,29 @@ class PianoVisualizer {
             // Get the Three.js canvas
             const sourceCanvas = this.renderer.domElement;
             
-            // Create recording canvas with the same dimensions
-            this.recordingCanvas = document.createElement('canvas');
-            this.recordingCanvas.width = sourceCanvas.width;
-            this.recordingCanvas.height = sourceCanvas.height;
-            this.recordingContext = this.recordingCanvas.getContext('2d');
+            console.log(`📐 Source canvas: ${sourceCanvas.width}x${sourceCanvas.height}`);
+            console.log(`📐 Source canvas client: ${sourceCanvas.clientWidth}x${sourceCanvas.clientHeight}`);
             
-            console.log(`📐 Recording canvas: ${this.recordingCanvas.width}x${this.recordingCanvas.height}`);
-            
-            // Get video stream from recording canvas
-            const videoStream = this.recordingCanvas.captureStream(30); // 30 FPS
+            // Get video stream directly from Three.js canvas
+            let videoStream;
+            try {
+                videoStream = sourceCanvas.captureStream(30); // 30 FPS
+                console.log('✅ Direct canvas capture successful');
+            } catch (error) {
+                console.warn('⚠️ Direct canvas capture failed, creating intermediate canvas:', error);
+                
+                // Fallback: Create intermediate canvas
+                this.recordingCanvas = document.createElement('canvas');
+                this.recordingCanvas.width = sourceCanvas.width || sourceCanvas.clientWidth;
+                this.recordingCanvas.height = sourceCanvas.height || sourceCanvas.clientHeight;
+                this.recordingContext = this.recordingCanvas.getContext('2d');
+                
+                // Start copying process immediately
+                this.startCanvasCopyLoop();
+                
+                videoStream = this.recordingCanvas.captureStream(30);
+                console.log(`📐 Fallback canvas: ${this.recordingCanvas.width}x${this.recordingCanvas.height}`);
+            }
             
             // Get audio stream from our audio destination
             let combinedStream;
@@ -2455,8 +2498,10 @@ class PianoVisualizer {
                 this.combinedStream = null;
             };
             
-            // Start the canvas copying process
-            this.startCanvasCopyLoop();
+            // Start the canvas copying process only if using fallback
+            if (this.recordingCanvas) {
+                this.startCanvasCopyLoop();
+            }
             
             this.mediaRecorder.start();
             this.isRecording = true;
@@ -2473,19 +2518,8 @@ class PianoVisualizer {
     }
     
     startCanvasCopyLoop() {
-        if (!this.isRecording || !this.recordingContext || !this.renderer) {
-            return;
-        }
-        
-        // Copy the Three.js canvas to the recording canvas
-        try {
-            this.recordingContext.drawImage(this.renderer.domElement, 0, 0);
-        } catch (error) {
-            console.warn('Canvas copy error:', error);
-        }
-        
-        // Continue the loop
-        requestAnimationFrame(() => this.startCanvasCopyLoop());
+        // This function is now deprecated - canvas copying happens in main animation loop
+        console.log('Canvas copying is now handled in the main animation loop');
     }
     
     stopRecording() {
