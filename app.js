@@ -17,6 +17,12 @@ class PianoVisualizer {
         this.recordedChunks = [];
         this.backgroundPlane = null;
         
+        // Canvas recording properties
+        this.recordingCanvas = null;
+        this.recordingContext = null;
+        this.audioDestination = null;
+        this.combinedStream = null;
+        
         this.settings = {
             animationSpeed: 1.0,
             sizeMultiplier: 1.0,
@@ -277,7 +283,8 @@ class PianoVisualizer {
             this.renderer = new THREE.WebGLRenderer({ 
                 antialias: true, 
                 alpha: true,
-                powerPreference: "high-performance"
+                powerPreference: "high-performance",
+                preserveDrawingBuffer: true // Required for canvas recording
             });
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -336,10 +343,13 @@ class PianoVisualizer {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.audioContextResumed = false;
             
+            // Create audio destination for recording
+            this.audioDestination = this.audioContext.createMediaStreamDestination();
+            
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
             
-            console.log('🎵 AudioContext created, waiting for user interaction to start');
+            console.log('🎵 AudioContext created with recording destination, waiting for user interaction to start');
         } catch (error) {
             console.error('Audio context initialization failed:', error);
         }
@@ -840,6 +850,17 @@ class PianoVisualizer {
         return gainNode;
     }
     
+    // Helper function to connect audio nodes to both speakers and recording destination
+    connectAudioOutput(node) {
+        // Always connect to speakers
+        node.connect(this.audioContext.destination);
+        
+        // Also connect to recording destination if it exists
+        if (this.audioDestination) {
+            node.connect(this.audioDestination);
+        }
+    }
+    
     getTimbreDuration(timbre) {
         const durations = {
             'acoustic-piano': 2.5,
@@ -883,7 +904,7 @@ class PianoVisualizer {
         osc2.connect(gainNode);
         osc3.connect(gainNode);
         gainNode.connect(filter);
-        filter.connect(this.audioContext.destination);
+        this.connectAudioOutput(filter);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -917,7 +938,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(filter);
-        filter.connect(this.audioContext.destination);
+        this.connectAudioOutput(filter);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -944,7 +965,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -972,7 +993,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         osc3.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1002,7 +1023,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1035,7 +1056,7 @@ class PianoVisualizer {
         
         osc1.connect(gainNode);
         osc2.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1064,7 +1085,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1093,7 +1114,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(filter);
-        filter.connect(this.audioContext.destination);
+        this.connectAudioOutput(filter);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1123,7 +1144,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         osc3.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1154,7 +1175,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        this.connectAudioOutput(gainNode);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -2334,9 +2355,38 @@ class PianoVisualizer {
             }
             
             this.renderer.render(this.scene, this.camera);
+            
+            // Copy canvas for recording if needed
+            this.copyCanvasForRecording();
+            
             requestAnimationFrame(animate);
         };
         animate();
+    }
+    
+    copyCanvasForRecording() {
+        // Only copy if recording with fallback canvas
+        if (!this.isRecording || !this.recordingContext || !this.renderer) {
+            return;
+        }
+        
+        try {
+            const sourceCanvas = this.renderer.domElement;
+            
+            // Clear and copy in sync with render
+            this.recordingContext.clearRect(0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            this.recordingContext.drawImage(sourceCanvas, 0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            
+            // Add recording indicator
+            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.8)';
+            this.recordingContext.fillRect(10, 10, 20, 20);
+            this.recordingContext.fillStyle = 'white';
+            this.recordingContext.font = '12px Arial';
+            this.recordingContext.fillText('REC', 35, 25);
+            
+        } catch (error) {
+            // Fail silently to avoid spamming console
+        }
     }
     
     async startRecording() {
@@ -2347,38 +2397,54 @@ class PianoVisualizer {
                 return;
             }
             
-            console.log('🎬 Starting full-screen recording with piano keyboard...');
+            console.log('🎬 Starting canvas-only recording with audio...');
             
-            // Use getDisplayMedia for screen capture with audio
-            let stream;
+            // Check if Three.js canvas is available
+            if (!this.renderer || !this.renderer.domElement) {
+                alert('❌ Three.jsキャンバスが見つかりません。しばらく待ってから再試行してください。');
+                return;
+            }
+            
+            // Get the Three.js canvas
+            const sourceCanvas = this.renderer.domElement;
+            
+            console.log(`📐 Source canvas: ${sourceCanvas.width}x${sourceCanvas.height}`);
+            console.log(`📐 Source canvas client: ${sourceCanvas.clientWidth}x${sourceCanvas.clientHeight}`);
+            
+            // Get video stream directly from Three.js canvas
+            let videoStream;
             try {
-                // Try to capture with audio
-                stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        mediaSource: 'screen',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        sampleRate: 44100
-                    }
-                });
-                console.log('✅ Screen capture with audio enabled');
-            } catch (audioError) {
-                console.log('⚠️ Audio capture failed, using video only:', audioError);
-                // Fallback to video only
-                stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        mediaSource: 'screen',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: false
-                });
+                videoStream = sourceCanvas.captureStream(30); // 30 FPS
+                console.log('✅ Direct canvas capture successful');
+            } catch (error) {
+                console.warn('⚠️ Direct canvas capture failed, creating intermediate canvas:', error);
+                
+                // Fallback: Create intermediate canvas
+                this.recordingCanvas = document.createElement('canvas');
+                this.recordingCanvas.width = sourceCanvas.width || sourceCanvas.clientWidth;
+                this.recordingCanvas.height = sourceCanvas.height || sourceCanvas.clientHeight;
+                this.recordingContext = this.recordingCanvas.getContext('2d');
+                
+                // Start copying process immediately
+                this.startCanvasCopyLoop();
+                
+                videoStream = this.recordingCanvas.captureStream(30);
+                console.log(`📐 Fallback canvas: ${this.recordingCanvas.width}x${this.recordingCanvas.height}`);
+            }
+            
+            // Get audio stream from our audio destination
+            let combinedStream;
+            if (this.audioDestination && this.audioDestination.stream) {
+                // Combine video and audio streams
+                combinedStream = new MediaStream([
+                    ...videoStream.getVideoTracks(),
+                    ...this.audioDestination.stream.getAudioTracks()
+                ]);
+                console.log('✅ Combined video and audio streams');
+            } else {
+                // Video only if audio destination not available
+                combinedStream = videoStream;
+                console.log('⚠️ Audio destination not available, using video only');
             }
             
             // Try iPhone-compatible codecs first (H.264 MP4)
@@ -2406,10 +2472,8 @@ class PianoVisualizer {
                 options = {};
             }
             
-            console.log(`🎥 Using codec: ${options.mimeType}`);
-            
-            this.mediaRecorder = new MediaRecorder(stream, options);
-            
+            this.mediaRecorder = new MediaRecorder(combinedStream, options);
+            this.combinedStream = combinedStream;
             this.recordedChunks = [];
             
             this.mediaRecorder.ondataavailable = (event) => {
@@ -2422,9 +2486,22 @@ class PianoVisualizer {
             this.mediaRecorder.onstop = () => {
                 console.log('🛑 Recording stopped');
                 document.getElementById('download-recording').disabled = false;
-                // Stop all tracks
-                stream.getTracks().forEach(track => track.stop());
+                
+                // Clean up streams
+                if (this.combinedStream) {
+                    this.combinedStream.getTracks().forEach(track => track.stop());
+                }
+                
+                // Clean up recording canvas
+                this.recordingCanvas = null;
+                this.recordingContext = null;
+                this.combinedStream = null;
             };
+            
+            // Start the canvas copying process only if using fallback
+            if (this.recordingCanvas) {
+                this.startCanvasCopyLoop();
+            }
             
             this.mediaRecorder.start();
             this.isRecording = true;
@@ -2432,24 +2509,29 @@ class PianoVisualizer {
             document.getElementById('start-recording').disabled = true;
             document.getElementById('stop-recording').disabled = false;
             
-            console.log('🔴 Recording started successfully');
+            console.log('🔴 Canvas recording started successfully');
             
         } catch (error) {
             console.error('Failed to start recording:', error);
-            alert('録画を開始できませんでした。ブラウザで画面共有の許可が必要です。');
+            alert('録画を開始できませんでした: ' + error.message);
         }
+    }
+    
+    startCanvasCopyLoop() {
+        // This function is now deprecated - canvas copying happens in main animation loop
+        console.log('Canvas copying is now handled in the main animation loop');
     }
     
     stopRecording() {
         if (this.mediaRecorder && this.isRecording) {
-            console.log('🛑 Stopping recording...');
+            console.log('🛑 Stopping canvas recording...');
             this.mediaRecorder.stop();
             this.isRecording = false;
             
             document.getElementById('start-recording').disabled = false;
             document.getElementById('stop-recording').disabled = true;
             
-            console.log('📹 Recording stopped, audio synthesis reverted to normal mode');
+            console.log('📹 Canvas recording stopped, audio synthesis reverted to normal mode');
         }
     }
     
