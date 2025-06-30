@@ -1915,18 +1915,29 @@ class PianoVisualizer {
             const svgBase64 = btoa(unescape(encodeURIComponent(selectedSvg)));
             const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
             
+            console.log('🎨 Generated SVG data URL length:', svgDataUrl.length);
+            console.log('🎨 SVG preview:', selectedSvg.substring(0, 200) + '...');
+            
             const img = new Image();
             return new Promise((resolve) => {
                 img.onload = () => {
                     this.backgroundImage = img;
-                    console.log('✅ SVG gradient background loaded successfully');
-                    this.applyBackgroundToScene(); // Apply to Three.js scene
+                    console.log('✅ SVG gradient background loaded successfully', {
+                        width: img.width,
+                        height: img.height,
+                        src: img.src.substring(0, 100) + '...'
+                    });
+                    // Delay to ensure Three.js scene is ready
+                    setTimeout(() => {
+                        this.applyBackgroundToScene(); // Apply to Three.js scene
+                    }, 100);
                     resolve();
                 };
-                img.onerror = () => {
-                    console.warn('⚠️ Failed to load SVG background, using solid color');
+                img.onerror = (error) => {
+                    console.warn('⚠️ Failed to load SVG background:', error);
                     resolve(); // Continue without background image
                 };
+                console.log('🔄 Loading SVG image...');
                 img.src = svgDataUrl;
             });
         } catch (error) {
@@ -1936,14 +1947,20 @@ class PianoVisualizer {
     
     applyBackgroundToScene() {
         if (!this.scene || !this.camera || !this.backgroundImage) {
-            console.warn('⚠️ Scene, camera, or background image not ready');
+            console.warn('⚠️ Scene, camera, or background image not ready', {
+                scene: !!this.scene,
+                camera: !!this.camera, 
+                backgroundImage: !!this.backgroundImage
+            });
             return;
         }
         
         try {
-            // Create background plane for better control over opacity
-            const loader = new THREE.TextureLoader();
-            const texture = loader.load(this.backgroundImage.src);
+            console.log('🎨 Creating background plane with image:', this.backgroundImage.src.substring(0, 50) + '...');
+            
+            // Create texture directly from the image element
+            const texture = new THREE.Texture(this.backgroundImage);
+            texture.needsUpdate = true;
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             
@@ -1954,12 +1971,15 @@ class PianoVisualizer {
             const planeHeight = 2 * Math.tan(fov / 2) * distance;
             const planeWidth = planeHeight * this.camera.aspect;
             
+            console.log(`📐 Background plane size: ${planeWidth.toFixed(2)} x ${planeHeight.toFixed(2)}`);
+            
             // Create background plane geometry sized to fill viewport
             const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
             const material = new THREE.MeshBasicMaterial({ 
                 map: texture, 
                 transparent: true, 
-                opacity: 0.15  // Very subtle background
+                opacity: 0.3,  // Increased opacity for better visibility
+                side: THREE.DoubleSide  // Ensure visibility from all angles
             });
             
             const backgroundPlane = new THREE.Mesh(geometry, material);
@@ -1969,7 +1989,7 @@ class PianoVisualizer {
             // Store reference for potential resizing
             this.backgroundPlane = backgroundPlane;
             
-            console.log('✅ Background image applied to Three.js scene');
+            console.log('✅ Background image applied to Three.js scene with opacity 0.3');
         } catch (error) {
             console.warn('⚠️ Error applying background to scene:', error);
         }
