@@ -15,6 +15,7 @@ class PianoVisualizer {
         this.mediaRecorder = null;
         this.recordedChunks = [];
         this.backgroundImage = null;
+        this.backgroundPlane = null;
         
         this.settings = {
             animationSpeed: 1.0,
@@ -227,8 +228,15 @@ class PianoVisualizer {
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             
-            // Create background plane geometry
-            const geometry = new THREE.PlaneGeometry(50, 50);
+            // Calculate plane size to cover entire canvas view
+            // Camera is at z=10, plane at z=-20, so distance is 30
+            const distance = 30;
+            const fov = this.camera.fov * (Math.PI / 180); // Convert to radians
+            const planeHeight = 2 * Math.tan(fov / 2) * distance;
+            const planeWidth = planeHeight * this.camera.aspect;
+            
+            // Create background plane geometry sized to fill viewport
+            const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
             const material = new THREE.MeshBasicMaterial({ 
                 map: texture, 
                 transparent: true, 
@@ -238,6 +246,9 @@ class PianoVisualizer {
             const backgroundPlane = new THREE.Mesh(geometry, material);
             backgroundPlane.position.z = -20; // Far back
             this.scene.add(backgroundPlane);
+            
+            // Store reference for potential resizing
+            this.backgroundPlane = backgroundPlane;
             
             // Keep dark background color as base
             this.scene.background = new THREE.Color(0x0d1421);
