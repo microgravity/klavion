@@ -42,6 +42,34 @@ body {
     font-weight: 500;
     font-size: 1.125rem;
     letter-spacing: -0.025em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.sidebar h3:hover {
+    color: #6ee7b7;
+}
+
+.sidebar h3 .toggle-icon {
+    font-size: 0.875rem;
+    color: #9ca3af;
+    transition: transform 0.2s ease;
+}
+
+.sidebar h3.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0;
 }
 
 .control-group {
@@ -112,6 +140,17 @@ body {
 .recording-controls button:disabled {
     background: #555;
     cursor: not-allowed;
+}
+
+.reset-btn {
+    background: #6b7280 !important;
+    font-size: 12px !important;
+    padding: 6px 8px !important;
+    margin-top: 4px !important;
+}
+
+.reset-btn:hover:not(:disabled) {
+    background: #4b5563 !important;
 }
 
 .recording-note {

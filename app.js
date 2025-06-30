@@ -18,16 +18,21 @@ class PianoVisualizer {
         this.settings = {
             animationSpeed: 1.0,
             sizeMultiplier: 1.0,
-            velocitySensitivity: 1.5,
+            velocitySensitivity: 2.2,
             fadeDuration: 3.0,
             colorIntensity: 1.0,
-            particleCount: 200,
             motionBlur: 0.3,
             glowIntensity: 1.0,
             fontFamily: 'Noto Sans JP',
             pianoRange: '3-octave',
             volume: 0.7,
-            isMuted: false
+            isMuted: false,
+            colorScale: 'custom',
+            showOctaveNumbers: false,
+            showVelocityNumbers: false,
+            audioTimbre: 'acoustic-piano',
+            noteNameStyle: 'japanese',
+            customBaseColor: '#ffffff'
         };
         
         // Piano configuration
@@ -44,13 +49,43 @@ class PianoVisualizer {
         this.midiInputs = new Map(); // Store MIDI input devices
         this.selectedInputDevice = 'keyboard'; // Default to computer keyboard
         
+        // MIDI pedal state
+        this.sustainPedalPressed = false;
+        this.sustainedNotes = new Set(); // Track sustained notes
+        this.activeAudioNodes = new Map(); // Track active audio nodes for sustain
+        
         // Screen recording settings
         this.screenRecordingEnabled = true;
         this.screenRecordingStream = null;
+        this.screenRecordingPermissionAsked = false;
         
-        this.noteNames = [
-            'ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'
-        ];
+        this.noteNames = {
+            japanese: ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'],
+            western: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        };
+        
+        // Scale definitions (note indices in chromatic scale)
+        this.scales = {
+            chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            major: [0, 2, 4, 5, 7, 9, 11],
+            minor: [0, 2, 3, 5, 7, 8, 10],
+            pentatonic: [0, 2, 4, 7, 9],
+            blues: [0, 3, 5, 6, 7, 10],
+            dorian: [0, 2, 3, 5, 7, 9, 10],
+            mixolydian: [0, 2, 4, 5, 7, 9, 10]
+        };
+        
+        // Modern color palettes for each scale
+        this.colorPalettes = {
+            chromatic: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd', '#00d2d3', '#ff9f43', '#10ac84', '#ee5253'],
+            major: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe', '#43e97b'],
+            minor: ['#667db6', '#0082c8', '#8360c3', '#2ebf91', '#8fd3f4', '#96deda', '#b8e6b8'],
+            pentatonic: ['#fa709a', '#fee140', '#a8edea', '#fed6e3', '#d299c2'],
+            blues: ['#667eea', '#764ba2', '#667db6', '#0082c8', '#8360c3', '#2ebf91'],
+            dorian: ['#ff9a9e', '#fecfef', '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
+            mixolydian: ['#fce38a', '#f38181', '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
+            custom: [] // Will be generated dynamically
+        };
         
         this.keyLayout = [
             { note: 'C', type: 'white' },
@@ -102,7 +137,43 @@ class PianoVisualizer {
         this.clock = null;
         
         
+        this.lastDebugTime = 0; // For debug logging
+        this.loadSettings();
         this.init();
+    }
+    
+    loadSettings() {
+        try {
+            // Load screen recording settings from localStorage
+            const savedEnabled = localStorage.getItem('screenRecordingEnabled');
+            const savedAsked = localStorage.getItem('screenRecordingPermissionAsked');
+            
+            if (savedEnabled !== null) {
+                this.screenRecordingEnabled = JSON.parse(savedEnabled);
+                console.log(`📁 Loaded screen recording setting: ${this.screenRecordingEnabled ? 'enabled' : 'disabled'}`);
+            }
+            
+            if (savedAsked !== null) {
+                this.screenRecordingPermissionAsked = JSON.parse(savedAsked);
+                console.log(`📁 Permission previously asked: ${this.screenRecordingPermissionAsked}`);
+            }
+            
+        } catch (error) {
+            console.warn('⚠️ Failed to load settings from localStorage:', error);
+            // Use defaults if loading fails
+            this.screenRecordingEnabled = true;
+            this.screenRecordingPermissionAsked = false;
+        }
+    }
+    
+    saveSettings() {
+        try {
+            localStorage.setItem('screenRecordingEnabled', JSON.stringify(this.screenRecordingEnabled));
+            localStorage.setItem('screenRecordingPermissionAsked', JSON.stringify(this.screenRecordingPermissionAsked));
+            console.log(`💾 Settings saved to localStorage`);
+        } catch (error) {
+            console.warn('⚠️ Failed to save settings to localStorage:', error);
+        }
     }
     
     async init() {
@@ -115,21 +186,33 @@ class PianoVisualizer {
         this.setupMidiControls();
         this.setupMidiDeviceSelection();
         this.setupAudioControls();
+        this.setupCollapsibleSections();
+        this.updateCustomColors(); // Initialize custom colors
         this.setupScreenRecording();
         this.startVisualization();
+        
+        // Test sprite creation after initialization
+        setTimeout(() => {
+            if (this.scene && this.renderer) {
+                console.log('🧪 Creating test sprite...');
+                this.visualizeNoteThreeJS('テスト', 60, 100, performance.now());
+            }
+        }, 1000);
         
         window.addEventListener('resize', () => this.onWindowResize());
     }
     
     initThreeJS() {
+        console.log(`🔧 initThreeJS called: THREE=${typeof THREE}, container=${!!this.container}`);
         // Check if THREE is available
         if (typeof THREE === 'undefined') {
-            console.error('THREE.js not loaded. Using DOM visualization.');
+            console.error('❌ THREE.js not loaded. Using DOM visualization.');
             return;
         }
         
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
+        console.log(`📐 Container dimensions: ${width}x${height}`);
         
         // Scene
         this.scene = new THREE.Scene();
@@ -140,17 +223,24 @@ class PianoVisualizer {
         this.camera.position.set(0, 0, 10);
         
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ 
-            antialias: true, 
-            alpha: true,
-            powerPreference: "high-performance"
-        });
-        this.renderer.setSize(width, height);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        
-        this.container.appendChild(this.renderer.domElement);
+        try {
+            this.renderer = new THREE.WebGLRenderer({ 
+                antialias: true, 
+                alpha: true,
+                powerPreference: "high-performance"
+            });
+            this.renderer.setSize(width, height);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            this.container.appendChild(this.renderer.domElement);
+            console.log(`✅ WebGL renderer created successfully: ${width}x${height}`);
+        } catch (error) {
+            console.error('❌ Failed to create WebGL renderer:', error);
+            this.renderer = null;
+            return;
+        }
         
         // Clock for timing
         this.clock = new THREE.Clock();
@@ -171,53 +261,11 @@ class PianoVisualizer {
         directionalLight.shadow.camera.bottom = -10;
         this.scene.add(directionalLight);
         
-        // Create particle system for background effects
-        this.createParticleSystem();
+        // Simple static background (fluid background removed for debugging)
+        console.log('✅ Three.js scene initialized with static background');
     }
     
-    createParticleSystem() {
-        const particleCount = this.settings.particleCount;
-        const particles = new THREE.BufferGeometry();
-        const positions = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
-        
-        for (let i = 0; i < particleCount * 3; i += 3) {
-            positions[i] = (Math.random() - 0.5) * 50;     // x
-            positions[i + 1] = (Math.random() - 0.5) * 30; // y
-            positions[i + 2] = (Math.random() - 0.5) * 20; // z
-            
-            const color = new THREE.Color().setHSL(Math.random(), 0.3, 0.5);
-            colors[i] = color.r;
-            colors[i + 1] = color.g;
-            colors[i + 2] = color.b;
-        }
-        
-        particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 0.1,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
-        });
-        
-        this.particleSystem = new THREE.Points(particles, particleMaterial);
-        this.scene.add(this.particleSystem);
-    }
     
-    updateParticleSystem() {
-        if (this.particleSystem && this.scene) {
-            // Remove old particle system
-            this.scene.remove(this.particleSystem);
-            this.particleSystem.geometry.dispose();
-            this.particleSystem.material.dispose();
-            
-            // Create new one with updated count
-            this.createParticleSystem();
-        }
-    }
     
     onWindowResize() {
         if (!this.camera || !this.renderer) return;
@@ -234,9 +282,68 @@ class PianoVisualizer {
     async initAudio() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.audioContextResumed = false;
+            
+            // Add user interaction listener to resume AudioContext
+            this.setupAudioContextResume();
+            
+            console.log('🎵 AudioContext created, waiting for user interaction to start');
         } catch (error) {
             console.error('Audio context initialization failed:', error);
         }
+    }
+    
+    setupAudioContextResume() {
+        // Show audio context notice if needed
+        const showNoticeIfNeeded = () => {
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                const notice = document.getElementById('audio-context-notice');
+                if (notice) {
+                    notice.style.display = 'block';
+                    // Auto-hide after 5 seconds
+                    setTimeout(() => {
+                        if (notice.style.display === 'block') {
+                            notice.style.display = 'none';
+                        }
+                    }, 5000);
+                }
+            }
+        };
+        
+        const resumeAudioContext = async () => {
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                try {
+                    await this.audioContext.resume();
+                    this.audioContextResumed = true;
+                    console.log('🎵 AudioContext resumed after user interaction');
+                    
+                    // Hide notice
+                    const notice = document.getElementById('audio-context-notice');
+                    if (notice) {
+                        notice.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Failed to resume AudioContext:', error);
+                }
+            } else if (this.audioContext && this.audioContext.state === 'running') {
+                this.audioContextResumed = true;
+            }
+            
+            // Remove listeners after first successful resume
+            if (this.audioContextResumed) {
+                document.removeEventListener('click', resumeAudioContext);
+                document.removeEventListener('keydown', resumeAudioContext);
+                document.removeEventListener('touchstart', resumeAudioContext);
+            }
+        };
+        
+        // Show notice after a short delay
+        setTimeout(showNoticeIfNeeded, 1000);
+        
+        // Listen for user interactions
+        document.addEventListener('click', resumeAudioContext, { once: true });
+        document.addEventListener('keydown', resumeAudioContext, { once: true });
+        document.addEventListener('touchstart', resumeAudioContext, { once: true });
     }
     
     async initMIDI() {
@@ -365,7 +472,7 @@ class PianoVisualizer {
         // Handle with minimal latency
         if (command === 144 && velocity > 0) {
             // Note On
-            const noteName = this.midiNoteToNoteName(note);
+            const noteName = this.midiNoteToNoteName(note, velocity);
             console.log(`🎵 Note ON: ${noteName} (MIDI:${note}) velocity:${velocity}`);
             this.logMidiActivity(`▶ ${noteName} (${note}) vel:${velocity}`);
             this.playNote(note, velocity, timestamp);
@@ -381,6 +488,11 @@ class PianoVisualizer {
             // Control Change
             console.log(`🎛️ Control Change: CC${note} = ${velocity}`);
             this.logMidiActivity(`CC:${note} Val:${velocity}`);
+            
+            // Handle sustain pedal (CC 64)
+            if (note === 64) {
+                this.handleSustainPedal(velocity >= 64);
+            }
         } else if ((command & 0xF0) === 0xC0) {
             // Program Change
             console.log(`🎹 Program Change: PC${note}`);
@@ -481,31 +593,105 @@ class PianoVisualizer {
     
     playNote(midiNote, velocity, timestamp = performance.now()) {
         const frequency = this.midiNoteToFrequency(midiNote);
-        const noteName = this.midiNoteToNoteName(midiNote);
+        const noteName = this.midiNoteToNoteName(midiNote, velocity);
         
-        this.synthesizeNote(frequency, velocity);
+        this.synthesizeNote(frequency, velocity, midiNote);
         this.visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp);
         
     }
     
     stopNote(midiNote, timestamp = performance.now()) {
-        // Note stopping logic would go here for sustained notes
-        // For now, just ensure the piano key highlight is removed
-        this.highlightPianoKey(midiNote, false);
+        // If sustain pedal is pressed, don't stop the note immediately
+        if (this.sustainPedalPressed) {
+            this.sustainedNotes.add(midiNote);
+            console.log(`🦶 Note ${this.midiNoteToNoteName(midiNote)} sustained by pedal`);
+            return;
+        }
+        
+        // Stop the note immediately
+        this.stopSustainedNote(midiNote);
     }
     
     midiNoteToFrequency(midiNote) {
         return 440 * Math.pow(2, (midiNote - 69) / 12);
     }
     
-    midiNoteToNoteName(midiNote) {
+    midiNoteToNoteName(midiNote, velocity = null) {
         const noteIndex = midiNote % 12;
         const octave = Math.floor(midiNote / 12) - 1;
-        return `${this.noteNames[noteIndex]}${octave}`;
+        const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
+        
+        let noteName = noteNamesArray[noteIndex];
+        
+        // Add velocity number if enabled and velocity is provided
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            noteName += `(${velocity})`;
+        }
+        
+        // Add octave number if enabled
+        if (this.settings.showOctaveNumbers) {
+            // Insert octave before velocity if both are shown
+            if (this.settings.showVelocityNumbers && velocity !== null) {
+                noteName = noteNamesArray[noteIndex] + octave + `(${velocity})`;
+            } else {
+                noteName += octave;
+            }
+        }
+        
+        return noteName;
     }
     
-    synthesizeNote(frequency, velocity) {
-        if (!this.audioContext) return;
+    handleSustainPedal(isPressed) {
+        this.sustainPedalPressed = isPressed;
+        
+        if (isPressed) {
+            console.log('🦶 Sustain pedal pressed - notes will sustain');
+            this.logMidiActivity('🦶 Sustain ON');
+        } else {
+            console.log('🦶 Sustain pedal released - stopping sustained notes');
+            this.logMidiActivity('🦶 Sustain OFF');
+            
+            // Stop all sustained notes
+            this.sustainedNotes.forEach(midiNote => {
+                this.stopSustainedNote(midiNote);
+            });
+            this.sustainedNotes.clear();
+        }
+    }
+    
+    stopSustainedNote(midiNote) {
+        // Stop the audio nodes for this note
+        const audioNodeInfo = this.activeAudioNodes.get(midiNote);
+        if (audioNodeInfo) {
+            const { gainNode, stopTime } = audioNodeInfo;
+            const currentTime = this.audioContext.currentTime;
+            
+            // Fade out the sustained note
+            gainNode.gain.cancelScheduledValues(currentTime);
+            gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + 0.3);
+            
+            // Remove from active nodes after fade out
+            setTimeout(() => {
+                this.activeAudioNodes.delete(midiNote);
+            }, 350);
+        }
+        
+        // Remove piano key highlight
+        this.highlightPianoKey(midiNote, false);
+    }
+    
+    synthesizeNote(frequency, velocity, midiNote = null) {
+        if (!this.audioContext) {
+            console.log('🔇 Audio synthesis skipped - no AudioContext');
+            return;
+        }
+        
+        // Check AudioContext state
+        if (this.audioContext.state === 'suspended') {
+            console.log('🔇 Audio synthesis skipped - AudioContext suspended (waiting for user interaction)');
+            return;
+        }
         
         // Check if audio is muted (but allow during recording)
         if (this.settings.isMuted && !this.isRecording) {
@@ -518,62 +704,475 @@ class PianoVisualizer {
             console.log(`🎬 Recording mode: Audio synthesis enabled`);
         }
         
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-        
         // Apply both velocity and global volume settings
         const velocityVolume = (velocity / 127) * 0.3;
         const finalVolume = velocityVolume * this.settings.volume;
         
-        gainNode.gain.setValueAtTime(finalVolume, this.audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1);
+        // Create audio nodes based on selected timbre
+        const timbre = this.settings.audioTimbre;
+        const audioNodes = this.createTimbreNodes(frequency, finalVolume, timbre, midiNote);
         
-        oscillator.connect(gainNode);
+        console.log(`🎵 Synthesized ${timbre}: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${finalVolume.toFixed(3)} ${midiNote ? `(MIDI:${midiNote})` : ''}`);
+    }
+    
+    createTimbreNodes(frequency, volume, timbre, midiNote = null) {
+        const currentTime = this.audioContext.currentTime;
+        const duration = this.getTimbreDuration(timbre);
+        
+        // Adjust duration for sustain pedal
+        const actualDuration = this.sustainPedalPressed ? duration * 2 : duration;
+        
+        let gainNode;
+        switch (timbre) {
+            case 'acoustic-piano':
+                gainNode = this.createAcousticPiano(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'electric-piano':
+                gainNode = this.createElectricPiano(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'harpsichord':
+                gainNode = this.createHarpsichord(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'organ':
+                gainNode = this.createOrgan(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'strings':
+                gainNode = this.createStrings(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'vibraphone':
+                gainNode = this.createVibraphone(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'music-box':
+                gainNode = this.createMusicBox(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'synthesizer':
+                gainNode = this.createSynthesizer(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'bell':
+                gainNode = this.createBell(frequency, volume, currentTime, actualDuration);
+                break;
+            case 'flute':
+                gainNode = this.createFlute(frequency, volume, currentTime, actualDuration);
+                break;
+            default:
+                gainNode = this.createAcousticPiano(frequency, volume, currentTime, actualDuration);
+                break;
+        }
+        
+        // Track active audio nodes for sustain pedal
+        if (midiNote && gainNode) {
+            this.activeAudioNodes.set(midiNote, {
+                gainNode: gainNode,
+                stopTime: currentTime + actualDuration,
+                timbre: timbre
+            });
+            
+            // Add to sustained notes if pedal is pressed
+            if (this.sustainPedalPressed) {
+                this.sustainedNotes.add(midiNote);
+            }
+        }
+        
+        return gainNode;
+    }
+    
+    getTimbreDuration(timbre) {
+        const durations = {
+            'acoustic-piano': 2.5,
+            'electric-piano': 2.0,
+            'harpsichord': 1.5,
+            'organ': 3.0,
+            'strings': 4.0,
+            'vibraphone': 3.5,
+            'music-box': 2.0,
+            'synthesizer': 1.5,
+            'bell': 4.0,
+            'flute': 2.5
+        };
+        return durations[timbre] || 2.0;
+    }
+    
+    createAcousticPiano(frequency, volume, currentTime, duration) {
+        // Acoustic piano with multiple harmonics
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const osc3 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(frequency * 3, currentTime);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, currentTime);
+        filter.Q.setValueAtTime(1, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(filter);
+        filter.connect(this.audioContext.destination);
+        
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc3.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        osc3.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createElectricPiano(frequency, volume, currentTime, duration) {
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
+        
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1500, currentTime);
+        filter.Q.setValueAtTime(5, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(filter);
+        filter.connect(this.audioContext.destination);
+        
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createHarpsichord(frequency, volume, currentTime, duration) {
+        const osc = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(frequency, currentTime);
+        
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(800, currentTime);
+        filter.Q.setValueAtTime(2, currentTime);
+        
+        gainNode.gain.setValueAtTime(volume, currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc.connect(filter);
+        filter.connect(gainNode);
         gainNode.connect(this.audioContext.destination);
         
-        oscillator.start();
-        oscillator.stop(this.audioContext.currentTime + 1);
+        osc.start(currentTime);
+        osc.stop(currentTime + duration);
         
-        console.log(`🎵 Synthesized note: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${finalVolume.toFixed(3)}`);
+        return gainNode;
+    }
+    
+    createOrgan(frequency, volume, currentTime, duration) {
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const osc3 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(frequency / 2, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc3.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        osc3.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createStrings(frequency, volume, currentTime, duration) {
+        const osc = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(frequency, currentTime);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, currentTime);
+        filter.Q.setValueAtTime(1, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.3);
+        gainNode.gain.linearRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        osc.start(currentTime);
+        osc.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createVibraphone(frequency, volume, currentTime, duration) {
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const lfo = this.audioContext.createOscillator();
+        const lfoGain = this.audioContext.createGain();
+        const gainNode = this.audioContext.createGain();
+        
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(frequency * 4, currentTime);
+        
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(5, currentTime);
+        lfoGain.gain.setValueAtTime(0.1, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        lfo.connect(lfoGain);
+        lfoGain.connect(gainNode.gain);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        lfo.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        lfo.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createMusicBox(frequency, volume, currentTime, duration) {
+        const osc = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(frequency * 2, currentTime);
+        
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(3000, currentTime);
+        filter.Q.setValueAtTime(10, currentTime);
+        
+        gainNode.gain.setValueAtTime(volume, currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        osc.start(currentTime);
+        osc.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createSynthesizer(frequency, volume, currentTime, duration) {
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc1.type = 'square';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(frequency + 2, currentTime);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, currentTime);
+        filter.Q.setValueAtTime(5, currentTime);
+        
+        gainNode.gain.setValueAtTime(volume, currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(filter);
+        filter.connect(this.audioContext.destination);
+        
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createBell(frequency, volume, currentTime, duration) {
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const osc3 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(frequency * 2.4, currentTime);
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(frequency * 3.8, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc3.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        osc3.stop(currentTime + duration);
+        
+        return gainNode;
+    }
+    
+    createFlute(frequency, volume, currentTime, duration) {
+        const osc = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(frequency, currentTime);
+        
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1000, currentTime);
+        filter.Q.setValueAtTime(2, currentTime);
+        
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.2);
+        gainNode.gain.linearRampToValueAtTime(volume * 0.8, currentTime + duration * 0.7);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        
+        osc.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        osc.start(currentTime);
+        osc.stop(currentTime + duration);
+        
+        return gainNode;
     }
     
     visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp) {
         // Fallback to DOM if THREE.js not available
         if (!this.scene || typeof THREE === 'undefined') {
+            console.log(`⚠️ Three.js fallback: scene=${!!this.scene}, THREE=${typeof THREE}`);
             this.visualizeNoteFallback(noteName, midiNote, velocity);
             return;
         }
         
-        const color = this.getNoteColorThreeJS(midiNote, velocity);
+        console.log(`🎵 visualizeNoteThreeJS called: ${noteName}, MIDI:${midiNote}, vel:${velocity}`);
+        
+        const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
         // Create text sprite with larger canvas for better quality
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
+        // Increase canvas size to accommodate velocity text without clipping
         canvas.width = 512;
-        canvas.height = 256;
+        canvas.height = this.settings.showVelocityNumbers && velocity !== null ? 384 : 256; // 1.5x height for velocity display
         
         // Enhanced text rendering with glow effect
         const glowIntensity = this.settings.glowIntensity;
         const fontFamily = this.settings.fontFamily;
-        context.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1)`;
-        context.font = `bold ${80 * size}px ${fontFamily}, Arial, sans-serif`;
+        
+        // Prepare note name components
+        const noteIndex = midiNote % 12;
+        const octave = Math.floor(midiNote / 12) - 1;
+        const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
+        
+        let mainText = noteNamesArray[noteIndex];
+        if (this.settings.showOctaveNumbers) {
+            mainText += octave;
+        }
+        
+        // Use custom base color from controller, fallback to white
+        let textColor = 'rgba(255, 255, 255, 1)'; // Default white
+        if (this.settings.customBaseColor && this.settings.customBaseColor !== '#ffffff') {
+            // Convert hex to RGB
+            const hex = this.settings.customBaseColor.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            textColor = `rgba(${r}, ${g}, ${b}, 1)`;
+        }
+        context.fillStyle = textColor;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
         
-        // Add glow effect
+        // Calculate line positions based on font size, line-height, and canvas size
+        const mainFontSize = 80 * size;
+        const velocityFontSize = 50 * size;
+        const lineHeight = 2.0; // Line-height multiplier for spacing
+        const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
+        
+        let mainTextY = canvasCenter; // Default center position
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            // Adjust main text position to accommodate velocity text below
+            const totalHeight = mainFontSize + (velocityFontSize * lineHeight);
+            mainTextY = canvasCenter - (totalHeight / 4); // Move up to center both lines
+        }
+        
+        // Draw main note name
+        context.font = `bold ${mainFontSize}px ${fontFamily}, Arial, sans-serif`;
+        
+        // Add glow effect for main text (using same color as text)
         if (glowIntensity > 0) {
-            context.shadowColor = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, ${glowIntensity})`;
+            const glowColor = textColor.replace('rgba(', '').replace(')', '').replace(', 1', ', ' + glowIntensity);
+            context.shadowColor = 'rgba(' + glowColor + ')';
             context.shadowBlur = 20 * glowIntensity;
             context.shadowOffsetX = 0;
             context.shadowOffsetY = 0;
             
             // Multiple glow layers for intensity
             for (let i = 0; i < 3; i++) {
-                context.fillText(noteName, 256, 128);
+                context.fillText(mainText, canvas.width / 2, mainTextY);
             }
         }
         
@@ -582,7 +1181,31 @@ class PianoVisualizer {
         context.shadowColor = 'rgba(0, 0, 0, 0.5)';
         context.shadowOffsetX = 2;
         context.shadowOffsetY = 2;
-        context.fillText(noteName, 256, 128);
+        context.fillText(mainText, canvas.width / 2, mainTextY);
+        
+        // Draw velocity number with smaller font if enabled
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            // Calculate velocity text position based on line-height
+            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.8); // Line-height spacing from main text
+            
+            context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
+            const velocityText = `(${velocity})`;
+            
+            // Add glow effect for velocity text (using same color as main text)
+            if (glowIntensity > 0) {
+                const glowColor = textColor.replace('rgba(', '').replace(')', '').replace(', 1', ', ' + glowIntensity);
+                context.shadowColor = 'rgba(' + glowColor + ')';
+                context.shadowBlur = 15 * glowIntensity;
+                
+                for (let i = 0; i < 2; i++) {
+                    context.fillText(velocityText, canvas.width / 2, velocityTextY);
+                }
+            }
+            
+            // Velocity text with proper line-height spacing
+            context.shadowBlur = 3;
+            context.fillText(velocityText, canvas.width / 2, velocityTextY);
+        }
         
         const texture = new THREE.CanvasTexture(canvas);
         texture.needsUpdate = true;
@@ -625,6 +1248,10 @@ class PianoVisualizer {
         
         this.scene.add(sprite);
         this.noteObjects.push(sprite);
+        
+        // Debug: Log sprite creation and positioning
+        console.log(`🎨 Sprite created: ${mainText}, position: (${x.toFixed(2)}, ${sprite.position.y}, ${sprite.position.z}), scale: ${displaySize.toFixed(2)}`);
+        console.log(`📊 Scene stats: ${this.noteObjects.length} sprites, camera pos: (${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z})`);
         
         // Clean up old notes
         if (this.noteObjects.length > 50) {
@@ -686,34 +1313,73 @@ class PianoVisualizer {
     }
     
     getNoteColor(midiNote, velocity) {
-        const modernColors = [
-            { r: 255, g: 182, b: 193 }, // Light Pink
-            { r: 255, g: 218, b: 185 }, // Peach
-            { r: 255, g: 239, b: 153 }, // Light Yellow
-            { r: 204, g: 255, b: 204 }, // Light Green
-            { r: 173, g: 216, b: 230 }, // Light Blue
-            { r: 221, g: 160, b: 221 }, // Plum
-            { r: 255, g: 192, b: 203 }, // Pink
-            { r: 255, g: 228, b: 181 }, // Moccasin
-            { r: 240, g: 248, b: 255 }, // Alice Blue
-            { r: 230, g: 230, b: 250 }, // Lavender
-            { r: 175, g: 238, b: 238 }, // Pale Turquoise
-            { r: 255, g: 240, b: 245 }  // Lavender Blush
-        ];
+        const noteIndex = midiNote % 12;
+        const scale = this.scales[this.settings.colorScale] || this.scales.chromatic;
+        let palette = this.colorPalettes[this.settings.colorScale];
         
-        const colorIndex = (midiNote - 21) % modernColors.length;
-        const baseColor = modernColors[colorIndex];
+        // If custom scale is selected and palette is empty, generate custom colors
+        if (this.settings.colorScale === 'custom' && (!palette || palette.length === 0)) {
+            this.updateCustomColors();
+            palette = this.colorPalettes.custom;
+        }
         
+        // Fallback to chromatic palette if current palette is undefined
+        if (!palette) {
+            palette = this.colorPalettes.chromatic || ['#ff0000', '#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#0000ff', '#8000ff', '#ff00ff', '#ff0080'];
+        }
+        
+        // Find note position in scale
+        let scalePosition = scale.indexOf(noteIndex);
+        if (scalePosition === -1) {
+            // If note not in scale, use closest note
+            scalePosition = this.findClosestNoteInScale(noteIndex, scale);
+        }
+        
+        const baseColor = palette[scalePosition] || '#ffffff';
+        
+        // Create gradient based on octave (higher octave = lighter)
+        const octave = Math.floor(midiNote / 12) - 1;
+        const octaveRange = 8; // A0 to C8
+        const normalizedOctave = Math.max(0, Math.min(1, octave / octaveRange));
+        
+        // Parse hex color
+        const hex = baseColor.replace('#', '');
+        let r = parseInt(hex.substr(0, 2), 16);
+        let g = parseInt(hex.substr(2, 2), 16);
+        let b = parseInt(hex.substr(4, 2), 16);
+        
+        // Apply octave gradient (lighter for higher octaves)
+        const gradientFactor = 0.3 + (normalizedOctave * 0.7);
+        r = Math.round(r + (255 - r) * (1 - gradientFactor));
+        g = Math.round(g + (255 - g) * (1 - gradientFactor));
+        b = Math.round(b + (255 - b) * (1 - gradientFactor));
+        
+        // Apply velocity and intensity
         const velocityFactor = Math.max(0.6, velocity / 127);
         const intensityFactor = this.settings.colorIntensity;
         
-        const r = Math.min(255, baseColor.r * velocityFactor * intensityFactor);
-        const g = Math.min(255, baseColor.g * velocityFactor * intensityFactor);
-        const b = Math.min(255, baseColor.b * velocityFactor * intensityFactor);
+        r = Math.round(r * velocityFactor * intensityFactor);
+        g = Math.round(g * velocityFactor * intensityFactor);
+        b = Math.round(b * velocityFactor * intensityFactor);
         
         const alpha = 0.8 + (velocity / 127) * 0.2;
         
-        return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    
+    findClosestNoteInScale(noteIndex, scale) {
+        let closestDistance = 12;
+        let closestIndex = 0;
+        
+        for (let i = 0; i < scale.length; i++) {
+            const distance = Math.abs(noteIndex - scale[i]);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestIndex = i;
+            }
+        }
+        
+        return closestIndex;
     }
     
     setupEventListeners() {
@@ -723,7 +1389,6 @@ class PianoVisualizer {
             'velocity-sensitivity': { setting: 'velocitySensitivity', display: 'velocity-value' },
             'fade-duration': { setting: 'fadeDuration', display: 'fade-value' },
             'color-intensity': { setting: 'colorIntensity', display: 'color-value' },
-            'particle-count': { setting: 'particleCount', display: 'particle-value' },
             'motion-blur': { setting: 'motionBlur', display: 'blur-value' },
             'glow-intensity': { setting: 'glowIntensity', display: 'glow-value' }
         };
@@ -736,10 +1401,7 @@ class PianoVisualizer {
                 this.settings[config.setting] = parseFloat(e.target.value);
                 display.textContent = e.target.value;
                 
-                // Special handling for particle count
-                if (config.setting === 'particleCount') {
-                    this.updateParticleSystem();
-                }
+                // Fluid background updates removed for debugging
             });
         });
         
@@ -754,6 +1416,88 @@ class PianoVisualizer {
         rangeSelector.addEventListener('change', (e) => {
             this.settings.pianoRange = e.target.value;
             this.recreatePianoKeyboard();
+        });
+        
+        // Color scale selector
+        const colorScaleSelector = document.getElementById('color-scale');
+        colorScaleSelector.addEventListener('change', (e) => {
+            this.settings.colorScale = e.target.value;
+            
+            // Show/hide custom color controls
+            const customControls = document.getElementById('color-customization');
+            if (e.target.value === 'custom') {
+                customControls.style.display = 'block';
+                this.updateCustomColors();
+            } else {
+                customControls.style.display = 'none';
+            }
+            
+            console.log(`🎨 Color scale changed to: ${e.target.value}`);
+        });
+        
+        // Velocity numbers toggle
+        const velocityToggle = document.getElementById('show-velocity-numbers');
+        velocityToggle.addEventListener('change', (e) => {
+            this.settings.showVelocityNumbers = e.target.checked;
+            console.log(`🎯 Velocity numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
+        });
+        
+        // Octave numbers toggle
+        const octaveToggle = document.getElementById('show-octave-numbers');
+        octaveToggle.addEventListener('change', (e) => {
+            this.settings.showOctaveNumbers = e.target.checked;
+            console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
+        });
+        
+        // Audio timbre selector
+        const timbreSelector = document.getElementById('audio-timbre');
+        timbreSelector.addEventListener('change', (e) => {
+            this.settings.audioTimbre = e.target.value;
+            console.log(`🎵 Audio timbre changed to: ${e.target.value}`);
+        });
+        
+        // Note name style selector
+        const noteNameStyleSelector = document.getElementById('note-name-style');
+        noteNameStyleSelector.addEventListener('change', (e) => {
+            this.settings.noteNameStyle = e.target.value;
+            this.updateKeyboardHelp();
+            console.log(`🎶 Note name style changed to: ${e.target.value}`);
+        });
+        
+        // Base color picker
+        const baseColorPicker = document.getElementById('base-color-picker');
+        baseColorPicker.addEventListener('change', (e) => {
+            this.settings.customBaseColor = e.target.value;
+            if (this.settings.colorScale === 'custom') {
+                this.updateCustomColors();
+            }
+            console.log(`🎨 Base color changed to: ${e.target.value}`);
+        });
+        
+        // Color code input
+        const colorCodeInput = document.getElementById('color-code-input');
+        const applyColorButton = document.getElementById('apply-color-code');
+        
+        applyColorButton.addEventListener('click', () => {
+            const colorCode = colorCodeInput.value.trim();
+            if (/^#[0-9A-Fa-f]{6}$/.test(colorCode)) {
+                this.settings.customBaseColor = colorCode;
+                baseColorPicker.value = colorCode;
+                if (this.settings.colorScale === 'custom') {
+                    this.updateCustomColors();
+                }
+                console.log(`🎨 Color code applied: ${colorCode}`);
+                colorCodeInput.style.borderColor = '';
+            } else {
+                console.warn(`❌ Invalid color code: ${colorCode}`);
+                colorCodeInput.style.borderColor = '#ff4444';
+            }
+        });
+        
+        colorCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                applyColorButton.click();
+            }
         });
         
         document.getElementById('start-recording').addEventListener('click', () => this.startRecording());
@@ -786,8 +1530,10 @@ class PianoVisualizer {
         stopBtn.addEventListener('click', () => this.stopMidi());
         
         tempoSlider.addEventListener('input', (e) => {
-            this.playbackRate = parseFloat(e.target.value);
-            tempoValue.textContent = `${e.target.value}x`;
+            const percentage = parseInt(e.target.value);
+            this.playbackRate = percentage / 100.0;
+            tempoValue.textContent = `${percentage}%`;
+            console.log(`🎼 MIDI tempo changed to: ${percentage}% (${this.playbackRate.toFixed(2)}x)`);
         });
     }
     
@@ -1050,8 +1796,185 @@ class PianoVisualizer {
         playLoop();
     }
     
+    setupCollapsibleSections() {
+        // Initialize max-height for all collapsible content
+        document.querySelectorAll('.collapsible-content').forEach(content => {
+            content.style.maxHeight = content.scrollHeight + 'px';
+        });
+        
+        // Add click listeners to section headers
+        document.querySelectorAll('h3[data-section]').forEach(header => {
+            header.addEventListener('click', (e) => {
+                const sectionName = header.getAttribute('data-section');
+                const content = document.querySelector(`.collapsible-content[data-section="${sectionName}"]`);
+                const icon = header.querySelector('.toggle-icon');
+                
+                if (content.classList.contains('collapsed')) {
+                    // Expand
+                    content.classList.remove('collapsed');
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                    header.classList.remove('collapsed');
+                    icon.textContent = '▼';
+                    console.log(`📂 Expanded section: ${sectionName}`);
+                } else {
+                    // Collapse
+                    content.classList.add('collapsed');
+                    content.style.maxHeight = '0';
+                    header.classList.add('collapsed');
+                    icon.textContent = '▶';
+                    console.log(`📁 Collapsed section: ${sectionName}`);
+                }
+            });
+        });
+        
+        console.log('✅ Collapsible sections initialized');
+    }
+    
+    generateCustomColors(baseColor, count = 12) {
+        // Special handling for white color - generate rainbow colors
+        if (baseColor === '#ffffff' || baseColor.toLowerCase() === '#ffffff') {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                const hue = i / count; // Evenly distributed hues
+                const saturation = 0.8; // High saturation for vibrant colors
+                const lightness = 0.6; // Medium lightness for good visibility
+                
+                colors.push(this.hslToHex(hue, saturation, lightness));
+            }
+            return colors;
+        }
+        
+        // Convert hex to HSL
+        const hex = baseColor.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16) / 255;
+        const g = parseInt(hex.substr(2, 2), 16) / 255;
+        const b = parseInt(hex.substr(4, 2), 16) / 255;
+        
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+        
+        if (max === min) {
+            h = s = 0; // achromatic
+        } else {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        
+        // Generate colors with different hues and lightness
+        const colors = [];
+        for (let i = 0; i < count; i++) {
+            const hue = (h + (i / count)) % 1;
+            const lightness = 0.4 + (i / count) * 0.4; // Vary lightness from 0.4 to 0.8
+            const saturation = Math.max(0.6, s); // Maintain good saturation
+            
+            colors.push(this.hslToHex(hue, saturation, lightness));
+        }
+        
+        return colors;
+    }
+    
+    hslToHex(h, s, l) {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+        
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        const r = hue2rgb(p, q, h + 1/3);
+        const g = hue2rgb(p, q, h);
+        const b = hue2rgb(p, q, h - 1/3);
+        
+        const toHex = (c) => {
+            const hex = Math.round(c * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+        
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+    
+    updateCustomColors() {
+        const baseColor = this.settings.customBaseColor;
+        const scaleLength = this.scales[this.settings.colorScale] ? this.scales[this.settings.colorScale].length : 12;
+        this.colorPalettes.custom = this.generateCustomColors(baseColor, scaleLength);
+        console.log(`🎨 Generated ${scaleLength} custom colors from base: ${baseColor}`);
+    }
+    
+    updateKeyboardHelp() {
+        const keyMappings = [
+            { key: 'A', midiNote: 60 }, // C4
+            { key: 'W', midiNote: 61 }, // C#4
+            { key: 'S', midiNote: 62 }, // D4
+            { key: 'E', midiNote: 63 }, // D#4
+            { key: 'D', midiNote: 64 }, // E4
+            { key: 'F', midiNote: 65 }, // F4
+            { key: 'T', midiNote: 66 }, // F#4
+            { key: 'G', midiNote: 67 }, // G4
+            { key: 'Y', midiNote: 68 }, // G#4
+            { key: 'H', midiNote: 69 }, // A4
+            { key: 'U', midiNote: 70 }, // A#4
+            { key: 'J', midiNote: 71 }, // B4
+            { key: 'K', midiNote: 72 }, // C5
+            { key: 'O', midiNote: 73 }, // C#5
+            { key: 'L', midiNote: 74 }, // D5
+            { key: 'P', midiNote: 75 }, // D#5
+            { key: ';', midiNote: 76 }, // E5
+            { key: "'", midiNote: 77 }, // F5
+            { key: ']', midiNote: 78 }, // F#5
+            { key: '\\', midiNote: 79 } // G5
+        ];
+        
+        // Update all note displays in keyboard help
+        keyMappings.forEach(mapping => {
+            const noteElement = document.querySelector(`.mapping-row .key:contains('${mapping.key}')`);
+            if (noteElement && noteElement.nextElementSibling) {
+                const noteName = this.midiNoteToNoteName(mapping.midiNote);
+                noteElement.nextElementSibling.textContent = noteName;
+            }
+        });
+        
+        // Alternative approach: find by text content
+        document.querySelectorAll('.mapping-row').forEach(row => {
+            const keySpan = row.querySelector('.key');
+            const noteSpan = row.querySelector('.note');
+            if (keySpan && noteSpan) {
+                const keyText = keySpan.textContent.trim();
+                const mapping = keyMappings.find(m => m.key === keyText);
+                if (mapping) {
+                    noteSpan.textContent = this.midiNoteToNoteName(mapping.midiNote);
+                }
+            }
+        });
+    }
+    
     setupKeyboardListeners() {
         document.addEventListener('keydown', (e) => {
+            // Handle spacebar for MIDI play/pause (works regardless of input device)
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (this.midiData) { // Only if MIDI file is loaded
+                    if (this.isPlaying) {
+                        this.pauseMidi();
+                        console.log('⏸️ MIDI paused via spacebar');
+                    } else {
+                        this.playMidi();
+                        console.log('▶️ MIDI playing via spacebar');
+                    }
+                }
+                return; // Don't process as piano key
+            }
+            
             // Only handle keyboard input when computer keyboard is selected
             if (this.selectedInputDevice !== 'keyboard') return;
             
@@ -1063,7 +1986,7 @@ class PianoVisualizer {
                 this.activeKeys.add(e.code);
                 this.playNote(midiNote, 100, performance.now());
                 this.highlightPianoKey(midiNote, true);
-                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote)} (${midiNote}) vel:100`);
+                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 100)} (${midiNote}) vel:100`);
             }
         });
         
@@ -1132,23 +2055,24 @@ class PianoVisualizer {
     }
     
     startVisualization() {
+        console.log(`🚀 startVisualization called: renderer=${!!this.renderer}, THREE=${typeof THREE}, scene=${!!this.scene}`);
         if (!this.renderer || typeof THREE === 'undefined') {
             // Fallback: just animate background if THREE.js failed
-            console.log('Using fallback visualization');
+            console.log('⚠️ Using fallback visualization - THREE.js or renderer not available');
             return;
         }
+        
+        console.log('✅ Starting Three.js animation loop');
         
         const animate = () => {
             const currentTime = performance.now();
             
-            // Update particle system
-            if (this.particleSystem) {
-                const rotationSpeed = 0.001 * this.settings.animationSpeed;
-                this.particleSystem.rotation.y += rotationSpeed;
-                this.particleSystem.rotation.x += rotationSpeed * 0.5;
-                
-                // Update particle opacity based on motion blur setting
-                this.particleSystem.material.opacity = 0.6 * (1 - this.settings.motionBlur * 0.5);
+            // Fluid background animation removed for debugging
+            
+            // Debug: Log sprite count every 2 seconds
+            if (Math.floor(currentTime / 2000) > this.lastDebugTime) {
+                this.lastDebugTime = Math.floor(currentTime / 2000);
+                console.log(`🎵 Animation loop running - Active sprites: ${this.noteObjects.length}`);
             }
             
             // Update note sprites
@@ -1601,6 +2525,9 @@ class PianoVisualizer {
     async setupScreenRecording() {
         const enableCheckbox = document.getElementById('screen-recording-enabled');
         
+        // Set checkbox state based on saved settings
+        enableCheckbox.checked = this.screenRecordingEnabled;
+        
         // Setup checkbox event listener
         enableCheckbox.addEventListener('change', (e) => {
             this.screenRecordingEnabled = e.target.checked;
@@ -1612,13 +2539,24 @@ class PianoVisualizer {
                 this.screenRecordingStream = null;
                 console.log('🛑 Screen recording stream stopped');
             }
+            
+            // Save settings when user changes checkbox
+            this.saveSettings();
         });
         
-        // Show permission dialog on load if enabled
-        if (this.screenRecordingEnabled) {
+        // Setup reset button
+        const resetButton = document.getElementById('reset-recording-settings');
+        resetButton.addEventListener('click', () => {
+            this.resetRecordingSettings();
+        });
+        
+        // Show permission dialog only if enabled and not previously asked
+        if (this.screenRecordingEnabled && !this.screenRecordingPermissionAsked) {
             setTimeout(() => {
                 this.requestScreenRecordingPermission();
             }, 1000); // Wait 1 second after load
+        } else if (this.screenRecordingPermissionAsked) {
+            console.log('📁 Screen recording permission previously configured, skipping dialog');
         }
     }
     
@@ -1630,11 +2568,16 @@ class PianoVisualizer {
             '「OK」を選択すると：\n' +
             '• ピアノ演奏を音付きでMP4録画できます\n' +
             '• iPhoneでも再生可能な形式で保存されます\n' +
-            '• 録画時の権限確認をスキップできます\n\n' +
+            '• 録画時の権限確認をスキップできます\n' +
+            '• この設定は記憶され、次回以降は聞かれません\n\n' +
             '「キャンセル」を選択すると：\n' +
             '• 録画機能は無効になります\n' +
-            '• 後でチェックボックスから有効にできます'
+            '• 後でチェックボックスから有効にできます\n' +
+            '• この設定も記憶されます'
         );
+        
+        // Mark that permission has been asked
+        this.screenRecordingPermissionAsked = true;
         
         if (userConfirmed) {
             try {
@@ -1656,23 +2599,31 @@ class PianoVisualizer {
                 });
                 
                 console.log('✅ Screen recording permission granted');
-                alert('✅ 画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。');
+                alert('✅ 画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。\n\n※この設定は記憶され、次回以降は自動で有効になります。');
                 
                 // Stop the stream for now - we'll create a new one when recording starts
                 this.screenRecordingStream.getTracks().forEach(track => track.stop());
                 this.screenRecordingStream = null;
                 
+                // Keep recording enabled
+                this.screenRecordingEnabled = true;
+                document.getElementById('screen-recording-enabled').checked = true;
+                
             } catch (error) {
                 console.log('❌ Screen recording permission denied:', error);
                 this.screenRecordingEnabled = false;
                 document.getElementById('screen-recording-enabled').checked = false;
-                alert('❌ 画面録画の許可が拒否されました。\n録画機能を無効にしました。');
+                alert('❌ 画面録画の許可が拒否されました。\n録画機能を無効にしました。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
             }
         } else {
             this.screenRecordingEnabled = false;
             document.getElementById('screen-recording-enabled').checked = false;
             console.log('👤 User declined screen recording permission');
+            alert('📝 録画機能を無効にしました。\n後でチェックボックスから有効にできます。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
         }
+        
+        // Save the settings after user decision
+        this.saveSettings();
     }
 }
 
