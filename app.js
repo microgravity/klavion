@@ -25,7 +25,7 @@ class PianoVisualizer {
             glowIntensity: 1.0,
             fontFamily: 'Noto Sans JP',
             pianoRange: '3-octave',
-            volume: 0.7,
+            volume: 0.75,
             isMuted: false,
             colorScale: 'custom',
             showOctaveNumbers: false,
@@ -1308,6 +1308,11 @@ class PianoVisualizer {
     
     getNoteFontSize(velocity) {
         const baseSize = 20;
+        if (!this.hasMidiInput) {
+            // When no MIDI device is connected, use middle/default font size
+            const defaultSize = baseSize + (75 / 127) * 30 * this.settings.sizeMultiplier;
+            return Math.max(defaultSize, 16);
+        }
         const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
         return Math.max(scaledSize, 16);
     }
