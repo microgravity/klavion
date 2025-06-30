@@ -1892,42 +1892,78 @@ class PianoVisualizer {
     
     async loadBackgroundImage() {
         try {
-            // CORSに対応した代替画像URLのリスト（ピアノ・音楽関連）
-            const imageUrls = [
-                // Picsum（Lorem Picsum）を使用 - CORSに対応
-                'https://picsum.photos/1920/1080?blur=2',
-                // CORS対応のフリー画像URL
-                'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&h=1080&fit=crop&crop=center',
-                'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=1920&h=1080&fit=crop&crop=center',
-                // フォールバック用の単色グラデーション
-                'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB2aWV3Qm94PSIwIDAgMTkyMCAxMDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxZTFiNGIiLz4KPHN0b3Agb2Zmc2V0PSI1MCUiIHN0b3AtY29sb3I9IiMxNjIzMzEiLz4KPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMGYwZjIzIi8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPHJlY3Qgd2lkdGg9IjE5MjAiIGhlaWdodD0iMTA4MCIgZmlsbD0idXJsKCNncmFkaWVudCkiLz4KPHN2Zz4K'
+            // ローカル環境で確実に動作する美しいグラデーション背景を作成
+            const svgGradients = [
+                // ピアノキー風グラデーション（白黒）
+                `<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <radialGradient id="pianoGrad" cx="50%" cy="30%" r="70%">
+                            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.1"/>
+                            <stop offset="40%" stop-color="#f8f9fa" stop-opacity="0.05"/>
+                            <stop offset="100%" stop-color="#343a40" stop-opacity="0.02"/>
+                        </radialGradient>
+                        <pattern id="pianoKeys" patternUnits="userSpaceOnUse" width="120" height="1080">
+                            <rect width="120" height="1080" fill="url(#pianoGrad)"/>
+                            <rect x="0" y="0" width="80" height="600" fill="#ffffff" fill-opacity="0.03"/>
+                            <rect x="80" y="0" width="40" height="400" fill="#000000" fill-opacity="0.02"/>
+                        </pattern>
+                    </defs>
+                    <rect width="1920" height="1080" fill="url(#pianoKeys)"/>
+                </svg>`,
+                
+                // 音楽波形グラデーション
+                `<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="musicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#667eea" stop-opacity="0.1"/>
+                            <stop offset="25%" stop-color="#764ba2" stop-opacity="0.08"/>
+                            <stop offset="50%" stop-color="#f093fb" stop-opacity="0.06"/>
+                            <stop offset="75%" stop-color="#f5576c" stop-opacity="0.08"/>
+                            <stop offset="100%" stop-color="#4facfe" stop-opacity="0.1"/>
+                        </linearGradient>
+                        <path id="wave" d="M0,540 Q480,440 960,540 T1920,540" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.1"/>
+                    </defs>
+                    <rect width="1920" height="1080" fill="url(#musicGrad)"/>
+                    <use href="#wave" transform="translate(0,-100)"/>
+                    <use href="#wave" transform="translate(0,0)"/>
+                    <use href="#wave" transform="translate(0,100)"/>
+                </svg>`,
+                
+                // シンプルな円形グラデーション
+                `<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <radialGradient id="simpleGrad" cx="50%" cy="50%" r="70%">
+                            <stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.1"/>
+                            <stop offset="50%" stop-color="#162331" stop-opacity="0.08"/>
+                            <stop offset="100%" stop-color="#0f0f23" stop-opacity="0.05"/>
+                        </radialGradient>
+                    </defs>
+                    <rect width="1920" height="1080" fill="url(#simpleGrad)"/>
+                </svg>`
             ];
             
-            for (const url of imageUrls) {
-                try {
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous';
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        img.onload = () => {
-                            this.backgroundImage = img;
-                            console.log(`✅ Background image loaded successfully from: ${url.substring(0, 50)}...`);
-                            resolve();
-                        };
-                        img.onerror = () => reject(new Error('Failed to load'));
-                        img.src = url;
-                    });
-                    
-                    await loadPromise;
-                    return; // 成功したら終了
-                } catch (error) {
-                    console.warn(`⚠️ Failed to load image from ${url.substring(0, 50)}..., trying next...`);
-                }
-            }
+            // ランダムに一つ選択
+            const selectedSvg = svgGradients[Math.floor(Math.random() * svgGradients.length)];
+            const svgBlob = new Blob([selectedSvg], {type: 'image/svg+xml'});
+            const svgUrl = URL.createObjectURL(svgBlob);
             
-            console.warn('⚠️ All background image sources failed, using default background');
+            const img = new Image();
+            return new Promise((resolve) => {
+                img.onload = () => {
+                    this.backgroundImage = img;
+                    console.log('✅ SVG gradient background loaded successfully');
+                    URL.revokeObjectURL(svgUrl); // Clean up
+                    resolve();
+                };
+                img.onerror = () => {
+                    console.warn('⚠️ Failed to load SVG background, using solid color');
+                    URL.revokeObjectURL(svgUrl);
+                    resolve(); // Continue without background image
+                };
+                img.src = svgUrl;
+            });
         } catch (error) {
-            console.warn('⚠️ Error loading background image:', error);
+            console.warn('⚠️ Error creating background image:', error);
         }
     }
     
