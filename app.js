@@ -1881,24 +1881,40 @@ class PianoVisualizer {
     
     async loadBackgroundImage() {
         try {
-            // Unsplash APIを使用してピアノ関連の画像を取得
-            const unsplashUrl = 'https://source.unsplash.com/1920x1080/?piano,music,keyboard';
+            // CORSに対応した代替画像URLのリスト（ピアノ・音楽関連）
+            const imageUrls = [
+                // Picsum（Lorem Picsum）を使用 - CORSに対応
+                'https://picsum.photos/1920/1080?blur=2',
+                // CORS対応のフリー画像URL
+                'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&h=1080&fit=crop&crop=center',
+                'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=1920&h=1080&fit=crop&crop=center',
+                // フォールバック用の単色グラデーション
+                'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB2aWV3Qm94PSIwIDAgMTkyMCAxMDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxZTFiNGIiLz4KPHN0b3Agb2Zmc2V0PSI1MCUiIHN0b3AtY29sb3I9IiMxNjIzMzEiLz4KPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMGYwZjIzIi8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPHJlY3Qgd2lkdGg9IjE5MjAiIGhlaWdodD0iMTA4MCIgZmlsbD0idXJsKCNncmFkaWVudCkiLz4KPHN2Zz4K'
+            ];
             
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
+            for (const url of imageUrls) {
+                try {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        img.onload = () => {
+                            this.backgroundImage = img;
+                            console.log(`✅ Background image loaded successfully from: ${url.substring(0, 50)}...`);
+                            resolve();
+                        };
+                        img.onerror = () => reject(new Error('Failed to load'));
+                        img.src = url;
+                    });
+                    
+                    await loadPromise;
+                    return; // 成功したら終了
+                } catch (error) {
+                    console.warn(`⚠️ Failed to load image from ${url.substring(0, 50)}..., trying next...`);
+                }
+            }
             
-            return new Promise((resolve) => {
-                img.onload = () => {
-                    this.backgroundImage = img;
-                    console.log('✅ Background image loaded successfully');
-                    resolve();
-                };
-                img.onerror = () => {
-                    console.warn('⚠️ Failed to load background image, using default background');
-                    resolve(); // Continue without background image
-                };
-                img.src = unsplashUrl;
-            });
+            console.warn('⚠️ All background image sources failed, using default background');
         } catch (error) {
             console.warn('⚠️ Error loading background image:', error);
         }
