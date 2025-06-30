@@ -14,6 +14,7 @@ class PianoVisualizer {
         this.isRecording = false;
         this.mediaRecorder = null;
         this.recordedChunks = [];
+        this.backgroundImage = null;
         
         this.settings = {
             animationSpeed: 1.0,
@@ -179,6 +180,7 @@ class PianoVisualizer {
     async init() {
         await this.initAudio();
         await this.initMIDI();
+        await this.loadBackgroundImage();
         this.initThreeJS();
         this.createPianoKeyboard();
         this.setupEventListeners();
@@ -216,7 +218,33 @@ class PianoVisualizer {
         
         // Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0d1421);
+        
+        // Set background image if available, otherwise use default color
+        if (this.backgroundImage) {
+            // Create background plane for better control over opacity
+            const loader = new THREE.TextureLoader();
+            const texture = loader.load(this.backgroundImage.src);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            
+            // Create background plane geometry
+            const geometry = new THREE.PlaneGeometry(50, 50);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true, 
+                opacity: 0.15  // Very subtle background
+            });
+            
+            const backgroundPlane = new THREE.Mesh(geometry, material);
+            backgroundPlane.position.z = -20; // Far back
+            this.scene.add(backgroundPlane);
+            
+            // Keep dark background color as base
+            this.scene.background = new THREE.Color(0x0d1421);
+            console.log('✅ Background image applied as subtle overlay');
+        } else {
+            this.scene.background = new THREE.Color(0x0d1421);
+        }
         
         // Camera
         this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
@@ -1849,6 +1877,31 @@ class PianoVisualizer {
         });
         
         console.log('✅ Collapsible sections initialized');
+    }
+    
+    async loadBackgroundImage() {
+        try {
+            // Unsplash APIを使用してピアノ関連の画像を取得
+            const unsplashUrl = 'https://source.unsplash.com/1920x1080/?piano,music,keyboard';
+            
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            return new Promise((resolve) => {
+                img.onload = () => {
+                    this.backgroundImage = img;
+                    console.log('✅ Background image loaded successfully');
+                    resolve();
+                };
+                img.onerror = () => {
+                    console.warn('⚠️ Failed to load background image, using default background');
+                    resolve(); // Continue without background image
+                };
+                img.src = unsplashUrl;
+            });
+        } catch (error) {
+            console.warn('⚠️ Error loading background image:', error);
+        }
     }
     
     generateCustomColors(baseColor, count = 12) {
