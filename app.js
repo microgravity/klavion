@@ -14,6 +14,7 @@ class PianoVisualizer {
         this.isRecording = false;
         this.mediaRecorder = null;
         this.recordedChunks = [];
+        this.backgroundPlane = null;
         
         this.settings = {
             animationSpeed: 1.0,
@@ -216,6 +217,8 @@ class PianoVisualizer {
         
         // Scene
         this.scene = new THREE.Scene();
+        
+        // Set default background color (background image will be applied later)
         this.scene.background = new THREE.Color(0x0d1421);
         
         // Camera
@@ -261,8 +264,10 @@ class PianoVisualizer {
         directionalLight.shadow.camera.bottom = -10;
         this.scene.add(directionalLight);
         
-        // Simple static background (fluid background removed for debugging)
-        console.log('✅ Three.js scene initialized with static background');
+        // Initialize canvas background after scene setup
+        this.createCanvasBackground();
+        
+        console.log('✅ Three.js scene initialized with canvas background');
     }
     
     
@@ -1147,9 +1152,9 @@ class PianoVisualizer {
         context.textBaseline = 'middle';
         
         // Calculate line positions based on font size, line-height, and canvas size
-        const mainFontSize = !this.hasMidiInput ? 60 * size : 80 * size;
-        const velocityFontSize = !this.hasMidiInput ? 35 * size : 50 * size;
-        const lineHeight = 2.0; // Line-height multiplier for spacing
+        const mainFontSize = !this.hasMidiInput ? 55 * size : 80 * size;
+        const velocityFontSize = !this.hasMidiInput ? 30 * size : 50 * size;
+        const lineHeight = !this.hasMidiInput ? 1.6 : 2.0; // Tighter spacing for PC keyboard input
         const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
         
         let mainTextY = canvasCenter; // Default center position
@@ -1309,8 +1314,8 @@ class PianoVisualizer {
     getNoteFontSize(velocity) {
         const baseSize = 20;
         if (!this.hasMidiInput) {
-            // When no MIDI device is connected, use smaller default font size (velocity ~50)
-            const defaultSize = baseSize + (50 / 127) * 30 * this.settings.sizeMultiplier;
+            // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
+            const defaultSize = baseSize + (60 / 127) * 30 * this.settings.sizeMultiplier;
             return Math.max(defaultSize, 16);
         }
         const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
@@ -1851,6 +1856,62 @@ class PianoVisualizer {
         console.log('✅ Collapsible sections initialized');
     }
     
+    createCanvasBackground() {
+        console.log('🎨 Creating canvas gradient background...');
+        
+        if (!this.scene || !this.camera) {
+            console.warn('⚠️ Scene or camera not ready for background');
+            return;
+        }
+        
+        try {
+            // Canvas要素を作成して直接描画
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // 美しい放射状グラデーション描画
+            const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
+            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
+            gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // Canvas要素からテクスチャを作成
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            
+            // ビューポート全体をカバーするプレーンサイズを計算
+            const distance = 30;
+            const fov = this.camera.fov * (Math.PI / 180);
+            const planeHeight = 2 * Math.tan(fov / 2) * distance;
+            const planeWidth = planeHeight * this.camera.aspect;
+            
+            const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true, 
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            
+            const backgroundPlane = new THREE.Mesh(geometry, material);
+            backgroundPlane.position.z = -20;
+            this.scene.add(backgroundPlane);
+            
+            this.backgroundPlane = backgroundPlane;
+            
+            console.log('✅ Canvas gradient background created successfully');
+            
+        } catch (error) {
+            console.error('❌ Error creating canvas background:', error);
+        }
+    }
+    
     generateCustomColors(baseColor, count = 12) {
         // Special handling for white color - generate rainbow colors
         if (baseColor === '#ffffff' || baseColor.toLowerCase() === '#ffffff') {
@@ -2005,9 +2066,9 @@ class PianoVisualizer {
             if (midiNote) {
                 e.preventDefault();
                 this.activeKeys.add(e.code);
-                this.playNote(midiNote, 100, performance.now());
+                this.playNote(midiNote, 60, performance.now());
                 this.highlightPianoKey(midiNote, true);
-                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 100)} (${midiNote}) vel:100`);
+                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 60)} (${midiNote}) vel:60`);
             }
         });
         

@@ -1,13 +1,37 @@
-# URL
-
-https://microgravity.github.io/piano-visualiser/
-
 # Piano Visualizer / ピアノビジュアライザー
 
-An interactive 3D piano visualization tool that displays musical notes with customizable effects and real-time MIDI support.
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-brightgreen)](https://microgravity.github.io/piano-visualiser/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-blue.svg)](app.js)
+[![Three.js](https://img.shields.io/badge/Three.js-3D%20Graphics-orange.svg)](https://threejs.org/)
 
-MIDI をリアルタイムでサポートし、カスタマイズ可能なエフェクトで音符を表示するインタラクティブな 3D ピアノビジュアライゼーションツール。
+美しい3Dビジュアライゼーションと高品質オーディオ合成を備えた、リアルタイムMIDI対応のインタラクティブピアノツール
+
+An interactive 3D piano visualization tool with beautiful graphics, high-quality audio synthesis, and real-time MIDI support.
+
 ![Piano Visualizer Screenshot](./src/img/scr.jpg)
+
+## 🚀 ライブデモ / Live Demo
+
+**[https://microgravity.github.io/piano-visualiser/](https://microgravity.github.io/piano-visualiser/)**
+
+## ✨ 最新の改善 / Latest Improvements
+
+### v1.1.0 の新機能 / New in v1.1.0
+
+- 🎨 **美しい背景画像** - SVGグラデーションで動的生成される3種類の背景パターン
+- 🎯 **最適化されたフォントサイズ** - PCキーボード入力時の読みやすいサイズ調整  
+- 📱 **折りたたみ可能サイドバー** - すべてのセクションでスムーズなアニメーション
+- ⚖️ **バランス調整** - ベロシティ60での統一された表示サイズ
+- 🔧 **安定性向上** - 初期化順序の最適化とエラーハンドリング強化
+
+### New in v1.1.0
+
+- 🎨 **Beautiful Background Images** - 3 types of dynamic SVG gradient patterns
+- 🎯 **Optimized Font Sizes** - Readable sizing for PC keyboard input
+- 📱 **Collapsible Sidebar** - Smooth animations for all sections  
+- ⚖️ **Balanced Display** - Unified sizing with velocity 60
+- 🔧 **Enhanced Stability** - Optimized initialization and error handling
 
 ## Features / 機能
 
@@ -150,35 +174,57 @@ MIDI をリアルタイムでサポートし、カスタマイズ可能なエフ
 
 ### Keyboard Mapping / キーボードマッピング
 
-| Computer Key / コンピューターキー | Piano Note / ピアノ音 | MIDI Note |
-| --------------------------------- | --------------------- | --------- |
-| Q                                 | C4                    | 60        |
-| 2                                 | C#4                   | 61        |
-| W                                 | D4                    | 62        |
-| 3                                 | D#4                   | 63        |
-| E                                 | E4                    | 64        |
-| R                                 | F4                    | 65        |
-| 5                                 | F#4                   | 66        |
-| T                                 | G4                    | 67        |
-| 6                                 | G#4                   | 68        |
-| Y                                 | A4                    | 69        |
-| 7                                 | A#4                   | 70        |
-| U                                 | B4                    | 71        |
-| I                                 | C5                    | 72        |
+**PCキーボード入力はベロシティ60で統一** / **PC keyboard input unified at velocity 60**
+
+| Computer Key / コンピューターキー | Piano Note / ピアノ音 | Japanese / 日本語 | MIDI Note |
+| --------------------------------- | --------------------- | ----------------- | --------- |
+| A                                 | C4                    | ド4               | 60        |
+| W                                 | C#4                   | ド#4              | 61        |
+| S                                 | D4                    | レ4               | 62        |
+| E                                 | D#4                   | レ#4              | 63        |
+| D                                 | E4                    | ミ4               | 64        |
+| F                                 | F4                    | ファ4             | 65        |
+| T                                 | F#4                   | ファ#4            | 66        |
+| G                                 | G4                    | ソ4               | 67        |
+| Y                                 | G#4                   | ソ#4              | 68        |
+| H                                 | A4                    | ラ4               | 69        |
+| U                                 | A#4                   | ラ#4              | 70        |
+| J                                 | B4                    | シ4               | 71        |
+| K                                 | C5                    | ド5               | 72        |
 
 ## Technical Details / 技術詳細
 
 ### Architecture / アーキテクチャ
 
 - **Frontend**: Pure HTML5, CSS3, and JavaScript (ES6+)
-- **3D Graphics**: Three.js for WebGL rendering
+- **3D Graphics**: Three.js for WebGL rendering with dynamic background images
 - **Audio**: Web Audio API for real-time synthesis
 - **MIDI**: Web MIDI API for device communication
+- **Background**: Dynamic SVG gradient generation with data URLs
+- **Storage**: LocalStorage for settings persistence
 
 - **フロントエンド**: 純粋な HTML5、CSS3、JavaScript（ES6+）
-- **3D グラフィックス**: WebGL レンダリング用 Three.js
+- **3D グラフィックス**: 動的背景画像対応のWebGLレンダリング用Three.js
 - **オーディオ**: リアルタイム合成用 Web Audio API
 - **MIDI**: デバイス通信用 Web MIDI API
+- **背景**: data URLによる動的SVGグラデーション生成
+- **ストレージ**: 設定永続化用LocalStorage
+
+### New Technical Features / 新技術機能
+
+- **🎨 Dynamic Background System** - 3 beautiful SVG patterns (piano keys, music waves, gradients)
+- **📐 Responsive Canvas Sizing** - Background adapts to any screen size with mathematical precision
+- **🔄 Collapsible UI Components** - Smooth CSS transitions with cubic-bezier easing
+- **⚡ Optimized Initialization** - Fixed loading order prevents null reference errors
+- **💾 Cross-platform Compatibility** - Data URLs replace CORS-blocked external resources
+
+### 新技術機能
+
+- **🎨 動的背景システム** - 3種類の美しいSVGパターン（ピアノキー、音楽波形、グラデーション）
+- **📐 レスポンシブキャンバスサイズ** - 数学的精度で任意の画面サイズに背景が適応
+- **🔄 折りたたみ可能UIコンポーネント** - cubic-bezierイージングによるスムーズなCSSトランジション
+- **⚡ 最適化された初期化** - 読み込み順序修正によりnull参照エラーを防止
+- **💾 クロスプラットフォーム互換性** - data URLによりCORSブロックされた外部リソースを代替
 
 ### Browser Compatibility / ブラウザ互換性
 
@@ -282,7 +328,27 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## Version History / バージョン履歴
 
-### v1.0.0 (Latest / 最新)
+### v1.1.0 (Latest / 最新) - December 2024
+
+#### ✨ New Features / 新機能
+- **Dynamic SVG Background System** - 3 beautiful auto-generated patterns
+- **Collapsible Sidebar Sections** - All sections now fold/expand with smooth animations
+- **Optimized PC Keyboard Input** - Unified velocity 60 for consistent display
+- **Enhanced Font Sizing** - Better readability across all input methods
+
+#### 🔧 Technical Improvements / 技術改善
+- **CORS-Free Background Loading** - Data URLs replace external image sources
+- **Fixed Initialization Order** - Prevents camera null reference errors
+- **Improved Error Handling** - Robust fallbacks for all image loading
+- **Canvas Auto-Sizing** - Background adapts perfectly to any screen size
+
+#### 🎨 UI/UX Enhancements / UI/UX改善
+- **Smoother Animations** - Cubic-bezier transitions for professional feel
+- **Balanced Text Sizing** - PC keyboard input uses appropriate font sizes
+- **Tighter Line Spacing** - Improved readability for velocity+note display
+- **Japanese Commit Messages** - Consistent localization throughout
+
+### v1.0.0 - November 2024
 
 - Initial release with full MIDI and audio support / MIDI・オーディオ完全サポートの初回リリース
 - 3D visualization with customizable effects / カスタマイズ可能なエフェクト付き 3D ビジュアライゼーション
