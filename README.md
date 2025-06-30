@@ -17,6 +17,22 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 ## ✨ 最新の改善 / Latest Improvements
 
+### v1.3.0 の新機能 / New in v1.3.0 (Latest)
+
+- 🎨 **ColorHunt Retroパレットコレクション** - 12種類の美しいRetroカラーパレット（Synthwave, Miami Vice等）
+- 🎬 **YouTube Full HD録画対応** - 1920×1080高品質録画でYouTube投稿に最適
+- ⚡ **音声・映像完全同期** - 60FPS録画と即座更新による遅延ゼロ録画
+- 🎹 **鍵盤付き録画機能** - 演奏時の鍵盤押下状態も含めた合成録画
+- 🌈 **ランダムRetroカラー** - 演奏時に美しいRetroカラーでランダム表示
+
+### New in v1.3.0 (Latest)
+
+- 🎨 **ColorHunt Retro Palette Collection** - 12 beautiful retro palettes (Synthwave, Miami Vice, etc.)
+- 🎬 **YouTube Full HD Recording** - 1920×1080 high-quality recording optimized for YouTube
+- ⚡ **Perfect Audio/Video Sync** - 60 FPS recording with immediate updates for zero-latency recording
+- 🎹 **Piano Keyboard Recording** - Composite recording including piano key press visualization
+- 🌈 **Random Retro Colors** - Beautiful random retro color display during performance
+
 ### v1.2.0 の新機能 / New in v1.2.0
 
 - ⚡ **大幅なパフォーマンス改善** - PageSpeed Insights最適化でロード時間を50%短縮
@@ -69,6 +85,9 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 ### 🎨 Visual Effects / ビジュアルエフェクト
 
 - **3D note visualization** - Notes float upward with smooth animations
+- **Sustained note display** - Notes rise, sustain, and fade matching real piano behavior
+- **ColorHunt Retro palettes** - 12 beautiful retro color collections (Synthwave, Miami Vice, etc.)
+- **Random retro colors** - Automatic random color selection from curated palettes
 - **Customizable colors** - Multiple color scales or custom color picker
 - **Font customization** - Japanese (ドレミ) or Western (CDEFG) note names
 - **Velocity display** - Optional velocity numbers with smaller font
@@ -76,6 +95,9 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - **Glow effects** - Customizable intensity and motion blur
 
 - **3D 音符ビジュアライゼーション** - スムーズなアニメーションで音符が上昇
+- **持続音符表示** - 実際のピアノの動作に合わせて音符が上昇・持続・フェード
+- **ColorHunt Retroパレット** - 12種類の美しいRetroカラーコレクション（Synthwave、Miami Vice等）
+- **ランダムRetroカラー** - 厳選されたパレットからの自動ランダムカラー選択
 - **カスタマイズ可能な色** - 複数のカラースケールまたはカスタムカラーピッカー
 - **フォントカスタマイゼーション** - 日本語（ドレミ）または西洋式（CDEFG）音名
 - **ベロシティ表示** - 小さなフォントでオプションのベロシティ数値
@@ -85,11 +107,17 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 ### 📹 Screen Recording / 画面録画
 
 - **Built-in screen recording** - Record your performances directly in the browser
+- **Piano keyboard included** - Composite recording with visual piano key presses
+- **YouTube Full HD recording** - 1920×1080 high-quality format optimized for YouTube
+- **Perfect audio/video sync** - 60 FPS recording with zero-latency audio capture
 - **iPhone-compatible MP4** - H.264 codec for maximum compatibility
 - **Permission management** - User consent for screen recording access
 - **Multiple codec support** - Automatic fallback for different browsers
 
 - **内蔵画面録画** - ブラウザで直接演奏を録画
+- **鍵盤付き録画** - 鍵盤の押下状態を含む合成録画
+- **YouTube Full HD録画** - YouTube投稿に最適化された1920×1080高品質フォーマット
+- **完全音声・映像同期** - 60FPS録画とゼロ遅延音声キャプチャ
 - **iPhone 対応 MP4** - 最大互換性のための H.264 コーデック
 - **権限管理** - 画面録画アクセスのユーザー同意
 - **複数コーデック対応** - 異なるブラウザでの自動フォールバック
@@ -387,7 +415,26 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## Version History / バージョン履歴
 
-### v1.2.0 (Latest / 最新) - December 2024
+### v1.3.0 (Latest / 最新) - December 2024
+
+#### 🎨 ColorHunt Retro Collection / ColorHunt Retroコレクション
+- **12 Retro Palettes** - Synthwave, Miami Vice, Vaporwave, Electric, and more
+- **Random Color Selection** - Automatic random colors from curated palettes
+- **Beautiful Color Harmony** - Professionally designed retro color schemes
+- **Sidebar Integration** - Easy palette selection from dropdown menu
+
+#### 🎬 Advanced Recording Features / 高度な録画機能
+- **Piano Keyboard Recording** - Visual piano key presses included in recordings
+- **YouTube Full HD Format** - 1920×1080 recording optimized for YouTube upload
+- **Perfect Audio/Video Sync** - 60 FPS recording with immediate canvas updates
+- **Zero-Latency Capture** - Real-time audio and video synchronization
+
+#### ✨ Enhanced Note Visualization / 強化された音符ビジュアライゼーション
+- **Sustained Note Animation** - 3-phase animation system (rising, sustaining, falling)
+- **Real Piano Behavior** - Notes sustain while keys are pressed, fade on release
+- **Dynamic Color Application** - Retro colors properly applied to note visualization
+
+### v1.2.0 - December 2024
 
 #### ⚡ Performance Revolution / パフォーマンス革命
 - **PageSpeed Optimization** - Critical CSS implementation, 50% faster loading
