@@ -23,6 +23,9 @@ class PianoVisualizer {
         this.audioDestination = null;
         this.combinedStream = null;
         
+        // Piano key visual state tracking
+        this.activeKeys = new Set(); // Track which keys are currently pressed
+        
         this.settings = {
             animationSpeed: 1.0,
             sizeMultiplier: 1.0,
@@ -35,7 +38,7 @@ class PianoVisualizer {
             pianoRange: '3-octave',
             volume: 0.75,
             isMuted: false,
-            colorScale: 'custom',
+            colorScale: 'chromatic', // Will be overridden in initializeRetroColors()
             showOctaveNumbers: false,
             showVelocityNumbers: false,
             audioTimbre: 'acoustic-piano',
@@ -92,8 +95,31 @@ class PianoVisualizer {
             blues: ['#667eea', '#764ba2', '#667db6', '#0082c8', '#8360c3', '#2ebf91'],
             dorian: ['#ff9a9e', '#fecfef', '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
             mixolydian: ['#fce38a', '#f38181', '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
-            custom: [] // Will be generated dynamically
+            custom: [], // Will be generated dynamically
+            
+            // ColorHunt Retro Palettes Collection
+            'retro-sunset': ['#FF6B35', '#F7931E', '#FFD23F', '#06FFA5'],
+            'retro-neon': ['#FF0080', '#FF8C00', '#FFFF00', '#00FF80'],
+            'retro-pastel': ['#FFB3D1', '#FFD1DC', '#E6E6FA', '#B8E6B8'],
+            'retro-synthwave': ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC'],
+            'retro-miami': ['#FF1744', '#FF9100', '#FFEA00', '#00E676'],
+            'retro-vintage': ['#D2691E', '#CD853F', '#F4A460', '#FFE4B5'],
+            'retro-arcade': ['#FF4081', '#FF8A65', '#FFC107', '#4CAF50'],
+            'retro-vaporwave': ['#FF6EC7', '#FFB347', '#FFFF99', '#98FB98'],
+            'retro-warm': ['#FF5722', '#FF8A50', '#FFC107', '#CDDC39'],
+            'retro-cool': ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4'],
+            'retro-earth': ['#8D6E63', '#A1887F', '#BCAAA4', '#D7CCC8'],
+            'retro-electric': ['#E3F2FD', '#81C784', '#FFB74D', '#F06292']
         };
+        
+        // Store available retro palettes for random selection
+        this.retroPalettes = [
+            'retro-sunset', 'retro-neon', 'retro-pastel', 'retro-synthwave',
+            'retro-miami', 'retro-vintage', 'retro-arcade', 'retro-vaporwave',
+            'retro-warm', 'retro-cool', 'retro-earth', 'retro-electric'
+        ];
+        
+        // Note: Color scale will be initialized after DOM is ready
         
         this.keyLayout = [
             { note: 'C', type: 'white' },
@@ -251,6 +277,10 @@ class PianoVisualizer {
         this.setupCollapsibleSections();
         this.updateCustomColors(); // Initialize custom colors
         this.setupScreenRecording();
+        
+        // Initialize with random retro palette after DOM is ready
+        this.initializeRetroColors();
+        
         this.startVisualization();
         
         window.addEventListener('resize', () => this.onWindowResize());
@@ -340,7 +370,10 @@ class PianoVisualizer {
     
     async initAudio() {
         try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                latencyHint: 'interactive', // Low latency for real-time performance
+                sampleRate: 44100          // Standard sample rate
+            });
             this.audioContextResumed = false;
             
             // Create audio destination for recording
@@ -660,6 +693,15 @@ class PianoVisualizer {
         this.synthesizeNote(frequency, velocity, midiNote);
         this.visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp);
         
+        // Update piano key visual state
+        this.activeKeys.add(midiNote);
+        this.updatePianoKeyVisual(midiNote, true);
+        
+        // Immediately update recording canvas if recording for better sync
+        if (this.isRecording) {
+            console.log(`⚡ Immediate sync: Note ${midiNote} pressed, updating recording canvas`);
+        }
+        this.updateRecordingCanvasImmediate();
     }
     
     stopNote(midiNote, timestamp = performance.now()) {
@@ -684,6 +726,24 @@ class PianoVisualizer {
         
         // Stop the note immediately
         this.stopSustainedNote(midiNote);
+        
+        // Update piano key visual state
+        this.activeKeys.delete(midiNote);
+        this.updatePianoKeyVisual(midiNote, false);
+        
+        // Immediately update recording canvas if recording for better sync
+        this.updateRecordingCanvasImmediate();
+    }
+    
+    updatePianoKeyVisual(midiNote, isPressed) {
+        const keyElement = document.querySelector(`[data-note="${midiNote}"]`);
+        if (keyElement) {
+            if (isPressed) {
+                keyElement.classList.add('pressed');
+            } else {
+                keyElement.classList.remove('pressed');
+            }
+        }
     }
     
     midiNoteToFrequency(midiNote) {
@@ -790,7 +850,9 @@ class PianoVisualizer {
     }
     
     createTimbreNodes(frequency, volume, timbre, midiNote = null) {
+        // Use immediate audio context time for minimal latency
         const currentTime = this.audioContext.currentTime;
+        const startTime = currentTime + 0.001; // Minimal 1ms delay to prevent click/pop
         const duration = this.getTimbreDuration(timbre);
         
         // Adjust duration for sustain pedal
@@ -799,37 +861,37 @@ class PianoVisualizer {
         let gainNode;
         switch (timbre) {
             case 'acoustic-piano':
-                gainNode = this.createAcousticPiano(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration);
                 break;
             case 'electric-piano':
-                gainNode = this.createElectricPiano(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createElectricPiano(frequency, volume, startTime, actualDuration);
                 break;
             case 'harpsichord':
-                gainNode = this.createHarpsichord(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createHarpsichord(frequency, volume, startTime, actualDuration);
                 break;
             case 'organ':
-                gainNode = this.createOrgan(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createOrgan(frequency, volume, startTime, actualDuration);
                 break;
             case 'strings':
-                gainNode = this.createStrings(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createStrings(frequency, volume, startTime, actualDuration);
                 break;
             case 'vibraphone':
-                gainNode = this.createVibraphone(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createVibraphone(frequency, volume, startTime, actualDuration);
                 break;
             case 'music-box':
-                gainNode = this.createMusicBox(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createMusicBox(frequency, volume, startTime, actualDuration);
                 break;
             case 'synthesizer':
-                gainNode = this.createSynthesizer(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createSynthesizer(frequency, volume, startTime, actualDuration);
                 break;
             case 'bell':
-                gainNode = this.createBell(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createBell(frequency, volume, startTime, actualDuration);
                 break;
             case 'flute':
-                gainNode = this.createFlute(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createFlute(frequency, volume, startTime, actualDuration);
                 break;
             default:
-                gainNode = this.createAcousticPiano(frequency, volume, currentTime, actualDuration);
+                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration);
                 break;
         }
         
@@ -1217,15 +1279,21 @@ class PianoVisualizer {
             mainText += octave;
         }
         
-        // Use custom base color from controller, fallback to white
-        let textColor = 'rgba(255, 255, 255, 1)'; // Default white
-        if (this.settings.customBaseColor && this.settings.customBaseColor !== '#ffffff') {
-            // Convert hex to RGB
-            const hex = this.settings.customBaseColor.replace('#', '');
-            const r = parseInt(hex.substr(0, 2), 16);
-            const g = parseInt(hex.substr(2, 2), 16);
-            const b = parseInt(hex.substr(4, 2), 16);
-            textColor = `rgba(${r}, ${g}, ${b}, 1)`;
+        // Get note color using the color palette system
+        const noteColorHex = this.getNoteColor(midiNote, velocity);
+        console.log(`🎨 Note color for MIDI ${midiNote}: ${noteColorHex} (colorScale: ${this.settings.colorScale})`);
+        
+        // Convert hex to rgba for canvas
+        let textColor = 'rgba(255, 255, 255, 1)'; // Fallback
+        if (noteColorHex) {
+            const hex = noteColorHex.replace('#', '');
+            if (hex.length === 6) {
+                const r = parseInt(hex.substr(0, 2), 16);
+                const g = parseInt(hex.substr(2, 2), 16);
+                const b = parseInt(hex.substr(4, 2), 16);
+                textColor = `rgba(${r}, ${g}, ${b}, 1)`;
+                console.log(`🎨 Converted to RGBA: ${textColor}`);
+            }
         }
         context.fillStyle = textColor;
         context.textAlign = 'center';
@@ -1371,6 +1439,13 @@ class PianoVisualizer {
     }
     
     getNoteColorThreeJS(midiNote, velocity) {
+        // Use retro colors if retro palette is selected
+        if (this.settings.colorScale.startsWith('retro-')) {
+            const retroHex = this.getRandomRetroColor();
+            console.log(`🎨 Three.js using retro color: ${retroHex} from ${this.settings.colorScale}`);
+            return this.hexToRgb(retroHex);
+        }
+        
         const modernColors = [
             { r: 1.0, g: 0.71, b: 0.76 }, // Light Pink
             { r: 1.0, g: 0.85, b: 0.73 }, // Peach
@@ -1424,6 +1499,13 @@ class PianoVisualizer {
     }
     
     getNoteColor(midiNote, velocity) {
+        // Special handling for retro palettes - use random color selection
+        if (this.settings.colorScale.startsWith('retro-')) {
+            const retroColor = this.getRandomRetroColor();
+            console.log(`🎨 Using retro color: ${retroColor} from ${this.settings.colorScale}`);
+            return retroColor;
+        }
+        
         const noteIndex = midiNote % 12;
         const scale = this.scales[this.settings.colorScale] || this.scales.chromatic;
         let palette = this.colorPalettes[this.settings.colorScale];
@@ -1543,7 +1625,13 @@ class PianoVisualizer {
                 customControls.style.display = 'none';
             }
             
-            console.log(`🎨 Color scale changed to: ${e.target.value}`);
+            // Special handling for retro palettes
+            if (e.target.value.startsWith('retro-')) {
+                console.log(`🎨 ColorHunt Retro palette selected: ${e.target.value}`);
+                console.log(`🌈 Colors: ${this.colorPalettes[e.target.value].join(', ')}`);
+            } else {
+                console.log(`🎨 Color scale changed to: ${e.target.value}`);
+            }
         });
         
         // Velocity numbers toggle
@@ -2063,6 +2151,71 @@ class PianoVisualizer {
         return colors;
     }
     
+    getRandomRetroPalette() {
+        const randomIndex = Math.floor(Math.random() * this.retroPalettes.length);
+        return this.retroPalettes[randomIndex];
+    }
+    
+    getRandomRetroColor() {
+        // Use current selected retro palette, or random if none selected
+        let selectedPalette = this.settings.colorScale;
+        if (!selectedPalette || !selectedPalette.startsWith('retro-')) {
+            selectedPalette = this.getRandomRetroPalette();
+        }
+        
+        const palette = this.colorPalettes[selectedPalette];
+        if (!palette || palette.length === 0) {
+            console.warn(`No palette found for ${selectedPalette}, using default`);
+            return '#ffffff'; // Fallback color
+        }
+        
+        const randomColorIndex = Math.floor(Math.random() * palette.length);
+        const selectedColor = palette[randomColorIndex];
+        
+        // Throttled logging to avoid spam
+        if (!this.lastColorLog || Date.now() - this.lastColorLog > 2000) {
+            console.log(`🎨 Selected color ${selectedColor} (index ${randomColorIndex}) from ${selectedPalette} palette:`, palette);
+            this.lastColorLog = Date.now();
+        }
+        
+        return selectedColor;
+    }
+    
+    hexToRgb(hex) {
+        // Convert hex color to RGB object for Three.js
+        const cleanHex = hex.replace('#', '');
+        const r = parseInt(cleanHex.substr(0, 2), 16) / 255;
+        const g = parseInt(cleanHex.substr(2, 2), 16) / 255;
+        const b = parseInt(cleanHex.substr(4, 2), 16) / 255;
+        return { r, g, b };
+    }
+    
+    initializeRetroColors() {
+        // Set random retro palette as default
+        this.settings.colorScale = this.getRandomRetroPalette();
+        console.log(`🎨 Initialized with random retro palette: ${this.settings.colorScale}`);
+        console.log(`🌈 Palette colors:`, this.colorPalettes[this.settings.colorScale]);
+        
+        // Update HTML select box to reflect the selection
+        const colorScaleSelector = document.getElementById('color-scale');
+        if (colorScaleSelector) {
+            colorScaleSelector.value = this.settings.colorScale;
+            console.log(`🎛️ Updated color scale selector to: ${this.settings.colorScale}`);
+            
+            // Hide custom controls since we're using retro palette
+            const customControls = document.getElementById('color-customization');
+            if (customControls) {
+                customControls.style.display = 'none';
+            }
+        } else {
+            console.warn(`⚠️ Color scale selector not found in DOM`);
+        }
+        
+        // Test color selection
+        const testColor = this.getRandomRetroColor();
+        console.log(`🧪 Test color selection: ${testColor}`);
+    }
+    
     hslToHex(h, s, l) {
         const hue2rgb = (p, q, t) => {
             if (t < 0) t += 1;
@@ -2354,9 +2507,10 @@ class PianoVisualizer {
                 }
             }
             
+            // Render the scene
             this.renderer.render(this.scene, this.camera);
             
-            // Copy canvas for recording if needed
+            // Copy canvas for recording immediately after render for better sync
             this.copyCanvasForRecording();
             
             requestAnimationFrame(animate);
@@ -2364,8 +2518,29 @@ class PianoVisualizer {
         animate();
     }
     
+    updateRecordingCanvasImmediate() {
+        // Quick update of just the piano area for immediate sync
+        if (!this.isRecording || !this.recordingContext || !this.recordingLayout) {
+            return;
+        }
+        
+        try {
+            const layout = this.recordingLayout;
+            
+            // Clear only the piano area and redraw it immediately
+            this.recordingContext.fillStyle = '#2a2a2a';
+            this.recordingContext.fillRect(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
+            
+            // Redraw piano keyboard with current key states
+            this.drawPianoKeyboardToCanvas(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
+            
+        } catch (error) {
+            console.warn('Immediate recording update error:', error);
+        }
+    }
+    
     copyCanvasForRecording() {
-        // Only copy if recording with fallback canvas
+        // Only copy if recording with composite canvas
         if (!this.isRecording || !this.recordingContext || !this.renderer) {
             return;
         }
@@ -2373,20 +2548,141 @@ class PianoVisualizer {
         try {
             const sourceCanvas = this.renderer.domElement;
             
-            // Clear and copy in sync with render
+            // Clear the recording canvas
             this.recordingContext.clearRect(0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
-            this.recordingContext.drawImage(sourceCanvas, 0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            
+            // Use stored layout info for consistent scaling
+            const layout = this.recordingLayout;
+            if (!layout) {
+                console.warn('⚠️ Recording layout not initialized');
+                return;
+            }
+            
+            // Scale and copy Three.js canvas to top portion (maintaining aspect ratio)
+            const sourceWidth = sourceCanvas.width || sourceCanvas.clientWidth;
+            const sourceHeight = sourceCanvas.height || sourceCanvas.clientHeight;
+            
+            // Calculate scaling to fit visualization area while maintaining aspect ratio
+            const scaleX = layout.width / sourceWidth;
+            const scaleY = layout.visualizationHeight / sourceHeight;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const scaledWidth = sourceWidth * scale;
+            const scaledHeight = sourceHeight * scale;
+            const offsetX = (layout.width - scaledWidth) / 2;
+            const offsetY = (layout.visualizationHeight - scaledHeight) / 2;
+            
+            // Draw scaled Three.js canvas centered in visualization area
+            this.recordingContext.drawImage(
+                sourceCanvas, 
+                offsetX, offsetY, 
+                scaledWidth, scaledHeight
+            );
+            
+            // Draw piano keyboard in bottom portion
+            this.drawPianoKeyboardToCanvas(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
             
             // Add recording indicator
-            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.8)';
+            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.9)';
             this.recordingContext.fillRect(10, 10, 20, 20);
             this.recordingContext.fillStyle = 'white';
-            this.recordingContext.font = '12px Arial';
+            this.recordingContext.font = 'bold 12px Arial';
             this.recordingContext.fillText('REC', 35, 25);
             
         } catch (error) {
-            // Fail silently to avoid spamming console
+            console.warn('Canvas recording error:', error);
         }
+    }
+    
+    drawPianoKeyboardToCanvas(x, y, width, height) {
+        const ctx = this.recordingContext;
+        const config = this.pianoConfigs[this.settings.pianoRange];
+        const startNote = config.startNote;
+        const endNote = config.endNote;
+        
+        // Debug: Log piano drawing info (throttled)
+        const pressedKeysCount = this.activeKeys.size;
+        if (pressedKeysCount > 0 && !this.lastPianoLog || Date.now() - this.lastPianoLog > 1000) {
+            console.log(`🎹 Drawing piano with ${pressedKeysCount} pressed keys`);
+            this.lastPianoLog = Date.now();
+        }
+        
+        // Calculate key dimensions
+        const whiteKeyCount = this.countWhiteKeys(startNote, endNote);
+        const whiteKeyWidth = width / whiteKeyCount;
+        const whiteKeyHeight = height - 20; // Leave some margin
+        const blackKeyWidth = whiteKeyWidth * 0.6;
+        const blackKeyHeight = whiteKeyHeight * 0.6;
+        
+        // Draw background
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(x, y, width, height);
+        
+        // Draw white keys first
+        let whiteKeyIndex = 0;
+        for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
+            const noteIndex = midiNote % 12;
+            const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(noteIndex);
+            
+            if (isWhiteKey) {
+                const keyX = x + whiteKeyIndex * whiteKeyWidth;
+                const isPressed = this.activeKeys.has(midiNote);
+                
+                // Key background
+                ctx.fillStyle = isPressed ? '#4f46e5' : '#ffffff';
+                ctx.fillRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
+                
+                // Key border
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
+                
+                // Key pressed effect
+                if (isPressed) {
+                    ctx.fillStyle = 'rgba(79, 70, 229, 0.3)';
+                    ctx.fillRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
+                }
+                
+                whiteKeyIndex++;
+            }
+        }
+        
+        // Draw black keys on top
+        whiteKeyIndex = 0;
+        for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
+            const noteIndex = midiNote % 12;
+            const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(noteIndex);
+            const isBlackKey = [1, 3, 6, 8, 10].includes(noteIndex);
+            
+            if (isWhiteKey) {
+                whiteKeyIndex++;
+            } else if (isBlackKey) {
+                const prevWhiteKeyX = x + (whiteKeyIndex - 1) * whiteKeyWidth;
+                const keyX = prevWhiteKeyX + whiteKeyWidth - (blackKeyWidth / 2);
+                const isPressed = this.activeKeys.has(midiNote);
+                
+                // Key background
+                ctx.fillStyle = isPressed ? '#8b5cf6' : '#1a1a1a';
+                ctx.fillRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
+                
+                // Key border
+                ctx.strokeStyle = '#666666';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
+                
+                // Key pressed effect
+                if (isPressed) {
+                    ctx.fillStyle = 'rgba(139, 92, 246, 0.5)';
+                    ctx.fillRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
+                }
+            }
+        }
+        
+        // Add piano label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Piano Keyboard', x + width / 2, y + height - 5);
     }
     
     async startRecording() {
@@ -2411,26 +2707,34 @@ class PianoVisualizer {
             console.log(`📐 Source canvas: ${sourceCanvas.width}x${sourceCanvas.height}`);
             console.log(`📐 Source canvas client: ${sourceCanvas.clientWidth}x${sourceCanvas.clientHeight}`);
             
-            // Get video stream directly from Three.js canvas
-            let videoStream;
-            try {
-                videoStream = sourceCanvas.captureStream(30); // 30 FPS
-                console.log('✅ Direct canvas capture successful');
-            } catch (error) {
-                console.warn('⚠️ Direct canvas capture failed, creating intermediate canvas:', error);
-                
-                // Fallback: Create intermediate canvas
-                this.recordingCanvas = document.createElement('canvas');
-                this.recordingCanvas.width = sourceCanvas.width || sourceCanvas.clientWidth;
-                this.recordingCanvas.height = sourceCanvas.height || sourceCanvas.clientHeight;
-                this.recordingContext = this.recordingCanvas.getContext('2d');
-                
-                // Start copying process immediately
-                this.startCanvasCopyLoop();
-                
-                videoStream = this.recordingCanvas.captureStream(30);
-                console.log(`📐 Fallback canvas: ${this.recordingCanvas.width}x${this.recordingCanvas.height}`);
-            }
+            // Always create composite canvas with piano keyboard for recording
+            console.log('🎹 Creating composite canvas with piano keyboard for recording...');
+            
+            // YouTube recommended sizes: 1920x1080 (Full HD)
+            const YOUTUBE_WIDTH = 1920;
+            const YOUTUBE_HEIGHT = 1080;
+            const PIANO_HEIGHT = 160; // Increase piano height for better visibility
+            const VISUALIZATION_HEIGHT = YOUTUBE_HEIGHT - PIANO_HEIGHT;
+            
+            this.recordingCanvas = document.createElement('canvas');
+            this.recordingCanvas.width = YOUTUBE_WIDTH;
+            this.recordingCanvas.height = YOUTUBE_HEIGHT;
+            this.recordingContext = this.recordingCanvas.getContext('2d');
+            
+            // Store layout info for consistent scaling
+            this.recordingLayout = {
+                width: YOUTUBE_WIDTH,
+                height: YOUTUBE_HEIGHT,
+                visualizationHeight: VISUALIZATION_HEIGHT,
+                pianoHeight: PIANO_HEIGHT
+            };
+            
+            console.log(`📐 Recording canvas: ${YOUTUBE_WIDTH}x${YOUTUBE_HEIGHT} (YouTube Full HD)`);
+            console.log(`📐 Layout: Visualization ${VISUALIZATION_HEIGHT}px + Piano ${PIANO_HEIGHT}px`);
+            
+            // Get video stream from composite canvas with higher framerate for better sync
+            const videoStream = this.recordingCanvas.captureStream(60); // 60 FPS for better sync
+            console.log('✅ Composite canvas capture setup complete (60 FPS)');
             
             // Get audio stream from our audio destination
             let combinedStream;
@@ -2461,8 +2765,13 @@ class PianoVisualizer {
             let options = null;
             for (const codec of codecOptions) {
                 if (MediaRecorder.isTypeSupported(codec.mimeType)) {
-                    options = { mimeType: codec.mimeType };
+                    options = { 
+                        mimeType: codec.mimeType,
+                        videoBitsPerSecond: 8000000, // 8 Mbps for high quality 1080p
+                        audioBitsPerSecond: 128000   // 128 kbps for good audio quality
+                    };
                     console.log(`✅ Selected codec: ${codec.name} (${codec.mimeType})`);
+                    console.log(`📊 Quality: Video 8Mbps, Audio 128kbps`);
                     break;
                 }
             }
