@@ -14,7 +14,6 @@ class PianoVisualizer {
         this.isRecording = false;
         this.mediaRecorder = null;
         this.recordedChunks = [];
-        this.backgroundImage = null;
         this.backgroundPlane = null;
         
         this.settings = {
@@ -182,7 +181,6 @@ class PianoVisualizer {
         await this.initAudio();
         await this.initMIDI();
         this.initThreeJS();
-        await this.loadBackgroundImage(); // Move after Three.js initialization
         this.createPianoKeyboard();
         this.setupEventListeners();
         this.setupKeyboardListeners();
@@ -266,8 +264,10 @@ class PianoVisualizer {
         directionalLight.shadow.camera.bottom = -10;
         this.scene.add(directionalLight);
         
-        // Simple static background (fluid background removed for debugging)
-        console.log('✅ Three.js scene initialized with static background');
+        // Initialize canvas background after scene setup
+        this.createCanvasBackground();
+        
+        console.log('✅ Three.js scene initialized with canvas background');
     }
     
     
@@ -1856,18 +1856,11 @@ class PianoVisualizer {
         console.log('✅ Collapsible sections initialized');
     }
     
-    async loadBackgroundImage() {
-        console.log('🎨 Starting background image creation...');
-        
-        // まずThree.jsの基本的なテクスチャが動作するかテスト
-        this.createTestBackground();
-    }
-    
-    createTestBackground() {
-        console.log('🧪 Creating test background directly in Three.js...');
+    createCanvasBackground() {
+        console.log('🎨 Creating canvas gradient background...');
         
         if (!this.scene || !this.camera) {
-            console.warn('⚠️ Scene or camera not ready for test background');
+            console.warn('⚠️ Scene or camera not ready for background');
             return;
         }
         
@@ -1878,10 +1871,10 @@ class PianoVisualizer {
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
             
-            // シンプルなグラデーション描画
+            // 美しい放射状グラデーション描画
             const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
-            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.2)');
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
+            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
             gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
             
             ctx.fillStyle = gradient;
@@ -1892,19 +1885,17 @@ class PianoVisualizer {
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             
-            // Calculate plane size to cover entire canvas view
+            // ビューポート全体をカバーするプレーンサイズを計算
             const distance = 30;
             const fov = this.camera.fov * (Math.PI / 180);
             const planeHeight = 2 * Math.tan(fov / 2) * distance;
             const planeWidth = planeHeight * this.camera.aspect;
             
-            console.log(`📐 Test background plane size: ${planeWidth.toFixed(2)} x ${planeHeight.toFixed(2)}`);
-            
             const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
             const material = new THREE.MeshBasicMaterial({ 
                 map: texture, 
                 transparent: true, 
-                opacity: 0.5,  // Higher opacity for testing
+                opacity: 0.3,
                 side: THREE.DoubleSide
             });
             
@@ -1914,65 +1905,10 @@ class PianoVisualizer {
             
             this.backgroundPlane = backgroundPlane;
             
-            console.log('✅ Test background created and added to scene');
-            
-            // 追加のデバッグ情報
-            console.log('🔍 Scene children count:', this.scene.children.length);
-            console.log('🔍 Camera position:', this.camera.position);
-            console.log('🔍 Background plane position:', backgroundPlane.position);
+            console.log('✅ Canvas gradient background created successfully');
             
         } catch (error) {
-            console.error('❌ Error creating test background:', error);
-        }
-    }
-    
-    applyBackgroundToScene() {
-        if (!this.scene || !this.camera || !this.backgroundImage) {
-            console.warn('⚠️ Scene, camera, or background image not ready', {
-                scene: !!this.scene,
-                camera: !!this.camera, 
-                backgroundImage: !!this.backgroundImage
-            });
-            return;
-        }
-        
-        try {
-            console.log('🎨 Creating background plane with image:', this.backgroundImage.src.substring(0, 50) + '...');
-            
-            // Create texture directly from the image element
-            const texture = new THREE.Texture(this.backgroundImage);
-            texture.needsUpdate = true;
-            texture.wrapS = THREE.ClampToEdgeWrapping;
-            texture.wrapT = THREE.ClampToEdgeWrapping;
-            
-            // Calculate plane size to cover entire canvas view
-            // Camera is at z=10, plane at z=-20, so distance is 30
-            const distance = 30;
-            const fov = this.camera.fov * (Math.PI / 180); // Convert to radians
-            const planeHeight = 2 * Math.tan(fov / 2) * distance;
-            const planeWidth = planeHeight * this.camera.aspect;
-            
-            console.log(`📐 Background plane size: ${planeWidth.toFixed(2)} x ${planeHeight.toFixed(2)}`);
-            
-            // Create background plane geometry sized to fill viewport
-            const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-            const material = new THREE.MeshBasicMaterial({ 
-                map: texture, 
-                transparent: true, 
-                opacity: 0.3,  // Increased opacity for better visibility
-                side: THREE.DoubleSide  // Ensure visibility from all angles
-            });
-            
-            const backgroundPlane = new THREE.Mesh(geometry, material);
-            backgroundPlane.position.z = -20; // Far back
-            this.scene.add(backgroundPlane);
-            
-            // Store reference for potential resizing
-            this.backgroundPlane = backgroundPlane;
-            
-            console.log('✅ Background image applied to Three.js scene with opacity 0.3');
-        } catch (error) {
-            console.warn('⚠️ Error applying background to scene:', error);
+            console.error('❌ Error creating canvas background:', error);
         }
     }
     
