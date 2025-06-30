@@ -1147,8 +1147,8 @@ class PianoVisualizer {
         context.textBaseline = 'middle';
         
         // Calculate line positions based on font size, line-height, and canvas size
-        const mainFontSize = 80 * size;
-        const velocityFontSize = 50 * size;
+        const mainFontSize = !this.hasMidiInput ? 60 * size : 80 * size;
+        const velocityFontSize = !this.hasMidiInput ? 35 * size : 50 * size;
         const lineHeight = 2.0; // Line-height multiplier for spacing
         const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
         
@@ -1309,8 +1309,8 @@ class PianoVisualizer {
     getNoteFontSize(velocity) {
         const baseSize = 20;
         if (!this.hasMidiInput) {
-            // When no MIDI device is connected, use middle/default font size
-            const defaultSize = baseSize + (75 / 127) * 30 * this.settings.sizeMultiplier;
+            // When no MIDI device is connected, use smaller default font size (velocity ~50)
+            const defaultSize = baseSize + (50 / 127) * 30 * this.settings.sizeMultiplier;
             return Math.max(defaultSize, 16);
         }
         const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
