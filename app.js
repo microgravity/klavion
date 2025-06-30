@@ -1175,9 +1175,9 @@ class PianoVisualizer {
         context.textBaseline = 'middle';
         
         // Calculate line positions based on font size, line-height, and canvas size
-        const mainFontSize = !this.hasMidiInput ? 60 * size : 80 * size;
-        const velocityFontSize = !this.hasMidiInput ? 35 * size : 50 * size;
-        const lineHeight = 2.0; // Line-height multiplier for spacing
+        const mainFontSize = !this.hasMidiInput ? 55 * size : 80 * size;
+        const velocityFontSize = !this.hasMidiInput ? 30 * size : 50 * size;
+        const lineHeight = !this.hasMidiInput ? 1.6 : 2.0; // Tighter spacing for PC keyboard input
         const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
         
         let mainTextY = canvasCenter; // Default center position
@@ -1337,8 +1337,8 @@ class PianoVisualizer {
     getNoteFontSize(velocity) {
         const baseSize = 20;
         if (!this.hasMidiInput) {
-            // When no MIDI device is connected, use smaller default font size (velocity ~50)
-            const defaultSize = baseSize + (50 / 127) * 30 * this.settings.sizeMultiplier;
+            // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
+            const defaultSize = baseSize + (60 / 127) * 30 * this.settings.sizeMultiplier;
             return Math.max(defaultSize, 16);
         }
         const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
@@ -2074,9 +2074,9 @@ class PianoVisualizer {
             if (midiNote) {
                 e.preventDefault();
                 this.activeKeys.add(e.code);
-                this.playNote(midiNote, 100, performance.now());
+                this.playNote(midiNote, 60, performance.now());
                 this.highlightPianoKey(midiNote, true);
-                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 100)} (${midiNote}) vel:100`);
+                this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 60)} (${midiNote}) vel:60`);
             }
         });
         
