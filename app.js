@@ -139,6 +139,10 @@ class PianoVisualizer {
         
         
         this.lastDebugTime = 0; // For debug logging
+        
+        // Check for mobile device and show warning if needed
+        this.checkMobileDevice();
+        
         this.loadSettings();
         this.init();
     }
@@ -174,6 +178,56 @@ class PianoVisualizer {
             console.log(`💾 Settings saved to localStorage`);
         } catch (error) {
             console.warn('⚠️ Failed to save settings to localStorage:', error);
+        }
+    }
+    
+    checkMobileDevice() {
+        // Enhanced mobile detection
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                         (navigator.maxTouchPoints > 0 && window.matchMedia("(max-width: 768px)").matches) ||
+                         window.screen.width <= 768;
+        
+        const isTablet = /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) ||
+                        (navigator.maxTouchPoints > 0 && window.screen.width > 768 && window.screen.width <= 1024);
+        
+        // Show warning for phones only (not tablets)
+        if (isMobile && !isTablet) {
+            console.log('📱 Mobile device detected, showing compatibility warning');
+            this.showMobileWarning();
+        } else if (isTablet) {
+            console.log('📱 Tablet device detected, proceeding normally');
+        } else {
+            console.log('💻 Desktop device detected, proceeding normally');
+        }
+    }
+    
+    showMobileWarning() {
+        const warningElement = document.getElementById('mobile-warning');
+        const continueBtn = document.getElementById('mobile-continue-btn');
+        
+        if (warningElement && continueBtn) {
+            // Show the warning screen
+            warningElement.style.display = 'flex';
+            document.body.classList.add('mobile-warning-shown');
+            
+            // Set up continue button event
+            continueBtn.addEventListener('click', () => {
+                warningElement.style.display = 'none';
+                document.body.classList.remove('mobile-warning-shown');
+                console.log('📱 User chose to continue on mobile device');
+                
+                // Store preference in localStorage
+                localStorage.setItem('mobileWarningDismissed', 'true');
+            });
+            
+            // Check if user previously dismissed the warning
+            const dismissed = localStorage.getItem('mobileWarningDismissed');
+            if (dismissed === 'true') {
+                // Auto-hide if previously dismissed
+                setTimeout(() => {
+                    continueBtn.click();
+                }, 100);
+            }
         }
     }
     
