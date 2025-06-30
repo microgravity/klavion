@@ -1338,11 +1338,11 @@ class PianoVisualizer {
         
         // Draw velocity number with smaller font if enabled
         if (this.settings.showVelocityNumbers && velocity !== null) {
-            // Calculate velocity text position based on line-height
-            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.8); // Line-height spacing from main text
+            // Calculate velocity text position with tighter line spacing
+            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.55); // Tighter spacing from main text
             
             context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
-            const velocityText = `(${velocity})`;
+            const velocityText = `${velocity}`; // Remove brackets around velocity
             
             // Add glow effect for velocity text (using same color as main text)
             if (glowIntensity > 0) {
@@ -1355,7 +1355,7 @@ class PianoVisualizer {
                 }
             }
             
-            // Velocity text with proper line-height spacing
+            // Velocity text with tighter line spacing
             context.shadowBlur = 3;
             context.fillText(velocityText, canvas.width / 2, velocityTextY);
         }
