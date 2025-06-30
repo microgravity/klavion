@@ -59,13 +59,18 @@ body {
     transition: transform 0.2s ease;
 }
 
+.toggle-icon {
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
 .sidebar h3.collapsed .toggle-icon {
     transform: rotate(-90deg);
 }
 
 .collapsible-content {
     overflow: hidden;
-    transition: max-height 0.3s ease-out;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .collapsible-content.collapsed {

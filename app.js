@@ -1802,9 +1802,24 @@ class PianoVisualizer {
     }
     
     setupCollapsibleSections() {
+        // Define which sections should be collapsed by default
+        const defaultCollapsed = ['keyboard', 'recording'];
+        
         // Initialize max-height for all collapsible content
         document.querySelectorAll('.collapsible-content').forEach(content => {
-            content.style.maxHeight = content.scrollHeight + 'px';
+            const sectionName = content.getAttribute('data-section');
+            if (defaultCollapsed.includes(sectionName)) {
+                // Start collapsed
+                content.classList.add('collapsed');
+                content.style.maxHeight = '0';
+                const header = document.querySelector(`h3[data-section="${sectionName}"]`);
+                if (header) {
+                    header.classList.add('collapsed');
+                }
+            } else {
+                // Start expanded
+                content.style.maxHeight = content.scrollHeight + 'px';
+            }
         });
         
         // Add click listeners to section headers
@@ -1817,16 +1832,17 @@ class PianoVisualizer {
                 if (content.classList.contains('collapsed')) {
                     // Expand
                     content.classList.remove('collapsed');
-                    content.style.maxHeight = content.scrollHeight + 'px';
+                    // Use requestAnimationFrame for smoother animation
+                    requestAnimationFrame(() => {
+                        content.style.maxHeight = content.scrollHeight + 'px';
+                    });
                     header.classList.remove('collapsed');
-                    icon.textContent = '▼';
                     console.log(`📂 Expanded section: ${sectionName}`);
                 } else {
                     // Collapse
                     content.classList.add('collapsed');
                     content.style.maxHeight = '0';
                     header.classList.add('collapsed');
-                    icon.textContent = '▶';
                     console.log(`📁 Collapsed section: ${sectionName}`);
                 }
             });
