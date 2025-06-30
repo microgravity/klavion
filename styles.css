@@ -684,3 +684,103 @@ body {
 .mobile-warning-shown .app-container {
     display: none;
 }
+
+/* SNS Share Buttons */
+.sns-share-buttons {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10000;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.sns-share-buttons:hover {
+    opacity: 1;
+}
+
+.sns-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.sns-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.sns-btn:active {
+    transform: scale(0.95);
+}
+
+.twitter-btn {
+    background: linear-gradient(135deg, #1da1f2, #0d8bd9);
+    color: white;
+}
+
+.twitter-btn:hover {
+    background: linear-gradient(135deg, #0d8bd9, #0a7bc4);
+}
+
+.facebook-btn {
+    background: linear-gradient(135deg, #1877f2, #166fe5);
+    color: white;
+}
+
+.facebook-btn:hover {
+    background: linear-gradient(135deg, #166fe5, #1462d1);
+}
+
+.line-btn {
+    background: linear-gradient(135deg, #00c300, #00b300);
+    color: white;
+}
+
+.line-btn:hover {
+    background: linear-gradient(135deg, #00b300, #00a300);
+}
+
+.copy-btn {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.copy-btn:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+}
+
+.copy-btn.copied {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .sns-share-buttons {
+        top: 10px;
+        right: 10px;
+        gap: 6px;
+    }
+    
+    .sns-btn {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .sns-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+}

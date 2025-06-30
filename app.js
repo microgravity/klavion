@@ -3224,8 +3224,80 @@ class PianoVisualizer {
         // Save the settings after user decision
         this.saveSettings();
     }
+    
+    setupSNSShareButtons() {
+        const twitterBtn = document.querySelector('.twitter-btn');
+        const facebookBtn = document.querySelector('.facebook-btn');
+        const lineBtn = document.querySelector('.line-btn');
+        const copyBtn = document.querySelector('.copy-btn');
+        
+        const shareData = {
+            title: 'Piano Visualizer - Interactive 3D Piano with MIDI Support',
+            text: '🎹 美しい3Dビジュアライゼーション付きピアノ演奏ツール！MIDIサポート、ColorHunt Retroパレット、Full HD録画機能搭載。',
+            url: window.location.href
+        };
+        
+        // Twitter share
+        twitterBtn.addEventListener('click', () => {
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=PianoVisualizer,MIDI,3D,音楽,ピアノ`;
+            window.open(twitterUrl, '_blank', 'width=550,height=420');
+        });
+        
+        // Facebook share
+        facebookBtn.addEventListener('click', () => {
+            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
+            window.open(facebookUrl, '_blank', 'width=580,height=296');
+        });
+        
+        // LINE share
+        lineBtn.addEventListener('click', () => {
+            const lineUrl = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareData.url)}&text=${encodeURIComponent(shareData.text)}`;
+            window.open(lineUrl, '_blank', 'width=500,height=500');
+        });
+        
+        // URL copy
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(shareData.url);
+                
+                // Visual feedback
+                copyBtn.classList.add('copied');
+                const originalSVG = copyBtn.innerHTML;
+                copyBtn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                `;
+                
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyBtn.innerHTML = originalSVG;
+                }, 2000);
+                
+                console.log('✅ URL copied to clipboard');
+            } catch (err) {
+                console.error('❌ Failed to copy URL:', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = shareData.url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    console.log('✅ URL copied using fallback method');
+                } catch (fallbackErr) {
+                    console.error('❌ Fallback copy also failed:', fallbackErr);
+                    alert('URLのコピーに失敗しました。手動でコピーしてください：\n' + shareData.url);
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new PianoVisualizer();
+    const visualizer = new PianoVisualizer();
+    
+    // Setup SNS share buttons
+    visualizer.setupSNSShareButtons();
 });
