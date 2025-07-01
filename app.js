@@ -2005,7 +2005,7 @@ class PianoVisualizer {
         
         this.currentTime = Math.max(0, Math.min(targetTime, this.totalTime));
         
-        // 再生中の場合、アニメーションフレームを適切に管理して再開
+        // 再生中の場合、再生を停止してから再開
         if (this.isPlaying) {
             // 既存のアニメーションフレームをキャンセル
             if (this.animationFrameId) {
@@ -2013,9 +2013,11 @@ class PianoVisualizer {
                 this.animationFrameId = null;
             }
             
-            // 再生状態をリセットしてから再開
-            this.isPlaying = false;
-            this.isPlaying = true;
+            // 現在鳴っている音を停止
+            const pressedKeys = this.pianoKeyboard.querySelectorAll('.piano-key.pressed');
+            pressedKeys.forEach(key => key.classList.remove('pressed'));
+            
+            // 再生を再開
             this.startMidiPlayback();
         }
         
@@ -2238,8 +2240,6 @@ class PianoVisualizer {
         if (!this.midiData || this.isPlaying) return;
         
         this.isPlaying = true;
-        // シーク位置を保持するため、currentTimeをリセットしない
-        // this.currentTime = 0; // この行を削除
         
         document.getElementById('play-midi').disabled = true;
         document.getElementById('pause-midi').disabled = false;
