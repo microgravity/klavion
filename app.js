@@ -370,19 +370,46 @@ class PianoVisualizer {
     
     async initAudio() {
         try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                latencyHint: 'interactive', // Low latency for real-time performance
-                sampleRate: 44100          // Standard sample rate
-            });
+            // Create AudioContext with optimized settings for low-latency recording
+            const audioContextOptions = {
+                latencyHint: 'playback', // Better for recording stability than 'interactive'
+                sampleRate: 48000        // Higher sample rate for better recording quality
+            };
+
+            // Add buffer size optimization if supported
+            if ('AudioWorkletNode' in window) {
+                audioContextOptions.bufferSize = 256; // Smaller buffer for lower latency
+            }
+
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
             this.audioContextResumed = false;
             
-            // Create audio destination for recording
+            // Create audio destination for recording with low latency buffer
             this.audioDestination = this.audioContext.createMediaStreamDestination();
+            
+            // Create optimized low-latency compressor chain for recording
+            this.recordingCompressor = this.audioContext.createDynamicsCompressor();
+            this.recordingCompressor.threshold.setValueAtTime(-20, this.audioContext.currentTime); // Slightly higher threshold for cleaner sound
+            this.recordingCompressor.knee.setValueAtTime(40, this.audioContext.currentTime);       // Softer knee for smoother compression
+            this.recordingCompressor.ratio.setValueAtTime(3, this.audioContext.currentTime);       // More aggressive ratio for consistent levels
+            this.recordingCompressor.attack.setValueAtTime(0.0005, this.audioContext.currentTime); // Ultra-fast attack for minimal latency
+            this.recordingCompressor.release.setValueAtTime(0.03, this.audioContext.currentTime);  // Even faster release for cleaner transients
+            
+            // Add a high-pass filter to remove DC offset and low-frequency noise
+            this.recordingFilter = this.audioContext.createBiquadFilter();
+            this.recordingFilter.type = 'highpass';
+            this.recordingFilter.frequency.setValueAtTime(20, this.audioContext.currentTime); // Remove sub-bass frequencies
+            this.recordingFilter.Q.setValueAtTime(0.707, this.audioContext.currentTime);
+            
+            // Create recording chain: input -> filter -> compressor -> destination
+            this.recordingFilter.connect(this.recordingCompressor);
+            this.recordingCompressor.connect(this.audioDestination);
             
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
             
-            console.log('🎵 AudioContext created with recording destination, waiting for user interaction to start');
+            console.log('🎵 AudioContext created with optimized low-latency recording chain');
+            console.log(`📊 Sample rate: ${this.audioContext.sampleRate}Hz, Base latency: ${this.audioContext.baseLatency * 1000}ms`);
         } catch (error) {
             console.error('Audio context initialization failed:', error);
         }
@@ -917,9 +944,14 @@ class PianoVisualizer {
         // Always connect to speakers
         node.connect(this.audioContext.destination);
         
-        // Also connect to recording destination if it exists
-        if (this.audioDestination) {
-            node.connect(this.audioDestination);
+        // Connect to optimized recording chain: node -> filter -> compressor -> destination
+        if (this.audioDestination && this.recordingFilter) {
+            node.connect(this.recordingFilter);
+        }
+        
+        // Connect to analyzer node for spectrum analyzer
+        if (this.analyserNode) {
+            node.connect(this.analyserNode);
         }
     }
     
@@ -2781,6 +2813,14 @@ class PianoVisualizer {
                 options = {};
             }
             
+            // Add low-latency recording options
+            if (!options.audioBitsPerSecond) {
+                options.audioBitsPerSecond = 192000; // Higher audio bitrate for better quality with low latency
+            }
+            
+            // Optimize for real-time recording
+            options.recordingChunkMs = 100; // Smaller chunks for lower latency if supported
+            
             this.mediaRecorder = new MediaRecorder(combinedStream, options);
             this.combinedStream = combinedStream;
             this.recordedChunks = [];
@@ -2812,7 +2852,8 @@ class PianoVisualizer {
                 this.startCanvasCopyLoop();
             }
             
-            this.mediaRecorder.start();
+            // Start recording with low-latency chunks (100ms intervals)
+            this.mediaRecorder.start(100);
             this.isRecording = true;
             
             document.getElementById('start-recording').disabled = true;
