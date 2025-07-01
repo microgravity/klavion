@@ -26,6 +26,12 @@ class PianoVisualizer {
         // Piano key visual state tracking
         this.activeKeys = new Set(); // Track which keys are currently pressed
         
+        // Spectrum analyzer properties
+        this.analyserNode = null;
+        this.spectrumCanvas = null;
+        this.spectrumContext = null;
+        this.animationFrameId = null;
+        
         this.settings = {
             animationSpeed: 1.0,
             sizeMultiplier: 1.0,
@@ -43,7 +49,8 @@ class PianoVisualizer {
             showVelocityNumbers: true,
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
-            customBaseColor: '#ffffff'
+            customBaseColor: '#ffffff',
+            showSpectrumAnalyzer: true
         };
         
         // Piano configuration
@@ -281,6 +288,9 @@ class PianoVisualizer {
         // Initialize with random retro palette after DOM is ready
         this.initializeRetroColors();
         
+        // Initialize spectrum analyzer
+        this.initSpectrumAnalyzer();
+        
         this.startVisualization();
         
         window.addEventListener('resize', () => this.onWindowResize());
@@ -366,6 +376,9 @@ class PianoVisualizer {
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
+        
+        // Resize spectrum canvas
+        this.resizeSpectrumCanvas();
     }
     
     async initAudio() {
@@ -378,6 +391,11 @@ class PianoVisualizer {
             
             // Create audio destination for recording
             this.audioDestination = this.audioContext.createMediaStreamDestination();
+            
+            // Create analyser node for spectrum analyzer
+            this.analyserNode = this.audioContext.createAnalyser();
+            this.analyserNode.fftSize = 512; // FFT size (frequency bins will be fftSize/2)
+            this.analyserNode.smoothingTimeConstant = 0.8;
             
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
@@ -920,6 +938,11 @@ class PianoVisualizer {
         // Also connect to recording destination if it exists
         if (this.audioDestination) {
             node.connect(this.audioDestination);
+        }
+        
+        // Connect to analyzer node for spectrum analyzer
+        if (this.analyserNode) {
+            node.connect(this.analyserNode);
         }
     }
     
@@ -1646,6 +1669,16 @@ class PianoVisualizer {
         octaveToggle.addEventListener('change', (e) => {
             this.settings.showOctaveNumbers = e.target.checked;
             console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
+        });
+        
+        // Spectrum analyzer toggle
+        const spectrumToggle = document.getElementById('show-spectrum-analyzer');
+        spectrumToggle.addEventListener('change', (e) => {
+            this.settings.showSpectrumAnalyzer = e.target.checked;
+            if (this.spectrumCanvas) {
+                this.spectrumCanvas.style.display = e.target.checked ? 'block' : 'none';
+            }
+            console.log(`🌈 Spectrum analyzer: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
         
         // Audio timbre selector
@@ -3223,6 +3256,97 @@ class PianoVisualizer {
         
         // Save the settings after user decision
         this.saveSettings();
+    }
+    
+    initSpectrumAnalyzer() {
+        this.spectrumCanvas = document.getElementById('spectrum-canvas');
+        if (!this.spectrumCanvas) {
+            console.error('❌ Spectrum canvas not found');
+            return;
+        }
+        
+        this.spectrumContext = this.spectrumCanvas.getContext('2d');
+        
+        // Set canvas size
+        this.resizeSpectrumCanvas();
+        
+        // Start spectrum animation
+        this.startSpectrumAnimation();
+        
+        console.log('🌈 Spectrum analyzer initialized');
+    }
+    
+    resizeSpectrumCanvas() {
+        if (!this.spectrumCanvas || !this.container) return;
+        
+        const rect = this.container.getBoundingClientRect();
+        this.spectrumCanvas.width = rect.width;
+        this.spectrumCanvas.height = rect.height;
+    }
+    
+    startSpectrumAnimation() {
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+        }
+        
+        const drawSpectrum = () => {
+            if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.spectrumContext) {
+                this.drawSpectrumAnalyzer();
+            }
+            this.animationFrameId = requestAnimationFrame(drawSpectrum);
+        };
+        
+        drawSpectrum();
+    }
+    
+    drawSpectrumAnalyzer() {
+        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
+        
+        const bufferLength = this.analyserNode.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        this.analyserNode.getByteFrequencyData(dataArray);
+        
+        const width = this.spectrumCanvas.width;
+        const height = this.spectrumCanvas.height;
+        
+        // Clear canvas
+        this.spectrumContext.clearRect(0, 0, width, height);
+        
+        // Calculate bar width
+        const barWidth = (width / bufferLength) * 2.5;
+        let x = 0;
+        
+        // Create gradient for bars
+        const gradient = this.spectrumContext.createLinearGradient(0, height, 0, 0);
+        gradient.addColorStop(0, '#ff6b6b');
+        gradient.addColorStop(0.3, '#4ecdc4');
+        gradient.addColorStop(0.6, '#45b7d1');
+        gradient.addColorStop(1, '#96ceb4');
+        
+        // Draw frequency bars
+        for (let i = 0; i < bufferLength; i++) {
+            const barHeight = (dataArray[i] / 255) * height * 0.8;
+            
+            this.spectrumContext.fillStyle = gradient;
+            this.spectrumContext.fillRect(x, height - barHeight, barWidth, barHeight);
+            
+            x += barWidth + 1;
+        }
+        
+        // Add glow effect
+        this.spectrumContext.shadowBlur = 10;
+        this.spectrumContext.shadowColor = '#4ecdc4';
+        
+        // Draw mirrored spectrum for symmetry
+        x = 0;
+        for (let i = bufferLength - 1; i >= 0; i--) {
+            const barHeight = (dataArray[i] / 255) * height * 0.4;
+            
+            this.spectrumContext.fillStyle = gradient;
+            this.spectrumContext.fillRect(width - x - barWidth, height - barHeight, barWidth, barHeight);
+            
+            x += barWidth + 1;
+        }
     }
     
     setupSNSShareButtons() {

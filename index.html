@@ -289,6 +289,13 @@
                     </label>
                 </div>
                 <div class="control-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="show-spectrum-analyzer" checked>
+                        <span class="checkmark"></span>
+                        スペクトラムアナライザー表示
+                    </label>
+                </div>
+                <div class="control-group">
                     <label for="note-name-style">音名表記</label>
                     <select id="note-name-style">
                         <option value="japanese" selected>日本語 (ドレミファソラシド)</option>
@@ -357,7 +364,9 @@
             <div id="audio-context-notice" style="display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(96, 165, 250, 0.9); color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000; font-size: 14px; backdrop-filter: blur(10px);">
                 🎵 音声を有効にするには、どこかをクリックするか、キーを押してください
             </div>
-            <div id="three-container"></div>
+            <div id="three-container">
+                <canvas id="spectrum-canvas" class="spectrum-canvas"></canvas>
+            </div>
             <div class="piano-container">
                 <div class="piano-keyboard" id="piano-keyboard">
                     <!-- Piano keys will be generated dynamically -->
