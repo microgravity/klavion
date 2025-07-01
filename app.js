@@ -1780,9 +1780,15 @@ class PianoVisualizer {
                         ctx.fillStyle = gradient;
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         
-                        // Update background texture
+                        // Force background texture update
                         if (this.backgroundPlane && this.backgroundPlane.material.map) {
                             this.backgroundPlane.material.map.needsUpdate = true;
+                            this.backgroundPlane.material.needsUpdate = true;
+                            
+                            // Force renderer to update
+                            if (this.renderer) {
+                                this.renderer.resetState();
+                            }
                         }
                     }
                 }
@@ -2245,10 +2251,10 @@ class PianoVisualizer {
         const ctx = this.backgroundContext;
         const canvas = this.backgroundCanvas;
         
-        // Clear canvas
+        // Always clear canvas completely
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Draw gradient background
+        // Always draw clean gradient background
         const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
         gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
         gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
@@ -2257,7 +2263,7 @@ class PianoVisualizer {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw waveform if analyzer is available and enabled
+        // Only draw waveform if analyzer is available and enabled
         if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.waveformData) {
             try {
                 // Get frequency data for spectrum
@@ -2301,14 +2307,21 @@ class PianoVisualizer {
                 
                 ctx.stroke();
                 
-                // Update texture
+                // Force texture update
                 if (this.backgroundPlane && this.backgroundPlane.material.map) {
                     this.backgroundPlane.material.map.needsUpdate = true;
+                    this.backgroundPlane.material.needsUpdate = true;
                 }
                 
             } catch (error) {
                 console.warn('Waveform drawing error:', error);
             }
+        }
+        
+        // Always force texture update to ensure clean background
+        if (this.backgroundPlane && this.backgroundPlane.material.map) {
+            this.backgroundPlane.material.map.needsUpdate = true;
+            this.backgroundPlane.material.needsUpdate = true;
         }
     }
     
@@ -2723,10 +2736,8 @@ class PianoVisualizer {
                 }
             }
             
-            // Update waveform background only if enabled
-            if (this.settings.showSpectrumAnalyzer) {
-                this.drawBackgroundWithWaveform();
-            }
+            // Always update background (function internally checks if waveform should be drawn)
+            this.drawBackgroundWithWaveform();
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
