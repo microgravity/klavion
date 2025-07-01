@@ -1361,8 +1361,8 @@ class PianoVisualizer {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         // Increase canvas size to accommodate velocity text without clipping
-        canvas.width = 512;
-        canvas.height = this.settings.showVelocityNumbers && velocity !== null ? 384 : 256; // 1.5x height for velocity display
+        canvas.width = 768; // Increased from 512 for larger fonts
+        canvas.height = this.settings.showVelocityNumbers && velocity !== null ? 576 : 384; // Increased proportionally for larger fonts
         
         // Enhanced text rendering with glow effect
         const glowIntensity = this.settings.glowIntensity;
@@ -1399,9 +1399,10 @@ class PianoVisualizer {
         context.textBaseline = 'middle';
         
         // Calculate line positions based on font size, line-height, and canvas size
-        const mainFontSize = !this.hasMidiInput ? 55 * size : 80 * size;
-        const velocityFontSize = !this.hasMidiInput ? 30 * size : 50 * size;
-        const lineHeight = !this.hasMidiInput ? 1.6 : 2.0; // Tighter spacing for PC keyboard input
+        // Increased default font sizes by 130% (2.3x) for better visibility
+        const mainFontSize = !this.hasMidiInput ? 127 * size : 184 * size;
+        const velocityFontSize = !this.hasMidiInput ? 69 * size : 115 * size;
+        const lineHeight = !this.hasMidiInput ? 1.4 : 1.8; // Adjusted spacing for larger fonts
         const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
         
         let mainTextY = canvasCenter; // Default center position
@@ -1587,14 +1588,14 @@ class PianoVisualizer {
     }
     
     getNoteFontSize(velocity) {
-        const baseSize = 20;
+        const baseSize = 46; // Increased from 20 (130% increase: 20 * 2.3 = 46)
         if (!this.hasMidiInput) {
             // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
-            const defaultSize = baseSize + (60 / 127) * 30 * this.settings.sizeMultiplier;
-            return Math.max(defaultSize, 16);
+            const defaultSize = baseSize + (60 / 127) * 69 * this.settings.sizeMultiplier; // Increased from 30 to 69
+            return Math.max(defaultSize, 37); // Increased minimum from 16 to 37
         }
-        const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
-        return Math.max(scaledSize, 16);
+        const scaledSize = baseSize + (velocity / 127) * 69 * this.settings.sizeMultiplier; // Increased from 30 to 69
+        return Math.max(scaledSize, 37); // Increased minimum from 16 to 37
     }
     
     getNoteColor(midiNote, velocity) {
