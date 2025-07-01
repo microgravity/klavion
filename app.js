@@ -2005,12 +2005,18 @@ class PianoVisualizer {
         
         this.currentTime = Math.max(0, Math.min(targetTime, this.totalTime));
         
-        // 再生中の場合、再生を再開
+        // 再生中の場合、アニメーションフレームを適切に管理して再開
         if (this.isPlaying) {
-            this.stopMidi();
-            setTimeout(() => {
-                this.playMidi();
-            }, 50);
+            // 既存のアニメーションフレームをキャンセル
+            if (this.animationFrameId) {
+                cancelAnimationFrame(this.animationFrameId);
+                this.animationFrameId = null;
+            }
+            
+            // 再生状態をリセットしてから再開
+            this.isPlaying = false;
+            this.isPlaying = true;
+            this.startMidiPlayback();
         }
         
         // UIを更新
@@ -2232,7 +2238,8 @@ class PianoVisualizer {
         if (!this.midiData || this.isPlaying) return;
         
         this.isPlaying = true;
-        this.currentTime = 0;
+        // シーク位置を保持するため、currentTimeをリセットしない
+        // this.currentTime = 0; // この行を削除
         
         document.getElementById('play-midi').disabled = true;
         document.getElementById('pause-midi').disabled = false;
@@ -2275,33 +2282,58 @@ class PianoVisualizer {
     
     startMidiPlayback() {
         const startTime = Date.now();
+        const seekOffset = this.currentTime; // シーク位置を記録
         const ticksPerBeat = this.midiData.division;
         let microsecondsPerBeat = 500000;
         
-        const allEvents = [];
+        // まずすべてのイベントを収集（テンポ変更も含む）
+        const allRawEvents = [];
         this.midiData.tracks.forEach((track, trackIndex) => {
             track.forEach(event => {
-                if (event.type === 'noteOn' || event.type === 'noteOff') {
-                    const timeInSeconds = (event.time / ticksPerBeat) * (microsecondsPerBeat / 1000000);
-                    allEvents.push({
-                        ...event,
-                        timeInSeconds,
-                        trackIndex
-                    });
-                } else if (event.type === 'setTempo') {
-                    microsecondsPerBeat = event.microsecondsPerBeat;
-                }
+                allRawEvents.push({
+                    ...event,
+                    trackIndex,
+                    tickTime: event.time
+                });
             });
         });
         
-        allEvents.sort((a, b) => a.timeInSeconds - b.timeInSeconds);
+        // tick時間順にソート
+        allRawEvents.sort((a, b) => a.tickTime - b.tickTime);
         
+        // テンポ変更を考慮して時間を計算
+        const allEvents = [];
+        let currentTempo = microsecondsPerBeat;
+        let currentTickTime = 0;
+        let currentRealTime = 0;
+        
+        allRawEvents.forEach(event => {
+            // 経過tick時間を実時間に変換
+            const tickDelta = event.tickTime - currentTickTime;
+            const timeDelta = (tickDelta / ticksPerBeat) * (currentTempo / 1000000);
+            currentRealTime += timeDelta;
+            currentTickTime = event.tickTime;
+            
+            if (event.type === 'setTempo') {
+                currentTempo = event.microsecondsPerBeat;
+            } else if (event.type === 'noteOn' || event.type === 'noteOff') {
+                allEvents.push({
+                    ...event,
+                    timeInSeconds: currentRealTime
+                });
+            }
+        });
+        
+        // シーク位置に応じてeventIndexを調整
         let eventIndex = 0;
+        while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds < seekOffset) {
+            eventIndex++;
+        }
         
         const playLoop = () => {
             if (!this.isPlaying) return;
             
-            const elapsed = (Date.now() - startTime) / 1000 * this.playbackRate;
+            const elapsed = seekOffset + (Date.now() - startTime) / 1000 * this.playbackRate;
             this.currentTime = elapsed;
             
             while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds <= elapsed) {

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI再生機能テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-case {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .test-case h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .test-steps {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        .expected-result {
+            background-color: #e8f5e8;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .pass {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .fail {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>MIDI再生機能テスト</h1>
+    <p>以下のテストケースを実行して、MIDI再生機能の修正が正常に動作することを確認してください。</p>
+
+    <div class="test-case">
+        <h3>テスト1: シーク後の再生開始位置</h3>
+        <div class="test-steps">
+            <strong>テスト手順:</strong>
+            <ol>
+                <li>MIDIファイルを読み込む</li>
+                <li>再生を開始する</li>
+                <li>楽曲の中間位置（例：50%）にシークする</li>
+                <li>再生ボタンを押す</li>
+            </ol>
+        </div>
+        <div class="expected-result">
+            <strong>期待される結果:</strong>
+            シークした位置から再生が開始され、最初からの再生にならない
+        </div>
+        <div class="test-result" id="test1-result">
+            <button onclick="runTest1()">テスト実行</button>
+            <span id="test1-status">未実行</span>
+        </div>
+    </div>
+
+    <div class="test-case">
+        <h3>テスト2: 再生中のシーク動作</h3>
+        <div class="test-steps">
+            <strong>テスト手順:</strong>
+            <ol>
+                <li>MIDIファイルを読み込む</li>
+                <li>再生を開始する</li>
+                <li>再生中に別の位置にシークする</li>
+                <li>シーク後の再生が継続されることを確認</li>
+            </ol>
+        </div>
+        <div class="expected-result">
+            <strong>期待される結果:</strong>
+            シーク後、新しい位置から再生が継続される。アニメーションフレームの重複実行がない
+        </div>
+        <div class="test-result" id="test2-result">
+            <button onclick="runTest2()">テスト実行</button>
+            <span id="test2-status">未実行</span>
+        </div>
+    </div>
+
+    <div class="test-case">
+        <h3>テスト3: イベントインデックス管理</h3>
+        <div class="test-steps">
+            <strong>テスト手順:</strong>
+            <ol>
+                <li>音符が多いMIDIファイルを読み込む</li>
+                <li>楽曲の後半にシークする</li>
+                <li>再生を開始する</li>
+                <li>適切な音符から再生されることを確認</li>
+            </ol>
+        </div>
+        <div class="expected-result">
+            <strong>期待される結果:</strong>
+            シーク位置に対応する音符から再生が開始され、最初の音符から処理されない
+        </div>
+        <div class="test-result" id="test3-result">
+            <button onclick="runTest3()">テスト実行</button>
+            <span id="test3-status">未実行</span>
+        </div>
+    </div>
+
+    <div class="test-case">
+        <h3>テスト4: テンポ変更の処理</h3>
+        <div class="test-steps">
+            <strong>テスト手順:</strong>
+            <ol>
+                <li>テンポ変更を含むMIDIファイルを読み込む</li>
+                <li>テンポ変更前の位置にシークする</li>
+                <li>再生を開始してテンポ変更箇所を通過する</li>
+                <li>テンポ変更が正しく適用されることを確認</li>
+            </ol>
+        </div>
+        <div class="expected-result">
+            <strong>期待される結果:</strong>
+            テンポ変更が正しいタイミングで適用され、時間計算が正確になる
+        </div>
+        <div class="test-result" id="test4-result">
+            <button onclick="runTest4()">テスト実行</button>
+            <span id="test4-status">未実行</span>
+        </div>
+    </div>
+
+    <div class="test-case">
+        <h3>テスト5: 時間表示の精度</h3>
+        <div class="test-steps">
+            <strong>テスト手順:</strong>
+            <ol>
+                <li>MIDIファイルを読み込む</li>
+                <li>様々な位置にシークする</li>
+                <li>時間表示とプログレスバーが一致することを確認</li>
+                <li>再生中の時間進行が正常であることを確認</li>
+            </ol>
+        </div>
+        <div class="expected-result">
+            <strong>期待される結果:</strong>
+            シーク位置と時間表示が一致し、再生中の時間進行が滑らかで正確
+        </div>
+        <div class="test-result" id="test5-result">
+            <button onclick="runTest5()">テスト実行</button>
+            <span id="test5-status">未実行</span>
+        </div>
+    </div>
+
+    <script>
+        function runTest1() {
+            const status = document.getElementById('test1-status');
+            status.textContent = '手動テストを実行してください';
+            status.className = '';
+        }
+
+        function runTest2() {
+            const status = document.getElementById('test2-status');
+            status.textContent = '手動テストを実行してください';
+            status.className = '';
+        }
+
+        function runTest3() {
+            const status = document.getElementById('test3-status');
+            status.textContent = '手動テストを実行してください';
+            status.className = '';
+        }
+
+        function runTest4() {
+            const status = document.getElementById('test4-status');
+            status.textContent = '手動テストを実行してください';
+            status.className = '';
+        }
+
+        function runTest5() {
+            const status = document.getElementById('test5-status');
+            status.textContent = '手動テストを実行してください';
+            status.className = '';
+        }
+
+        // 結果記録用の関数
+        function markTestResult(testNumber, passed) {
+            const status = document.getElementById(`test${testNumber}-status`);
+            const result = document.getElementById(`test${testNumber}-result`);
+            
+            if (passed) {
+                status.textContent = 'PASS';
+                result.className = 'test-result pass';
+            } else {
+                status.textContent = 'FAIL';
+                result.className = 'test-result fail';
+            }
+        }
+
+        // 使用例: markTestResult(1, true); // テスト1をPASSとしてマーク
+        // 使用例: markTestResult(1, false); // テスト1をFAILとしてマーク
+    </script>
+</body>
+</html>
