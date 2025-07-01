@@ -974,15 +974,21 @@ class PianoVisualizer {
     }
     
     // Canvas pool management for performance
-    getCanvasFromPool() {
+    getCanvasFromPool(size = 1.0) {
         if (this.canvasPool.length > 0) {
-            return this.canvasPool.pop();
+            const canvas = this.canvasPool.pop();
+            // Dynamically adjust canvas size based on expected text size
+            const scaleFactor = Math.max(1.0, size * 1.5); // Ensure adequate space for large text
+            canvas.width = Math.min(1024, 768 * scaleFactor);
+            canvas.height = Math.min(768, 576 * scaleFactor);
+            return canvas;
         }
         
         // Create new canvas if pool is empty
         const canvas = document.createElement('canvas');
-        canvas.width = 768; // Increased from 512 for larger fonts
-        canvas.height = 576; // Increased to accommodate velocity text
+        const scaleFactor = Math.max(1.0, size * 1.5);
+        canvas.width = Math.min(1024, 768 * scaleFactor);
+        canvas.height = Math.min(768, 576 * scaleFactor);
         return canvas;
     }
     
@@ -1048,16 +1054,20 @@ class PianoVisualizer {
         context.textAlign = 'center';
         context.textBaseline = 'middle';
         
-        // Optimized font size calculations for increased readability (130% improvement)
-        const mainFontSize = !this.hasMidiInput ? 127 * size : 184 * size; // Increased by 130%
-        const velocityFontSize = !this.hasMidiInput ? 69 * size : 115 * size; // Increased by 130%
+        // Optimized font size calculations with safety limits to prevent cutoff
+        const maxMainFont = Math.min(canvas.height * 0.35, !this.hasMidiInput ? 127 * size : 184 * size);
+        const maxVelocityFont = Math.min(canvas.height * 0.2, !this.hasMidiInput ? 69 * size : 115 * size);
+        const mainFontSize = maxMainFont; // Apply canvas-relative size limit
+        const velocityFontSize = maxVelocityFont; // Apply canvas-relative size limit
         const lineHeight = 1.4;
         const canvasCenter = canvas.height / 2;
         
         let mainTextY = canvasCenter;
         if (this.settings.showVelocityNumbers && velocity !== null) {
             const totalHeight = mainFontSize + (velocityFontSize * lineHeight);
-            mainTextY = canvasCenter - (totalHeight / 4);
+            // Ensure main text stays within canvas bounds
+            const topMargin = Math.max(mainFontSize * 0.6, 20);
+            mainTextY = Math.max(topMargin, canvasCenter - (totalHeight / 4));
         }
         
         // Draw main note name with optimized rendering
@@ -1077,9 +1087,12 @@ class PianoVisualizer {
         // Draw velocity number if enabled
         if (this.settings.showVelocityNumbers && velocity !== null) {
             const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.7);
+            // Ensure velocity text stays within canvas bounds
+            const bottomMargin = Math.max(velocityFontSize * 0.6, 15);
+            const finalVelocityY = Math.min(canvas.height - bottomMargin, velocityTextY);
             context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
             context.shadowBlur = 10 * glowIntensity;
-            context.fillText(`${velocity}`, canvas.width / 2, velocityTextY);
+            context.fillText(`${velocity}`, canvas.width / 2, finalVelocityY);
         }
     }
 
@@ -1425,10 +1438,8 @@ class PianoVisualizer {
         // let texture = this.textureCache.get(cacheKey);
         
         if (!texture) {
-            // Create dedicated canvas for this texture (don't use pool for cached textures)
-            const canvas = document.createElement('canvas');
-            canvas.width = 768;
-            canvas.height = 576;
+            // Create dedicated canvas for this texture with dynamic sizing
+            const canvas = this.getCanvasFromPool(size);
             const context = canvas.getContext('2d');
         
             // Render text to canvas
@@ -1573,7 +1584,8 @@ class PianoVisualizer {
     getNoteSizeMultiplier(velocity) {
         const baseSize = this.settings.sizeMultiplier;
         const velocityEffect = (velocity / 127) * this.settings.velocitySensitivity;
-        return Math.max(0.3, baseSize + velocityEffect);
+        // Cap maximum size to prevent font cutoff at high velocities
+        return Math.max(0.3, Math.min(3.0, baseSize + velocityEffect));
     }
     
     getNoteSizeClass(velocity) {
