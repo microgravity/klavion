@@ -1756,9 +1756,35 @@ class PianoVisualizer {
                     this.spectrumCanvas.style.display = e.target.checked ? 'block' : 'none';
                 }
                 
-                // Clear canvas when disabled
-                if (!e.target.checked && this.spectrumContext && this.spectrumCanvas) {
-                    this.spectrumContext.clearRect(0, 0, this.spectrumCanvas.width, this.spectrumCanvas.height);
+                // Clear canvases when disabled
+                if (!e.target.checked) {
+                    // Clear spectrum overlay canvas
+                    if (this.spectrumContext && this.spectrumCanvas) {
+                        this.spectrumContext.clearRect(0, 0, this.spectrumCanvas.width, this.spectrumCanvas.height);
+                    }
+                    
+                    // Clear background waveform and redraw clean gradient
+                    if (this.backgroundContext && this.backgroundCanvas) {
+                        const ctx = this.backgroundContext;
+                        const canvas = this.backgroundCanvas;
+                        
+                        // Clear canvas
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Draw clean gradient background without waveform
+                        const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+                        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
+                        gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
+                        gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Update background texture
+                        if (this.backgroundPlane && this.backgroundPlane.material.map) {
+                            this.backgroundPlane.material.map.needsUpdate = true;
+                        }
+                    }
                 }
             });
         }
@@ -2697,8 +2723,10 @@ class PianoVisualizer {
                 }
             }
             
-            // Update waveform background
-            this.drawBackgroundWithWaveform();
+            // Update waveform background only if enabled
+            if (this.settings.showSpectrumAnalyzer) {
+                this.drawBackgroundWithWaveform();
+            }
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
@@ -3526,6 +3554,9 @@ class PianoVisualizer {
         const drawSpectrum = () => {
             if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.spectrumContext) {
                 this.drawWaveform();
+            } else if (this.spectrumContext && this.spectrumCanvas) {
+                // Clear spectrum canvas when disabled
+                this.spectrumContext.clearRect(0, 0, this.spectrumCanvas.width, this.spectrumCanvas.height);
             }
             this.animationFrameId = requestAnimationFrame(drawSpectrum);
         };
