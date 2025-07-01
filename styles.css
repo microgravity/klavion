@@ -52,6 +52,10 @@ body {
     transition: color 0.2s ease;
 }
 
+.sidebar h3::first-letter {
+    margin-right: 10px;
+}
+
 .sidebar h3:hover {
     color: #6ee7b7;
 }
