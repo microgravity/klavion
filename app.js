@@ -1744,6 +1744,25 @@ class PianoVisualizer {
             console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
         
+        // Spectrum analyzer toggle
+        const spectrumToggle = document.getElementById('show-spectrum-analyzer');
+        if (spectrumToggle) {
+            spectrumToggle.addEventListener('change', (e) => {
+                this.settings.showSpectrumAnalyzer = e.target.checked;
+                console.log(`🌊 Spectrum analyzer: ${e.target.checked ? 'enabled' : 'disabled'}`);
+                
+                // Show/hide spectrum canvas
+                if (this.spectrumCanvas) {
+                    this.spectrumCanvas.style.display = e.target.checked ? 'block' : 'none';
+                }
+                
+                // Clear canvas when disabled
+                if (!e.target.checked && this.spectrumContext && this.spectrumCanvas) {
+                    this.spectrumContext.clearRect(0, 0, this.spectrumCanvas.width, this.spectrumCanvas.height);
+                }
+            });
+        }
+        
         // Audio timbre selector
         const timbreSelector = document.getElementById('audio-timbre');
         timbreSelector.addEventListener('change', (e) => {
@@ -2212,8 +2231,8 @@ class PianoVisualizer {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw waveform if analyzer is available
-        if (this.analyserNode && this.waveformData) {
+        // Draw waveform if analyzer is available and enabled
+        if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.waveformData) {
             try {
                 // Get frequency data for spectrum
                 this.analyserNode.getByteFrequencyData(this.waveformData);
@@ -3483,6 +3502,9 @@ class PianoVisualizer {
         
         // Set canvas size
         this.resizeSpectrumCanvas();
+        
+        // Set initial visibility based on settings
+        this.spectrumCanvas.style.display = this.settings.showSpectrumAnalyzer ? 'block' : 'none';
         
         // Start spectrum animation
         this.startSpectrumAnimation();
