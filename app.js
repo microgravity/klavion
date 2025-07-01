@@ -1894,6 +1894,12 @@ class PianoVisualizer {
             const file = e.target.files[0];
             if (file) {
                 this.loadMidiFile(file);
+            } else {
+                // ファイルが選択されていない場合は再生位置コントロールを非表示
+                this.midiData = null;
+                this.hidePlaybackControls();
+                document.getElementById('play-midi').disabled = true;
+                document.getElementById('midi-info').textContent = '';
             }
         });
         
@@ -1907,6 +1913,152 @@ class PianoVisualizer {
             tempoValue.textContent = `${percentage}%`;
             console.log(`🎼 MIDI tempo changed to: ${percentage}% (${this.playbackRate.toFixed(2)}x)`);
         });
+
+        // 再生位置コントロールのセットアップ
+        this.setupPlaybackControls();
+    }
+
+    setupPlaybackControls() {
+        const progressBar = document.getElementById('seekable-progress');
+        const progressHandle = document.getElementById('progress-handle');
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartProgress = 0;
+
+        // マウスダウンイベント（シーク開始）
+        const startSeek = (e) => {
+            if (!this.midiData) return;
+            
+            isDragging = true;
+            const rect = progressBar.getBoundingClientRect();
+            const x = (e.clientX || e.touches?.[0].clientX) - rect.left;
+            dragStartX = x;
+            dragStartProgress = (x / rect.width) * 100;
+            
+            progressBar.style.cursor = 'grabbing';
+            e.preventDefault();
+        };
+
+        // マウス移動イベント（シーク中）
+        const seekTo = (e) => {
+            if (!isDragging || !this.midiData) return;
+            
+            const rect = progressBar.getBoundingClientRect();
+            const x = (e.clientX || e.touches?.[0].clientX) - rect.left;
+            const progress = Math.max(0, Math.min(100, (x / rect.width) * 100));
+            
+            // UIを即座に更新
+            document.getElementById('progress-fill').style.width = `${progress}%`;
+            
+            // 時間表示を更新
+            const newTime = (progress / 100) * this.totalTime;
+            this.updateTimeDisplay(newTime, this.totalTime);
+            
+            e.preventDefault();
+        };
+
+        // マウスアップイベント（シーク終了）
+        const endSeek = (e) => {
+            if (!isDragging || !this.midiData) return;
+            
+            const rect = progressBar.getBoundingClientRect();
+            const x = (e.clientX || e.changedTouches?.[0].clientX) - rect.left;
+            const progress = Math.max(0, Math.min(100, (x / rect.width) * 100));
+            const newTime = (progress / 100) * this.totalTime;
+            
+            // 再生位置を更新
+            this.seekToTime(newTime);
+            
+            isDragging = false;
+            progressBar.style.cursor = 'pointer';
+            
+            e.preventDefault();
+        };
+
+        // プログレスバークリックイベント
+        progressBar.addEventListener('click', (e) => {
+            if (!this.midiData || isDragging) return;
+            
+            const rect = progressBar.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const progress = (x / rect.width) * 100;
+            const newTime = (progress / 100) * this.totalTime;
+            
+            this.seekToTime(newTime);
+        });
+
+        // マウスイベント
+        progressHandle.addEventListener('mousedown', startSeek);
+        progressBar.addEventListener('mousedown', startSeek);
+        document.addEventListener('mousemove', seekTo);
+        document.addEventListener('mouseup', endSeek);
+
+        // タッチイベント（モバイル対応）
+        progressHandle.addEventListener('touchstart', startSeek);
+        progressBar.addEventListener('touchstart', startSeek);
+        document.addEventListener('touchmove', seekTo);
+        document.addEventListener('touchend', endSeek);
+    }
+
+    seekToTime(targetTime) {
+        if (!this.midiData) return;
+        
+        this.currentTime = Math.max(0, Math.min(targetTime, this.totalTime));
+        
+        // 再生中の場合、再生を再開
+        if (this.isPlaying) {
+            this.stopMidi();
+            setTimeout(() => {
+                this.playMidi();
+            }, 50);
+        }
+        
+        // UIを更新
+        const progress = this.totalTime > 0 ? (this.currentTime / this.totalTime) * 100 : 0;
+        document.getElementById('progress-fill').style.width = `${progress}%`;
+        this.updateTimeDisplay(this.currentTime, this.totalTime);
+        this.updatePositionInfo(this.currentTime);
+    }
+
+    // 時間表示を更新
+    updateTimeDisplay(currentTime, totalTime) {
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        };
+
+        document.getElementById('current-time').textContent = formatTime(currentTime);
+        document.getElementById('total-time').textContent = formatTime(totalTime);
+    }
+
+    // 小節・拍位置を更新
+    updatePositionInfo(currentTime) {
+        if (!this.midiData) return;
+        
+        // 簡単な計算（4/4拍子、120BPMを仮定）
+        const beatsPerSecond = 2; // 120BPM = 2 beats per second
+        const totalBeats = Math.floor(currentTime * beatsPerSecond) + 1;
+        const currentMeasure = Math.floor((totalBeats - 1) / 4) + 1;
+        const currentBeat = ((totalBeats - 1) % 4) + 1;
+        
+        document.getElementById('current-measure').textContent = `小節: ${currentMeasure}`;
+        document.getElementById('current-beat').textContent = `拍: ${currentBeat}`;
+    }
+
+    // 再生位置コントロールの表示/非表示
+    showPlaybackControls() {
+        const playbackControls = document.getElementById('playback-controls');
+        if (playbackControls) {
+            playbackControls.style.display = 'block';
+        }
+    }
+
+    hidePlaybackControls() {
+        const playbackControls = document.getElementById('playback-controls');
+        if (playbackControls) {
+            playbackControls.style.display = 'none';
+        }
     }
     
     async loadMidiFile(file) {
@@ -1918,10 +2070,19 @@ class PianoVisualizer {
             document.getElementById('midi-info').textContent = `Loaded: ${file.name}`;
             
             this.totalTime = this.calculateTotalTime();
+            this.currentTime = 0;
+            
+            // 再生位置コントロールを表示し、初期値を設定
+            this.showPlaybackControls();
+            this.updateTimeDisplay(0, this.totalTime);
+            this.updatePositionInfo(0);
+            
             console.log('MIDI file loaded successfully', this.midiData);
         } catch (error) {
             console.error('Error loading MIDI file:', error);
             document.getElementById('midi-info').textContent = 'Error loading file';
+            this.hidePlaybackControls();
+            document.getElementById('play-midi').disabled = true;
         }
     }
     
@@ -2099,6 +2260,10 @@ class PianoVisualizer {
         document.getElementById('stop-midi').disabled = true;
         document.getElementById('progress-fill').style.width = '0%';
         
+        // 時間・位置表示を初期化
+        this.updateTimeDisplay(0, this.totalTime);
+        this.updatePositionInfo(0);
+        
         // Clear all piano key highlights
         const pressedKeys = this.pianoKeyboard.querySelectorAll('.piano-key.pressed');
         pressedKeys.forEach(key => key.classList.remove('pressed'));
@@ -2156,6 +2321,10 @@ class PianoVisualizer {
             
             const progress = this.totalTime > 0 ? (elapsed / this.totalTime) * 100 : 0;
             document.getElementById('progress-fill').style.width = `${Math.min(progress, 100)}%`;
+            
+            // 新しい時間・位置表示を更新
+            this.updateTimeDisplay(elapsed, this.totalTime);
+            this.updatePositionInfo(elapsed);
             
             if (elapsed >= this.totalTime || eventIndex >= allEvents.length) {
                 this.stopMidi();

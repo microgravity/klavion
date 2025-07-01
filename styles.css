@@ -253,20 +253,104 @@ body {
     color: #FFB74D;
 }
 
+/* 再生位置コントロールのスタイル */
+.playback-controls {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.playback-controls:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.time-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #e5e7eb;
+}
+
+.time-separator {
+    margin: 0 8px;
+    color: #9ca3af;
+}
+
+.progress-container {
+    margin: 12px 0;
+    position: relative;
+}
+
 .progress-bar {
     width: 100%;
-    height: 4px;
+    height: 8px;
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
+    border-radius: 4px;
     margin: 10px 0;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.progress-bar:hover {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.15);
 }
 
 #progress-fill {
     height: 100%;
-    background: #E91E63;
+    background: linear-gradient(90deg, #E91E63, #FF6B6B);
     width: 0%;
     transition: width 0.1s ease;
+    border-radius: 4px;
+    position: relative;
+}
+
+#progress-handle {
+    position: absolute;
+    top: 50%;
+    right: -6px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+    transition: all 0.2s ease;
+    opacity: 0;
+}
+
+.progress-bar:hover #progress-handle {
+    opacity: 1;
+}
+
+#progress-handle:active {
+    cursor: grabbing;
+    transform: translateY(-50%) scale(1.2);
+}
+
+.position-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.position-separator {
+    margin: 0 12px;
+    color: #6b7280;
 }
 
 #midi-info {

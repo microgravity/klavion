@@ -124,9 +124,28 @@
                     <input type="range" id="tempo-slider" min="25" max="200" step="1" value="100">
                     <span id="tempo-value">100%</span>
                 </div>
-                <div class="progress-bar">
-                    <div id="progress-fill"></div>
+                <!-- 再生位置コントロール（MIDI再生時のみ表示） -->
+                <div id="playback-controls" class="playback-controls" style="display: none;">
+                    <div class="time-display">
+                        <span id="current-time">00:00</span>
+                        <span class="time-separator">/</span>
+                        <span id="total-time">00:00</span>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar" id="seekable-progress">
+                            <div id="progress-fill"></div>
+                            <div id="progress-handle"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="position-info">
+                        <span id="current-measure">小節: 1</span>
+                        <span class="position-separator">|</span>
+                        <span id="current-beat">拍: 1</span>
+                    </div>
                 </div>
+                
                 <div id="midi-info"></div>
                 </div>
             </div>
