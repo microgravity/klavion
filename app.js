@@ -412,6 +412,11 @@ class PianoVisualizer {
             this.recordingFilter.connect(this.recordingCompressor);
             this.recordingCompressor.connect(this.audioDestination);
             
+            // Create analyzer node for spectrum visualization
+            this.analyserNode = this.audioContext.createAnalyser();
+            this.analyserNode.fftSize = 256;
+            this.analyserNode.smoothingTimeConstant = 0.8;
+            
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
             
@@ -1006,6 +1011,8 @@ class PianoVisualizer {
 
     // Optimized text rendering method
     renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size) {
+        console.log(`🎨 Rendering text: ${noteName}, velocity: ${velocity}, color: ${color}`);
+        
         const glowIntensity = this.settings.glowIntensity;
         const fontFamily = this.settings.fontFamily;
         
@@ -1406,19 +1413,19 @@ class PianoVisualizer {
         const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
-        // Check cache first for performance optimization
+        // Check cache first for performance optimization (temporarily disabled for debugging)
         const cacheKey = `${noteName}-${velocity}-${this.settings.showVelocityNumbers}-${this.settings.showOctaveNumbers}-${this.settings.noteNameStyle}-${color}`;
-        let texture = this.textureCache.get(cacheKey);
+        let texture = null; // Temporarily disable cache to fix display issue
+        // let texture = this.textureCache.get(cacheKey);
         
         if (!texture) {
-            // Get canvas from pool or create new one
-            const canvas = this.getCanvasFromPool();
+            // Create dedicated canvas for this texture (don't use pool for cached textures)
+            const canvas = document.createElement('canvas');
+            canvas.width = 768;
+            canvas.height = 576;
             const context = canvas.getContext('2d');
-            
-            // Clear canvas for reuse
-            context.clearRect(0, 0, canvas.width, canvas.height);
         
-            // Render text to canvas only if not cached
+            // Render text to canvas
             this.renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size);
             
             // Create texture and cache it
@@ -1429,9 +1436,6 @@ class PianoVisualizer {
             if (this.textureCache.size < 50) {
                 this.textureCache.set(cacheKey, texture);
             }
-            
-            // Return canvas to pool for reuse
-            this.returnCanvasToPool(canvas);
         }
         
         // Try to get sprite from pool, otherwise create new
