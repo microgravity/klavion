@@ -2029,13 +2029,17 @@ class PianoVisualizer {
     }
     
     setupCollapsibleSections() {
-        // Define which sections should be collapsed by default
-        const defaultCollapsed = ['keyboard', 'recording'];
+        // Load saved panel states from localStorage
+        const savedPanelStates = this.loadPanelStates();
         
         // Initialize max-height for all collapsible content
         document.querySelectorAll('.collapsible-content').forEach(content => {
             const sectionName = content.getAttribute('data-section');
-            if (defaultCollapsed.includes(sectionName)) {
+            const isCollapsed = savedPanelStates[sectionName] !== undefined 
+                ? savedPanelStates[sectionName] 
+                : true; // Default to collapsed if no saved state
+            
+            if (isCollapsed) {
                 // Start collapsed
                 content.classList.add('collapsed');
                 content.style.maxHeight = '0';
@@ -2045,7 +2049,12 @@ class PianoVisualizer {
                 }
             } else {
                 // Start expanded
+                content.classList.remove('collapsed');
                 content.style.maxHeight = content.scrollHeight + 'px';
+                const header = document.querySelector(`h3[data-section="${sectionName}"]`);
+                if (header) {
+                    header.classList.remove('collapsed');
+                }
             }
         });
         
@@ -2064,18 +2073,41 @@ class PianoVisualizer {
                         content.style.maxHeight = content.scrollHeight + 'px';
                     });
                     header.classList.remove('collapsed');
+                    this.savePanelState(sectionName, false); // Save expanded state
                     console.log(`📂 Expanded section: ${sectionName}`);
                 } else {
                     // Collapse
                     content.classList.add('collapsed');
                     content.style.maxHeight = '0';
                     header.classList.add('collapsed');
+                    this.savePanelState(sectionName, true); // Save collapsed state
                     console.log(`📁 Collapsed section: ${sectionName}`);
                 }
             });
         });
         
-        console.log('✅ Collapsible sections initialized');
+        console.log('✅ Collapsible sections initialized with saved states');
+    }
+    
+    loadPanelStates() {
+        try {
+            const saved = localStorage.getItem('pianoVisualizer_panelStates');
+            return saved ? JSON.parse(saved) : {};
+        } catch (error) {
+            console.warn('⚠️ Failed to load panel states from localStorage:', error);
+            return {};
+        }
+    }
+    
+    savePanelState(sectionName, isCollapsed) {
+        try {
+            const savedStates = this.loadPanelStates();
+            savedStates[sectionName] = isCollapsed;
+            localStorage.setItem('pianoVisualizer_panelStates', JSON.stringify(savedStates));
+            console.log(`💾 Saved panel state: ${sectionName} = ${isCollapsed ? 'collapsed' : 'expanded'}`);
+        } catch (error) {
+            console.warn('⚠️ Failed to save panel state to localStorage:', error);
+        }
     }
     
     createCanvasBackground() {
