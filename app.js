@@ -649,10 +649,10 @@ class PianoVisualizer {
             keyElement.dataset.noteName = noteName;
             if (key.type === 'white') {
                 keyElement.style.width = `${keyWidth}px`;
-                keyElement.style.height = '80px';
+                keyElement.style.height = '140px'; // Increased from 80px
             } else {
                 keyElement.style.width = `${keyWidth * 0.6}px`;
-                keyElement.style.height = '50px';
+                keyElement.style.height = '90px'; // Increased from 50px
                 keyElement.style.marginLeft = `${-keyWidth * 0.3}px`;
                 keyElement.style.marginRight = `${-keyWidth * 0.3}px`;
                 keyElement.style.zIndex = '2';
