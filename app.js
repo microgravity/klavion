@@ -48,7 +48,8 @@ class PianoVisualizer {
             colorScale: 'chromatic', // Will be overridden in initializeRetroColors()
             showOctaveNumbers: false,
             showVelocityNumbers: true,
-            showSpectrumAnalyzer: true,
+            showSpectrumAnalyzer: false,
+            displayMode: 'waveform',
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
             customBaseColor: '#ffffff'
@@ -1756,27 +1757,40 @@ class PianoVisualizer {
             console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
         
-        // Spectrum analyzer toggle
-        const spectrumToggle = document.getElementById('show-spectrum-analyzer');
-        if (spectrumToggle) {
-            spectrumToggle.addEventListener('change', (e) => {
-                this.settings.showSpectrumAnalyzer = e.target.checked;
-                console.log(`🌊 Spectrum analyzer: ${e.target.checked ? 'enabled' : 'disabled'}`);
+        // Display mode selector (waveform/spectrum/none)
+        const displayModeSelector = document.getElementById('display-mode');
+        if (displayModeSelector) {
+            displayModeSelector.addEventListener('change', (e) => {
+                this.settings.displayMode = e.target.value;
+                console.log(`🌊 Display mode: ${e.target.value}`);
                 
-                // Show/hide spectrum canvas
+                // Handle display mode changes
                 if (this.spectrumCanvas) {
-                    this.spectrumCanvas.style.display = e.target.checked ? 'block' : 'none';
+                    switch (e.target.value) {
+                        case 'waveform':
+                            this.spectrumCanvas.style.display = 'block';
+                            this.settings.showSpectrumAnalyzer = false;
+                            break;
+                        case 'spectrum':
+                            this.spectrumCanvas.style.display = 'block';
+                            this.settings.showSpectrumAnalyzer = true;
+                            break;
+                        case 'none':
+                            this.spectrumCanvas.style.display = 'none';
+                            this.settings.showSpectrumAnalyzer = false;
+                            break;
+                    }
                 }
                 
-                // Clear canvases when disabled
-                if (!e.target.checked) {
+                // Clear canvases when mode changes
+                if (e.target.value === 'none' || e.target.value === 'waveform') {
                     // Clear spectrum overlay canvas
                     if (this.spectrumContext && this.spectrumCanvas) {
                         this.spectrumContext.clearRect(0, 0, this.spectrumCanvas.width, this.spectrumCanvas.height);
                     }
                     
-                    // Clear background waveform and redraw clean gradient
-                    if (this.backgroundContext && this.backgroundCanvas) {
+                    // Clear background waveform and redraw clean gradient when switching to none
+                    if (e.target.value === 'none' && this.backgroundContext && this.backgroundCanvas) {
                         const ctx = this.backgroundContext;
                         const canvas = this.backgroundCanvas;
                         
@@ -3554,8 +3568,11 @@ class PianoVisualizer {
         // Set canvas size
         this.resizeSpectrumCanvas();
         
-        // Set initial visibility based on settings
-        this.spectrumCanvas.style.display = this.settings.showSpectrumAnalyzer ? 'block' : 'none';
+        // Set initial visibility based on display mode
+        this.spectrumCanvas.style.display = this.settings.displayMode === 'none' ? 'none' : 'block';
+        
+        // Update showSpectrumAnalyzer based on display mode
+        this.settings.showSpectrumAnalyzer = this.settings.displayMode === 'spectrum';
         
         // Start spectrum animation
         this.startSpectrumAnimation();

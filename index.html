@@ -289,11 +289,12 @@
                     </label>
                 </div>
                 <div class="control-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="show-spectrum-analyzer" checked>
-                        <span class="checkmark"></span>
-                        波形表示
-                    </label>
+                    <label for="display-mode">表示モード</label>
+                    <select id="display-mode">
+                        <option value="waveform" selected>波形表示</option>
+                        <option value="spectrum">スペクトラムアナライザ</option>
+                        <option value="none">非表示</option>
+                    </select>
                 </div>
                 <div class="control-group">
                     <label for="note-name-style">音名表記</label>
