@@ -13,7 +13,7 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 ## 🚀 ライブデモ / Live Demo
 
-**[https://microgravity.github.io/piano-visualiser/](https://microgravity.github.io/piano-visualiser/)**
+**[https://microgravity.github.io/klavion](https://microgravity.github.io/klavion)**
 
 ## ✨ 最新の改善 / Latest Improvements
 
