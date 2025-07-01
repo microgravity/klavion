@@ -825,6 +825,9 @@ class PianoVisualizer {
     handleSustainPedal(isPressed) {
         this.sustainPedalPressed = isPressed;
         
+        // Update visual pedal indicator
+        this.updatePedalIndicator('sustain', isPressed);
+        
         if (isPressed) {
             console.log('🦶 Sustain pedal pressed - notes will sustain');
             this.logMidiActivity('🦶 Sustain ON');
@@ -838,6 +841,37 @@ class PianoVisualizer {
             });
             this.sustainedNotes.clear();
         }
+    }
+
+    // ペダルインジケーターの視覚的更新
+    updatePedalIndicator(pedalType, isPressed) {
+        const pedalElement = document.getElementById(`${pedalType}-pedal`);
+        const statusElement = document.getElementById(`${pedalType}-status`);
+        
+        if (!pedalElement || !statusElement) return;
+        
+        if (isPressed) {
+            pedalElement.classList.add('active');
+            statusElement.textContent = 'ON';
+            
+            // アニメーション効果を追加
+            pedalElement.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+                pedalElement.style.transform = 'scale(1)';
+            }, 150);
+            
+        } else {
+            pedalElement.classList.remove('active');
+            statusElement.textContent = 'OFF';
+            
+            // リリース時のアニメーション
+            pedalElement.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                pedalElement.style.transform = 'scale(1)';
+            }, 150);
+        }
+        
+        console.log(`🎛️ Pedal indicator updated: ${pedalType} ${isPressed ? 'ON' : 'OFF'}`);
     }
     
     stopSustainedNote(midiNote) {
@@ -2819,6 +2853,15 @@ class PianoVisualizer {
                 }
                 return; // Don't process as piano key
             }
+
+            // Handle Shift key for sustain pedal simulation (computer keyboard only)
+            if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && this.selectedInputDevice === 'keyboard') {
+                if (!this.sustainPedalPressed) {
+                    this.handleSustainPedal(true);
+                    console.log('⌨️ Sustain pedal simulated ON (Shift key)');
+                }
+                return;
+            }
             
             // Only handle keyboard input when computer keyboard is selected
             if (this.selectedInputDevice !== 'keyboard') return;
@@ -2836,6 +2879,15 @@ class PianoVisualizer {
         });
         
         document.addEventListener('keyup', (e) => {
+            // Handle Shift key release for sustain pedal simulation
+            if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && this.selectedInputDevice === 'keyboard') {
+                if (this.sustainPedalPressed) {
+                    this.handleSustainPedal(false);
+                    console.log('⌨️ Sustain pedal simulated OFF (Shift key released)');
+                }
+                return;
+            }
+
             // Only handle keyboard input when computer keyboard is selected
             if (this.selectedInputDevice !== 'keyboard') return;
             

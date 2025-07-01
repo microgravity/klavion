@@ -109,6 +109,15 @@
                 </div>
                 <div id="midi-devices"></div>
                 <div id="midi-activity"></div>
+                
+                <!-- MIDIペダル状態表示 -->
+                <div class="midi-pedal-status">
+                    <div class="pedal-indicator" id="sustain-pedal">
+                        <div class="pedal-icon">🦶</div>
+                        <div class="pedal-label">Sustain</div>
+                        <div class="pedal-status" id="sustain-status">OFF</div>
+                    </div>
+                </div>
                 </div>
             </div>
             <div class="midi-controls">
@@ -182,6 +191,13 @@
                         <span class="key">'</span><span class="note">ファ5</span>
                         <span class="key">]</span><span class="note">ファ#5</span>
                         <span class="key">\</span><span class="note">ソ5</span>
+                    </div>
+                </div>
+                <div class="pedal-controls">
+                    <h4>🦶 ペダル操作</h4>
+                    <div class="mapping-row">
+                        <span class="key">Shift</span><span class="note">サスティンペダル</span>
+                        <span class="key">Space</span><span class="note">MIDI再生/停止</span>
                     </div>
                 </div>
                 </div>
