@@ -2289,60 +2289,7 @@ class PianoVisualizer {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw visualization based on display mode
-        if (this.analyserNode && this.waveformData && this.settings.displayMode !== 'none') {
-            try {
-                if (this.settings.displayMode === 'spectrum') {
-                    // Draw spectrum analyzer bars
-                    this.analyserNode.getByteFrequencyData(this.waveformData);
-                    
-                    const barWidth = canvas.width / this.waveformData.length;
-                    ctx.fillStyle = 'rgba(96, 165, 250, 0.6)';
-                    
-                    for (let i = 0; i < this.waveformData.length; i++) {
-                        const barHeight = (this.waveformData[i] / 255) * canvas.height * 0.7;
-                        const x = i * barWidth;
-                        const y = canvas.height - barHeight;
-                        
-                        ctx.fillRect(x, y, barWidth - 1, barHeight);
-                    }
-                } else if (this.settings.displayMode === 'waveform') {
-                    // Draw waveform line
-                    this.analyserNode.getByteTimeDomainData(this.timeData);
-                    
-                    ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    
-                    const sliceWidth = canvas.width / this.timeData.length;
-                    let x = 0;
-                    
-                    for (let i = 0; i < this.timeData.length; i++) {
-                        const v = this.timeData[i] / 128.0;
-                        const y = v * canvas.height / 2;
-                        
-                        if (i === 0) {
-                            ctx.moveTo(x, y);
-                        } else {
-                            ctx.lineTo(x, y);
-                        }
-                        
-                        x += sliceWidth;
-                    }
-                    
-                    ctx.stroke();
-                }
-                
-                // Force texture update
-                if (this.backgroundPlane && this.backgroundPlane.material.map) {
-                    this.backgroundPlane.material.map.needsUpdate = true;
-                    this.backgroundPlane.material.needsUpdate = true;
-                }
-                
-            } catch (error) {
-                console.warn('Waveform drawing error:', error);
-            }
-        }
+        // Note: Visualization (waveform/spectrum) is now handled by spectrum canvas only
         
         // Always force texture update to ensure clean background
         if (this.backgroundPlane && this.backgroundPlane.material.map) {
@@ -3670,6 +3617,18 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
+        // Create main gradient for spectrum bars (same colors as waveform)
+        const mainGradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
+        mainGradient.addColorStop(0, '#ff6b6b');
+        mainGradient.addColorStop(0.25, '#4ecdc4');
+        mainGradient.addColorStop(0.5, '#45b7d1');
+        mainGradient.addColorStop(0.75, '#96ceb4');
+        mainGradient.addColorStop(1, '#feca57');
+        
+        // Set glow effect
+        this.spectrumContext.shadowBlur = 10;
+        this.spectrumContext.shadowColor = '#4ecdc4';
+        
         // Draw spectrum bars
         const barWidth = width / bufferLength;
         
@@ -3678,14 +3637,13 @@ class PianoVisualizer {
             const x = i * barWidth;
             const y = height - barHeight;
             
-            // Create gradient for each bar
-            const gradient = this.spectrumContext.createLinearGradient(0, y, 0, height);
-            gradient.addColorStop(0, `hsl(${(i / bufferLength) * 360}, 70%, 60%)`);
-            gradient.addColorStop(1, `hsl(${(i / bufferLength) * 360}, 70%, 30%)`);
-            
-            this.spectrumContext.fillStyle = gradient;
+            // Use the main gradient for all bars
+            this.spectrumContext.fillStyle = mainGradient;
             this.spectrumContext.fillRect(x, y, barWidth - 1, barHeight);
         }
+        
+        // Reset shadow
+        this.spectrumContext.shadowBlur = 0;
     }
 }
 
