@@ -1080,9 +1080,6 @@ class PianoVisualizer {
             context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
             context.shadowBlur = 10 * glowIntensity;
             context.fillText(`${velocity}`, canvas.width / 2, velocityTextY);
-            console.log(`✅ Velocity ${velocity} drawn for note ${noteName}`);
-        } else {
-            console.log(`❌ Velocity not drawn: showVelocityNumbers=${this.settings.showVelocityNumbers}, velocity=${velocity}`);
         }
     }
 
