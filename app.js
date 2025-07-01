@@ -3258,7 +3258,10 @@ class PianoVisualizer {
         try {
             // Check if screen recording is enabled
             if (!this.screenRecordingEnabled) {
-                alert('❌ 画面録画が無効になっています。\nチェックボックスをONにしてから録画してください。');
+                showModal('画面録画が無効になっています。\nチェックボックスをONにしてから録画してください。', {
+                    title: '録画エラー',
+                    type: 'error'
+                });
                 return;
             }
             
@@ -3266,7 +3269,10 @@ class PianoVisualizer {
             
             // Check if Three.js canvas is available
             if (!this.renderer || !this.renderer.domElement) {
-                alert('❌ Three.jsキャンバスが見つかりません。しばらく待ってから再試行してください。');
+                showModal('Three.jsキャンバスが見つかりません。しばらく待ってから再試行してください。', {
+                    title: 'キャンバスエラー',
+                    type: 'error'
+                });
                 return;
             }
             
@@ -3400,7 +3406,10 @@ class PianoVisualizer {
             
         } catch (error) {
             console.error('Failed to start recording:', error);
-            alert('録画を開始できませんでした: ' + error.message);
+            showModal('録画を開始できませんでした: ' + error.message, {
+                title: '録画開始エラー',
+                type: 'error'
+            });
         }
     }
     
@@ -3463,9 +3472,15 @@ class PianoVisualizer {
         
         // Show user-friendly message
         if (extension === 'mp4') {
-            alert(`📱 MP4動画をダウンロードしました！\niPhoneのカメラロールでも再生できます。\nファイル名: ${filename}`);
+            showModal(`MP4動画をダウンロードしました！\niPhoneのカメラロールでも再生できます。\nファイル名: ${filename}`, {
+                title: 'ダウンロード完了',
+                type: 'download'
+            });
         } else {
-            alert(`📹 ${extension.toUpperCase()}動画をダウンロードしました。\nファイル名: ${filename}`);
+            showModal(`${extension.toUpperCase()}動画をダウンロードしました。\nファイル名: ${filename}`, {
+                title: 'ダウンロード完了',
+                type: 'download'
+            });
         }
     }
     
@@ -3776,7 +3791,10 @@ class PianoVisualizer {
                 });
                 
                 console.log('✅ Screen recording permission granted');
-                alert('✅ 画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。\n\n※この設定は記憶され、次回以降は自動で有効になります。');
+                showModal('画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。\n\n※この設定は記憶され、次回以降は自動で有効になります。', {
+                    title: '録画許可取得',
+                    type: 'success'
+                });
                 
                 // Stop the stream for now - we'll create a new one when recording starts
                 this.screenRecordingStream.getTracks().forEach(track => track.stop());
@@ -3790,13 +3808,19 @@ class PianoVisualizer {
                 console.log('❌ Screen recording permission denied:', error);
                 this.screenRecordingEnabled = false;
                 document.getElementById('screen-recording-enabled').checked = false;
-                alert('❌ 画面録画の許可が拒否されました。\n録画機能を無効にしました。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
+                showModal('画面録画の許可が拒否されました。\n録画機能を無効にしました。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。', {
+                    title: '録画許可拒否',
+                    type: 'warning'
+                });
             }
         } else {
             this.screenRecordingEnabled = false;
             document.getElementById('screen-recording-enabled').checked = false;
             console.log('👤 User declined screen recording permission');
-            alert('📝 録画機能を無効にしました。\n後でチェックボックスから有効にできます。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
+            showModal('録画機能を無効にしました。\n後でチェックボックスから有効にできます。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。', {
+                title: '録画機能無効',
+                type: 'info'
+            });
         }
         
         // Save the settings after user decision
@@ -4011,9 +4035,110 @@ class PianoVisualizer {
     }
 }
 
+// カスタムモーダル機能
+class CustomModal {
+    constructor() {
+        this.modal = document.getElementById('custom-modal');
+        this.overlay = this.modal.querySelector('.modal-overlay');
+        this.closeBtn = document.getElementById('modal-close');
+        this.okBtn = document.getElementById('modal-ok');
+        this.titleElement = document.getElementById('modal-title');
+        this.messageElement = document.getElementById('modal-message');
+        this.iconElement = document.getElementById('modal-icon');
+        
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 閉じるボタンのクリック
+        this.closeBtn.addEventListener('click', () => this.hide());
+        
+        // OKボタンのクリック
+        this.okBtn.addEventListener('click', () => this.hide());
+        
+        // オーバーレイのクリック
+        this.overlay.addEventListener('click', () => this.hide());
+        
+        // ESCキーで閉じる
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modal.style.display !== 'none') {
+                this.hide();
+            }
+        });
+    }
+    
+    show(message, options = {}) {
+        const {
+            title = '通知',
+            icon = 'ℹ️',
+            type = 'info'
+        } = options;
+        
+        // アイコンとタイトルを設定
+        this.iconElement.textContent = this.getIcon(type, icon);
+        this.titleElement.textContent = title;
+        this.messageElement.textContent = message;
+        
+        // モーダルを表示
+        this.modal.style.display = 'flex';
+        this.modal.classList.remove('closing');
+        
+        // フォーカスをOKボタンに移動
+        setTimeout(() => {
+            this.okBtn.focus();
+        }, 100);
+    }
+    
+    hide() {
+        this.modal.classList.add('closing');
+        
+        setTimeout(() => {
+            this.modal.style.display = 'none';
+            this.modal.classList.remove('closing');
+        }, 200);
+    }
+    
+    getIcon(type, customIcon) {
+        if (customIcon && customIcon !== 'ℹ️') {
+            return customIcon;
+        }
+        
+        switch (type) {
+            case 'success':
+                return '✅';
+            case 'error':
+                return '❌';
+            case 'warning':
+                return '⚠️';
+            case 'download':
+                return '📱';
+            case 'recording':
+                return '🎬';
+            case 'permission':
+                return '🔐';
+            default:
+                return 'ℹ️';
+        }
+    }
+}
+
+// グローバルモーダルインスタンス
+let customModal;
+
+// alert() の代替関数
+function showModal(message, options = {}) {
+    if (!customModal) {
+        customModal = new CustomModal();
+    }
+    customModal.show(message, options);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
+    
+    // カスタムモーダルの初期化
+    customModal = new CustomModal();
 });
