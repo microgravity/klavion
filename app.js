@@ -2255,12 +2255,16 @@ class PianoVisualizer {
         
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
         }
+        
+        // currentTimeは保持する（シーク位置をキープ）
+        // 注意: currentTimeはplayLoop内で更新されているため、pauseした時点の位置が保持される
     }
     
     stopMidi() {
         this.isPlaying = false;
-        this.currentTime = 0;
+        this.currentTime = 0; // stopは完全に停止して最初に戻る
         
         document.getElementById('play-midi').disabled = false;
         document.getElementById('pause-midi').disabled = true;
@@ -2277,10 +2281,17 @@ class PianoVisualizer {
         
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
         }
     }
     
     startMidiPlayback() {
+        // 既存のanimationFrameが実行中の場合はキャンセル
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+        
         const startTime = Date.now();
         const seekOffset = this.currentTime; // シーク位置を記録
         const ticksPerBeat = this.midiData.division;
@@ -2330,25 +2341,40 @@ class PianoVisualizer {
             eventIndex++;
         }
         
+        // デバッグログ: 初期状態
+        console.log(`[MIDI Playback] Starting playback - Total events: ${allEvents.length}, Starting eventIndex: ${eventIndex}, SeekOffset: ${seekOffset}`);
+        
         const playLoop = () => {
-            if (!this.isPlaying) return;
+            if (!this.isPlaying) {
+                console.log(`[MIDI Playback] Stopped - isPlaying: false`);
+                return;
+            }
             
             const elapsed = seekOffset + (Date.now() - startTime) / 1000 * this.playbackRate;
             this.currentTime = elapsed;
             
+            let eventsProcessed = 0;
             while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds <= elapsed) {
                 const event = allEvents[eventIndex];
+                eventsProcessed++;
                 
                 if (event.type === 'noteOn') {
+                    console.log(`[MIDI] Note ON: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
                     // Use current time for immediate visualization
                     this.playNote(event.note, event.velocity, performance.now());
                     this.highlightPianoKey(event.note, true);
                 } else if (event.type === 'noteOff') {
+                    console.log(`[MIDI] Note OFF: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
                     this.stopNote(event.note, performance.now());
                     this.highlightPianoKey(event.note, false);
                 }
                 
                 eventIndex++;
+            }
+            
+            // デバッグログ: 各フレームの処理状況（eventsProcessed > 0の場合のみ）
+            if (eventsProcessed > 0) {
+                console.log(`[MIDI Playbook] Frame processed ${eventsProcessed} events, currentIndex: ${eventIndex}/${allEvents.length}, elapsed: ${elapsed.toFixed(3)}s`);
             }
             
             const progress = this.totalTime > 0 ? (elapsed / this.totalTime) * 100 : 0;
@@ -2359,6 +2385,7 @@ class PianoVisualizer {
             this.updatePositionInfo(elapsed);
             
             if (elapsed >= this.totalTime || eventIndex >= allEvents.length) {
+                console.log(`[MIDI Playback] Ending playback - elapsed: ${elapsed.toFixed(3)}s, totalTime: ${this.totalTime.toFixed(3)}s, eventIndex: ${eventIndex}/${allEvents.length}`);
                 this.stopMidi();
                 return;
             }
