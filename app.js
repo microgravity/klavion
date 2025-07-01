@@ -26,11 +26,12 @@ class PianoVisualizer {
         // Piano key visual state tracking
         this.activeKeys = new Set(); // Track which keys are currently pressed
         
-        // Spectrum analyzer properties
-        this.analyserNode = null;
-        this.spectrumCanvas = null;
-        this.spectrumContext = null;
-        this.animationFrameId = null;
+        // Performance optimization: Canvas and texture caching
+        this.canvasPool = []; // Reusable canvas pool
+        this.textureCache = new Map(); // Cache for text textures
+        this.spritePool = []; // Reusable sprite pool
+        this.maxPoolSize = 20; // Maximum cached objects
+        this.lastNoteTime = 0; // Track last note activity for performance
         
         this.settings = {
             animationSpeed: 1.0,
@@ -40,17 +41,17 @@ class PianoVisualizer {
             colorIntensity: 1.0,
             motionBlur: 0.3,
             glowIntensity: 1.0,
-            fontFamily: 'M PLUS 1p',
+            fontFamily: 'Noto Sans JP',
             pianoRange: '3-octave',
             volume: 0.75,
             isMuted: false,
             colorScale: 'chromatic', // Will be overridden in initializeRetroColors()
             showOctaveNumbers: false,
-            showVelocityNumbers: true,
+            showVelocityNumbers: false,
+            showSpectrumAnalyzer: true,
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
-            customBaseColor: '#ffffff',
-            showSpectrumAnalyzer: true
+            customBaseColor: '#ffffff'
         };
         
         // Piano configuration
@@ -284,12 +285,10 @@ class PianoVisualizer {
         this.setupCollapsibleSections();
         this.updateCustomColors(); // Initialize custom colors
         this.setupScreenRecording();
+        this.setupWaveformDisplay();
         
         // Initialize with random retro palette after DOM is ready
         this.initializeRetroColors();
-        
-        // Initialize spectrum analyzer
-        this.initSpectrumAnalyzer();
         
         this.startVisualization();
         
@@ -376,31 +375,59 @@ class PianoVisualizer {
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
-        
-        // Resize spectrum canvas
-        this.resizeSpectrumCanvas();
     }
     
     async initAudio() {
         try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                latencyHint: 'interactive', // Low latency for real-time performance
-                sampleRate: 44100          // Standard sample rate
-            });
+            // Create AudioContext with optimized settings for low-latency recording
+            const audioContextOptions = {
+                latencyHint: 'playback', // Better for recording stability than 'interactive'
+                sampleRate: 48000        // Higher sample rate for better recording quality
+            };
+
+            // Add buffer size optimization if supported
+            if ('AudioWorkletNode' in window) {
+                audioContextOptions.bufferSize = 256; // Smaller buffer for lower latency
+            }
+
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
             this.audioContextResumed = false;
             
-            // Create audio destination for recording
+            // Create audio destination for recording with low latency buffer
             this.audioDestination = this.audioContext.createMediaStreamDestination();
             
-            // Create analyser node for spectrum analyzer
+            // Create optimized low-latency compressor chain for recording
+            this.recordingCompressor = this.audioContext.createDynamicsCompressor();
+            this.recordingCompressor.threshold.setValueAtTime(-20, this.audioContext.currentTime); // Slightly higher threshold for cleaner sound
+            this.recordingCompressor.knee.setValueAtTime(40, this.audioContext.currentTime);       // Softer knee for smoother compression
+            this.recordingCompressor.ratio.setValueAtTime(3, this.audioContext.currentTime);       // More aggressive ratio for consistent levels
+            this.recordingCompressor.attack.setValueAtTime(0.0005, this.audioContext.currentTime); // Ultra-fast attack for minimal latency
+            this.recordingCompressor.release.setValueAtTime(0.03, this.audioContext.currentTime);  // Even faster release for cleaner transients
+            
+            // Add a high-pass filter to remove DC offset and low-frequency noise
+            this.recordingFilter = this.audioContext.createBiquadFilter();
+            this.recordingFilter.type = 'highpass';
+            this.recordingFilter.frequency.setValueAtTime(20, this.audioContext.currentTime); // Remove sub-bass frequencies
+            this.recordingFilter.Q.setValueAtTime(0.707, this.audioContext.currentTime);
+            
+            // Create recording chain: input -> filter -> compressor -> destination
+            this.recordingFilter.connect(this.recordingCompressor);
+            this.recordingCompressor.connect(this.audioDestination);
+            
+            // Create analyzer node for spectrum visualization
             this.analyserNode = this.audioContext.createAnalyser();
-            this.analyserNode.fftSize = 512; // FFT size (frequency bins will be fftSize/2)
+            this.analyserNode.fftSize = 512;
             this.analyserNode.smoothingTimeConstant = 0.8;
+            
+            // Initialize waveform data arrays
+            this.waveformData = new Uint8Array(this.analyserNode.frequencyBinCount);
+            this.timeData = new Uint8Array(this.analyserNode.fftSize);
             
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
             
-            console.log('🎵 AudioContext created with recording destination, waiting for user interaction to start');
+            console.log('🎵 AudioContext created with optimized low-latency recording chain');
+            console.log(`📊 Sample rate: ${this.audioContext.sampleRate}Hz, Base latency: ${this.audioContext.baseLatency * 1000}ms`);
         } catch (error) {
             console.error('Audio context initialization failed:', error);
         }
@@ -649,10 +676,10 @@ class PianoVisualizer {
             keyElement.dataset.noteName = noteName;
             if (key.type === 'white') {
                 keyElement.style.width = `${keyWidth}px`;
-                keyElement.style.height = '140px'; // Increased from 80px
+                keyElement.style.height = '80px';
             } else {
                 keyElement.style.width = `${keyWidth * 0.6}px`;
-                keyElement.style.height = '90px'; // Increased from 50px
+                keyElement.style.height = '50px';
                 keyElement.style.marginLeft = `${-keyWidth * 0.3}px`;
                 keyElement.style.marginRight = `${-keyWidth * 0.3}px`;
                 keyElement.style.zIndex = '2';
@@ -935,9 +962,9 @@ class PianoVisualizer {
         // Always connect to speakers
         node.connect(this.audioContext.destination);
         
-        // Also connect to recording destination if it exists
-        if (this.audioDestination) {
-            node.connect(this.audioDestination);
+        // Connect to optimized recording chain: node -> filter -> compressor -> destination
+        if (this.audioDestination && this.recordingFilter) {
+            node.connect(this.recordingFilter);
         }
         
         // Connect to analyzer node for spectrum analyzer
@@ -946,6 +973,116 @@ class PianoVisualizer {
         }
     }
     
+    // Canvas pool management for performance
+    getCanvasFromPool() {
+        if (this.canvasPool.length > 0) {
+            return this.canvasPool.pop();
+        }
+        
+        // Create new canvas if pool is empty
+        const canvas = document.createElement('canvas');
+        canvas.width = 768; // Increased from 512 for larger fonts
+        canvas.height = 576; // Increased to accommodate velocity text
+        return canvas;
+    }
+    
+    returnCanvasToPool(canvas) {
+        if (this.canvasPool.length < this.maxPoolSize) {
+            // Clear canvas and return to pool
+            const context = canvas.getContext('2d');
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            this.canvasPool.push(canvas);
+        }
+    }
+    
+    // Sprite pool management for performance
+    getSpriteFromPool() {
+        if (this.spritePool.length > 0) {
+            const sprite = this.spritePool.pop();
+            sprite.visible = true;
+            return sprite;
+        }
+        return null; // Will create new sprite if none available
+    }
+    
+    returnSpriteToPool(sprite) {
+        if (this.spritePool.length < this.maxPoolSize) {
+            sprite.visible = false;
+            sprite.material.map = null; // Clear texture reference
+            sprite.position.set(0, 0, 0);
+            sprite.scale.set(1, 1, 1);
+            this.spritePool.push(sprite);
+        }
+    }
+
+    // Optimized text rendering method
+    renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size) {
+        console.log(`🎨 Rendering text: ${noteName}, velocity: ${velocity}, color: ${color}`);
+        
+        const glowIntensity = this.settings.glowIntensity;
+        const fontFamily = this.settings.fontFamily;
+        
+        // Prepare note name components
+        const noteIndex = midiNote % 12;
+        const octave = Math.floor(midiNote / 12) - 1;
+        const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
+        
+        let mainText = noteNamesArray[noteIndex];
+        if (this.settings.showOctaveNumbers) {
+            mainText += octave;
+        }
+        
+        // Convert hex to rgba for canvas
+        let textColor = 'rgba(255, 255, 255, 1)';
+        if (color) {
+            const hex = color.replace('#', '');
+            if (hex.length === 6) {
+                const r = parseInt(hex.substr(0, 2), 16);
+                const g = parseInt(hex.substr(2, 2), 16);
+                const b = parseInt(hex.substr(4, 2), 16);
+                textColor = `rgba(${r}, ${g}, ${b}, 1)`;
+            }
+        }
+        
+        context.fillStyle = textColor;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        
+        // Optimized font size calculations for increased readability (130% improvement)
+        const mainFontSize = !this.hasMidiInput ? 127 * size : 184 * size; // Increased by 130%
+        const velocityFontSize = !this.hasMidiInput ? 69 * size : 115 * size; // Increased by 130%
+        const lineHeight = 1.4;
+        const canvasCenter = canvas.height / 2;
+        
+        let mainTextY = canvasCenter;
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            const totalHeight = mainFontSize + (velocityFontSize * lineHeight);
+            mainTextY = canvasCenter - (totalHeight / 4);
+        }
+        
+        // Draw main note name with optimized rendering
+        context.font = `bold ${mainFontSize}px ${fontFamily}, Arial, sans-serif`;
+        
+        // Simplified glow effect for better performance
+        if (glowIntensity > 0) {
+            context.shadowColor = textColor.replace(', 1)', ', ' + (glowIntensity * 0.8) + ')');
+            context.shadowBlur = 15 * glowIntensity;
+            context.shadowOffsetX = 0;
+            context.shadowOffsetY = 0;
+        }
+        
+        // Single optimized text draw
+        context.fillText(mainText, canvas.width / 2, mainTextY);
+        
+        // Draw velocity number if enabled
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.7);
+            context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
+            context.shadowBlur = 10 * glowIntensity;
+            context.fillText(`${velocity}`, canvas.width / 2, velocityTextY);
+        }
+    }
+
     getTimbreDuration(timbre) {
         const durations = {
             'acoustic-piano': 2.5,
@@ -963,118 +1100,42 @@ class PianoVisualizer {
     }
     
     createAcousticPiano(frequency, volume, currentTime, duration) {
-        // High-quality acoustic piano with complex harmonics and realistic envelope
-        const fundamentalOsc = this.audioContext.createOscillator();
-        const harmonic2 = this.audioContext.createOscillator();
-        const harmonic3 = this.audioContext.createOscillator();
-        const harmonic4 = this.audioContext.createOscillator();
-        const harmonic5 = this.audioContext.createOscillator();
-        const subOsc = this.audioContext.createOscillator();
+        // Acoustic piano with multiple harmonics
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const osc3 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
         
-        const mainGain = this.audioContext.createGain();
-        const harmonic2Gain = this.audioContext.createGain();
-        const harmonic3Gain = this.audioContext.createGain();
-        const harmonic4Gain = this.audioContext.createGain();
-        const harmonic5Gain = this.audioContext.createGain();
-        const subGain = this.audioContext.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(frequency * 3, currentTime);
         
-        const masterGain = this.audioContext.createGain();
-        const lowPassFilter = this.audioContext.createBiquadFilter();
-        const highPassFilter = this.audioContext.createBiquadFilter();
-        const compressor = this.audioContext.createDynamicsCompressor();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, currentTime);
+        filter.Q.setValueAtTime(1, currentTime);
         
-        // Create realistic piano waveforms with complex harmonics
-        fundamentalOsc.type = 'sine';
-        fundamentalOsc.frequency.setValueAtTime(frequency, currentTime);
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
         
-        harmonic2.type = 'sine';
-        harmonic2.frequency.setValueAtTime(frequency * 2.0, currentTime);
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(filter);
+        this.connectAudioOutput(filter);
         
-        harmonic3.type = 'sine';
-        harmonic3.frequency.setValueAtTime(frequency * 3.1, currentTime); // Slightly detuned for realism
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc3.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        osc3.stop(currentTime + duration);
         
-        harmonic4.type = 'sine';
-        harmonic4.frequency.setValueAtTime(frequency * 4.2, currentTime);
-        
-        harmonic5.type = 'sine';
-        harmonic5.frequency.setValueAtTime(frequency * 5.3, currentTime);
-        
-        subOsc.type = 'sine';
-        subOsc.frequency.setValueAtTime(frequency * 0.5, currentTime);
-        
-        // Set harmonic levels for realistic piano timbre
-        mainGain.gain.setValueAtTime(volume * 1.0, currentTime);
-        harmonic2Gain.gain.setValueAtTime(volume * 0.6, currentTime);
-        harmonic3Gain.gain.setValueAtTime(volume * 0.4, currentTime);
-        harmonic4Gain.gain.setValueAtTime(volume * 0.2, currentTime);
-        harmonic5Gain.gain.setValueAtTime(volume * 0.1, currentTime);
-        subGain.gain.setValueAtTime(volume * 0.3, currentTime);
-        
-        // Advanced filtering for piano-like frequency response
-        lowPassFilter.type = 'lowpass';
-        const cutoffFreq = Math.min(4000, frequency * 8); // Frequency-dependent filtering
-        lowPassFilter.frequency.setValueAtTime(cutoffFreq, currentTime);
-        lowPassFilter.Q.setValueAtTime(0.7, currentTime);
-        
-        highPassFilter.type = 'highpass';
-        highPassFilter.frequency.setValueAtTime(frequency * 0.8, currentTime);
-        highPassFilter.Q.setValueAtTime(0.5, currentTime);
-        
-        // Compression for dynamic realism
-        compressor.threshold.setValueAtTime(-24, currentTime);
-        compressor.knee.setValueAtTime(30, currentTime);
-        compressor.ratio.setValueAtTime(3, currentTime);
-        compressor.attack.setValueAtTime(0.003, currentTime);
-        compressor.release.setValueAtTime(0.25, currentTime);
-        
-        // Realistic piano envelope (sharp attack, complex decay)
-        masterGain.gain.setValueAtTime(0, currentTime);
-        masterGain.gain.linearRampToValueAtTime(volume, currentTime + 0.02); // Fast attack
-        masterGain.gain.exponentialRampToValueAtTime(volume * 0.8, currentTime + 0.1);
-        masterGain.gain.exponentialRampToValueAtTime(volume * 0.6, currentTime + 0.3);
-        masterGain.gain.exponentialRampToValueAtTime(volume * 0.4, currentTime + 0.8);
-        masterGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
-        
-        // Advanced frequency modulation for realism
-        const vibrato = this.audioContext.createOscillator();
-        const vibratoGain = this.audioContext.createGain();
-        vibrato.type = 'sine';
-        vibrato.frequency.setValueAtTime(4.5, currentTime);
-        vibratoGain.gain.setValueAtTime(frequency * 0.002, currentTime); // Subtle vibrato
-        
-        vibrato.connect(vibratoGain);
-        vibratoGain.connect(fundamentalOsc.frequency);
-        
-        // Connect oscillators to gains
-        fundamentalOsc.connect(mainGain);
-        harmonic2.connect(harmonic2Gain);
-        harmonic3.connect(harmonic3Gain);
-        harmonic4.connect(harmonic4Gain);
-        harmonic5.connect(harmonic5Gain);
-        subOsc.connect(subGain);
-        
-        // Connect all gains to master processing chain
-        mainGain.connect(compressor);
-        harmonic2Gain.connect(compressor);
-        harmonic3Gain.connect(compressor);
-        harmonic4Gain.connect(compressor);
-        harmonic5Gain.connect(compressor);
-        subGain.connect(compressor);
-        
-        compressor.connect(highPassFilter);
-        highPassFilter.connect(lowPassFilter);
-        lowPassFilter.connect(masterGain);
-        
-        // Start all oscillators
-        const oscillators = [fundamentalOsc, harmonic2, harmonic3, harmonic4, harmonic5, subOsc, vibrato];
-        oscillators.forEach(osc => {
-            osc.start(currentTime);
-            osc.stop(currentTime + duration);
-        });
-        
-        this.connectAudioOutput(masterGain);
-        
-        return masterGain;
+        return gainNode;
     }
     
     createElectricPiano(frequency, volume, currentTime, duration) {
@@ -1352,123 +1413,51 @@ class PianoVisualizer {
             return;
         }
         
-        console.log(`🎵 visualizeNoteThreeJS called: ${noteName}, MIDI:${midiNote}, vel:${velocity}`);
+        // Update last note time for performance optimization
+        this.lastNoteTime = performance.now();
         
         const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
-        // Create text sprite with larger canvas for better quality
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        // Increase canvas size to accommodate velocity text without clipping
-        canvas.width = 768; // Increased from 512 for larger fonts
-        canvas.height = this.settings.showVelocityNumbers && velocity !== null ? 576 : 384; // Increased proportionally for larger fonts
+        // Check cache first for performance optimization (temporarily disabled for debugging)
+        const cacheKey = `${noteName}-${velocity}-${this.settings.showVelocityNumbers}-${this.settings.showOctaveNumbers}-${this.settings.noteNameStyle}-${color}`;
+        let texture = null; // Temporarily disable cache to fix display issue
+        // let texture = this.textureCache.get(cacheKey);
         
-        // Enhanced text rendering with glow effect
-        const glowIntensity = this.settings.glowIntensity;
-        const fontFamily = this.settings.fontFamily;
+        if (!texture) {
+            // Create dedicated canvas for this texture (don't use pool for cached textures)
+            const canvas = document.createElement('canvas');
+            canvas.width = 768;
+            canvas.height = 576;
+            const context = canvas.getContext('2d');
         
-        // Prepare note name components
-        const noteIndex = midiNote % 12;
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
-        
-        let mainText = noteNamesArray[noteIndex];
-        if (this.settings.showOctaveNumbers) {
-            mainText += octave;
-        }
-        
-        // Get note color using the color palette system
-        const noteColorHex = this.getNoteColor(midiNote, velocity);
-        console.log(`🎨 Note color for MIDI ${midiNote}: ${noteColorHex} (colorScale: ${this.settings.colorScale})`);
-        
-        // Convert hex to rgba for canvas
-        let textColor = 'rgba(255, 255, 255, 1)'; // Fallback
-        if (noteColorHex) {
-            const hex = noteColorHex.replace('#', '');
-            if (hex.length === 6) {
-                const r = parseInt(hex.substr(0, 2), 16);
-                const g = parseInt(hex.substr(2, 2), 16);
-                const b = parseInt(hex.substr(4, 2), 16);
-                textColor = `rgba(${r}, ${g}, ${b}, 1)`;
-                console.log(`🎨 Converted to RGBA: ${textColor}`);
-            }
-        }
-        context.fillStyle = textColor;
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        
-        // Calculate line positions based on font size, line-height, and canvas size
-        // Increased default font sizes by 130% (2.3x) for better visibility
-        const mainFontSize = !this.hasMidiInput ? 127 * size : 184 * size;
-        const velocityFontSize = !this.hasMidiInput ? 69 * size : 115 * size;
-        const lineHeight = !this.hasMidiInput ? 1.4 : 1.8; // Adjusted spacing for larger fonts
-        const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
-        
-        let mainTextY = canvasCenter; // Default center position
-        if (this.settings.showVelocityNumbers && velocity !== null) {
-            // Adjust main text position to accommodate velocity text below
-            const totalHeight = mainFontSize + (velocityFontSize * lineHeight);
-            mainTextY = canvasCenter - (totalHeight / 4); // Move up to center both lines
-        }
-        
-        // Draw main note name
-        context.font = `bold ${mainFontSize}px ${fontFamily}, Arial, sans-serif`;
-        
-        // Add glow effect for main text (using same color as text)
-        if (glowIntensity > 0) {
-            const glowColor = textColor.replace('rgba(', '').replace(')', '').replace(', 1', ', ' + glowIntensity);
-            context.shadowColor = 'rgba(' + glowColor + ')';
-            context.shadowBlur = 20 * glowIntensity;
-            context.shadowOffsetX = 0;
-            context.shadowOffsetY = 0;
+            // Render text to canvas
+            this.renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size);
             
-            // Multiple glow layers for intensity
-            for (let i = 0; i < 3; i++) {
-                context.fillText(mainText, canvas.width / 2, mainTextY);
+            // Create texture and cache it
+            texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            
+            // Cache texture for reuse (limit cache size)
+            if (this.textureCache.size < 50) {
+                this.textureCache.set(cacheKey, texture);
             }
         }
         
-        // Main text
-        context.shadowBlur = 5;
-        context.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        context.shadowOffsetX = 2;
-        context.shadowOffsetY = 2;
-        context.fillText(mainText, canvas.width / 2, mainTextY);
-        
-        // Draw velocity number with smaller font if enabled
-        if (this.settings.showVelocityNumbers && velocity !== null) {
-            // Calculate velocity text position with tighter line spacing
-            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.55); // Tighter spacing from main text
-            
-            context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
-            const velocityText = `${velocity}`; // Remove brackets around velocity
-            
-            // Add glow effect for velocity text (using same color as main text)
-            if (glowIntensity > 0) {
-                const glowColor = textColor.replace('rgba(', '').replace(')', '').replace(', 1', ', ' + glowIntensity);
-                context.shadowColor = 'rgba(' + glowColor + ')';
-                context.shadowBlur = 15 * glowIntensity;
-                
-                for (let i = 0; i < 2; i++) {
-                    context.fillText(velocityText, canvas.width / 2, velocityTextY);
-                }
-            }
-            
-            // Velocity text with tighter line spacing
-            context.shadowBlur = 3;
-            context.fillText(velocityText, canvas.width / 2, velocityTextY);
+        // Try to get sprite from pool, otherwise create new
+        let sprite = this.getSpriteFromPool();
+        if (!sprite) {
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture, 
+                transparent: true,
+                alphaTest: 0.1
+            });
+            sprite = new THREE.Sprite(spriteMaterial);
+        } else {
+            // Reuse sprite material but update texture
+            sprite.material.map = texture;
+            sprite.material.needsUpdate = true;
         }
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        
-        const spriteMaterial = new THREE.SpriteMaterial({ 
-            map: texture, 
-            transparent: true,
-            alphaTest: 0.1
-        });
-        const sprite = new THREE.Sprite(spriteMaterial);
         
         // Position based on piano key
         const keyElement = this.pianoKeyboard.querySelector(`[data-note="${midiNote}"]`);
@@ -1503,6 +1492,13 @@ class PianoVisualizer {
         
         this.scene.add(sprite);
         this.noteObjects.push(sprite);
+        
+        // Limit maximum note objects for performance (high-speed playing)
+        if (this.noteObjects.length > 100) {
+            const oldestSprite = this.noteObjects.shift();
+            this.scene.remove(oldestSprite);
+            this.returnSpriteToPool(oldestSprite);
+        }
         
         // Track active note sprite
         if (this.activeNoteSprites.has(midiNote)) {
@@ -1588,14 +1584,14 @@ class PianoVisualizer {
     }
     
     getNoteFontSize(velocity) {
-        const baseSize = 46; // Increased from 20 (130% increase: 20 * 2.3 = 46)
+        const baseSize = 20;
         if (!this.hasMidiInput) {
             // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
-            const defaultSize = baseSize + (60 / 127) * 69 * this.settings.sizeMultiplier; // Increased from 30 to 69
-            return Math.max(defaultSize, 37); // Increased minimum from 16 to 37
+            const defaultSize = baseSize + (60 / 127) * 30 * this.settings.sizeMultiplier;
+            return Math.max(defaultSize, 16);
         }
-        const scaledSize = baseSize + (velocity / 127) * 69 * this.settings.sizeMultiplier; // Increased from 30 to 69
-        return Math.max(scaledSize, 37); // Increased minimum from 16 to 37
+        const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
+        return Math.max(scaledSize, 16);
     }
     
     getNoteColor(midiNote, velocity) {
@@ -1746,16 +1742,6 @@ class PianoVisualizer {
         octaveToggle.addEventListener('change', (e) => {
             this.settings.showOctaveNumbers = e.target.checked;
             console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
-        });
-        
-        // Spectrum analyzer toggle
-        const spectrumToggle = document.getElementById('show-spectrum-analyzer');
-        spectrumToggle.addEventListener('change', (e) => {
-            this.settings.showSpectrumAnalyzer = e.target.checked;
-            if (this.spectrumCanvas) {
-                this.spectrumCanvas.style.display = e.target.checked ? 'block' : 'none';
-            }
-            console.log(`🌊 Waveform display: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
         
         // Audio timbre selector
@@ -2106,17 +2092,13 @@ class PianoVisualizer {
     }
     
     setupCollapsibleSections() {
-        // Load saved panel states from localStorage
-        const savedPanelStates = this.loadPanelStates();
+        // Define which sections should be collapsed by default
+        const defaultCollapsed = ['keyboard', 'recording'];
         
         // Initialize max-height for all collapsible content
         document.querySelectorAll('.collapsible-content').forEach(content => {
             const sectionName = content.getAttribute('data-section');
-            const isCollapsed = savedPanelStates[sectionName] !== undefined 
-                ? savedPanelStates[sectionName] 
-                : true; // Default to collapsed if no saved state
-            
-            if (isCollapsed) {
+            if (defaultCollapsed.includes(sectionName)) {
                 // Start collapsed
                 content.classList.add('collapsed');
                 content.style.maxHeight = '0';
@@ -2126,12 +2108,7 @@ class PianoVisualizer {
                 }
             } else {
                 // Start expanded
-                content.classList.remove('collapsed');
                 content.style.maxHeight = content.scrollHeight + 'px';
-                const header = document.querySelector(`h3[data-section="${sectionName}"]`);
-                if (header) {
-                    header.classList.remove('collapsed');
-                }
             }
         });
         
@@ -2150,41 +2127,18 @@ class PianoVisualizer {
                         content.style.maxHeight = content.scrollHeight + 'px';
                     });
                     header.classList.remove('collapsed');
-                    this.savePanelState(sectionName, false); // Save expanded state
                     console.log(`📂 Expanded section: ${sectionName}`);
                 } else {
                     // Collapse
                     content.classList.add('collapsed');
                     content.style.maxHeight = '0';
                     header.classList.add('collapsed');
-                    this.savePanelState(sectionName, true); // Save collapsed state
                     console.log(`📁 Collapsed section: ${sectionName}`);
                 }
             });
         });
         
-        console.log('✅ Collapsible sections initialized with saved states');
-    }
-    
-    loadPanelStates() {
-        try {
-            const saved = localStorage.getItem('pianoVisualizer_panelStates');
-            return saved ? JSON.parse(saved) : {};
-        } catch (error) {
-            console.warn('⚠️ Failed to load panel states from localStorage:', error);
-            return {};
-        }
-    }
-    
-    savePanelState(sectionName, isCollapsed) {
-        try {
-            const savedStates = this.loadPanelStates();
-            savedStates[sectionName] = isCollapsed;
-            localStorage.setItem('pianoVisualizer_panelStates', JSON.stringify(savedStates));
-            console.log(`💾 Saved panel state: ${sectionName} = ${isCollapsed ? 'collapsed' : 'expanded'}`);
-        } catch (error) {
-            console.warn('⚠️ Failed to save panel state to localStorage:', error);
-        }
+        console.log('✅ Collapsible sections initialized');
     }
     
     createCanvasBackground() {
@@ -2202,14 +2156,11 @@ class PianoVisualizer {
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
             
-            // 美しい放射状グラデーション描画
-            const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
-            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
-            gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+            // Store canvas and context for waveform updates
+            this.backgroundCanvas = canvas;
+            this.backgroundContext = ctx;
             
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 512, 512);
+            this.drawBackgroundWithWaveform();
             
             // Canvas要素からテクスチャを作成
             const texture = new THREE.CanvasTexture(canvas);
@@ -2240,6 +2191,79 @@ class PianoVisualizer {
             
         } catch (error) {
             console.error('❌ Error creating canvas background:', error);
+        }
+    }
+    
+    drawBackgroundWithWaveform() {
+        if (!this.backgroundContext) return;
+        
+        const ctx = this.backgroundContext;
+        const canvas = this.backgroundCanvas;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw gradient background
+        const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
+        gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
+        gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw waveform if analyzer is available
+        if (this.analyserNode && this.waveformData) {
+            try {
+                // Get frequency data for spectrum
+                this.analyserNode.getByteFrequencyData(this.waveformData);
+                
+                // Draw spectrum bars
+                const barWidth = canvas.width / this.waveformData.length;
+                ctx.fillStyle = 'rgba(96, 165, 250, 0.3)';
+                
+                for (let i = 0; i < this.waveformData.length; i++) {
+                    const barHeight = (this.waveformData[i] / 255) * canvas.height * 0.5;
+                    const x = i * barWidth;
+                    const y = canvas.height - barHeight;
+                    
+                    ctx.fillRect(x, y, barWidth - 1, barHeight);
+                }
+                
+                // Get time domain data for waveform
+                this.analyserNode.getByteTimeDomainData(this.timeData);
+                
+                // Draw waveform line
+                ctx.strokeStyle = 'rgba(52, 211, 153, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                const sliceWidth = canvas.width / this.timeData.length;
+                let x = 0;
+                
+                for (let i = 0; i < this.timeData.length; i++) {
+                    const v = this.timeData[i] / 128.0;
+                    const y = v * canvas.height / 2;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                    
+                    x += sliceWidth;
+                }
+                
+                ctx.stroke();
+                
+                // Update texture
+                if (this.backgroundPlane && this.backgroundPlane.material.map) {
+                    this.backgroundPlane.material.map.needsUpdate = true;
+                }
+                
+            } catch (error) {
+                console.warn('Waveform drawing error:', error);
+            }
         }
     }
     
@@ -2542,15 +2566,21 @@ class PianoVisualizer {
         
         console.log('✅ Starting Three.js animation loop');
         
-        const animate = () => {
-            const currentTime = performance.now();
+        let lastFrameTime = 0;
+        const frameTimeLimit = 16.67; // ~60fps limit
+        
+        const animate = (currentTime) => {
+            // Throttle frame rate for consistent performance
+            if (currentTime - lastFrameTime < frameTimeLimit) {
+                requestAnimationFrame(animate);
+                return;
+            }
+            lastFrameTime = currentTime;
             
-            // Fluid background animation removed for debugging
-            
-            // Debug: Log sprite count every 2 seconds
-            if (Math.floor(currentTime / 2000) > this.lastDebugTime) {
-                this.lastDebugTime = Math.floor(currentTime / 2000);
-                console.log(`🎵 Animation loop running - Active sprites: ${this.noteObjects.length}`);
+            // Skip rendering if no active sprites and no recent activity
+            if (this.noteObjects.length === 0 && currentTime - this.lastNoteTime > 1000) {
+                requestAnimationFrame(animate);
+                return;
             }
             
             // Update note sprites with sustained note logic
@@ -2641,13 +2671,15 @@ class PianoVisualizer {
                 // Remove sprite if needed
                 if (shouldRemove) {
                     this.scene.remove(sprite);
-                    if (sprite.material.map) {
-                        sprite.material.map.dispose();
-                    }
-                    sprite.material.dispose();
+                    
+                    // Return sprite to pool instead of disposing
+                    this.returnSpriteToPool(sprite);
                     this.noteObjects.splice(i, 1);
                 }
             }
+            
+            // Update waveform background
+            this.drawBackgroundWithWaveform();
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
@@ -2923,6 +2955,14 @@ class PianoVisualizer {
                 options = {};
             }
             
+            // Add low-latency recording options
+            if (!options.audioBitsPerSecond) {
+                options.audioBitsPerSecond = 192000; // Higher audio bitrate for better quality with low latency
+            }
+            
+            // Optimize for real-time recording
+            options.recordingChunkMs = 100; // Smaller chunks for lower latency if supported
+            
             this.mediaRecorder = new MediaRecorder(combinedStream, options);
             this.combinedStream = combinedStream;
             this.recordedChunks = [];
@@ -2954,7 +2994,8 @@ class PianoVisualizer {
                 this.startCanvasCopyLoop();
             }
             
-            this.mediaRecorder.start();
+            // Start recording with low-latency chunks (100ms intervals)
+            this.mediaRecorder.start(100);
             this.isRecording = true;
             
             document.getElementById('start-recording').disabled = true;
@@ -3367,7 +3408,71 @@ class PianoVisualizer {
         this.saveSettings();
     }
     
-    initSpectrumAnalyzer() {
+    setupSNSShareButtons() {
+        const twitterBtn = document.querySelector('.twitter-btn');
+        const facebookBtn = document.querySelector('.facebook-btn');
+        const lineBtn = document.querySelector('.line-btn');
+        const copyBtn = document.querySelector('.copy-btn');
+        
+        if (!twitterBtn || !facebookBtn || !lineBtn || !copyBtn) {
+            console.log('SNS buttons not found, skipping setup');
+            return;
+        }
+        
+        const shareData = {
+            title: 'Piano Visualizer - Interactive 3D Piano with MIDI Support',
+            text: '🎹 美しい3Dビジュアライゼーション付きピアノ演奏ツール！MIDIサポート、ColorHunt Retroパレット、Full HD録画機能搭載。',
+            url: window.location.href
+        };
+        
+        // Twitter share
+        twitterBtn.addEventListener('click', () => {
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=PianoVisualizer,MIDI,3D,音楽,ピアノ`;
+            window.open(twitterUrl, '_blank', 'width=550,height=420');
+        });
+        
+        // Facebook share
+        facebookBtn.addEventListener('click', () => {
+            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
+            window.open(facebookUrl, '_blank', 'width=626,height=436');
+        });
+        
+        // LINE share
+        lineBtn.addEventListener('click', () => {
+            const lineUrl = `https://line.me/R/msg/text/?${encodeURIComponent(shareData.text + ' ' + shareData.url)}`;
+            window.open(lineUrl, '_blank');
+        });
+        
+        // Copy URL
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(shareData.url);
+                copyBtn.classList.add('copied');
+                copyBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = shareData.url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                copyBtn.classList.add('copied');
+                setTimeout(() => copyBtn.classList.remove('copied'), 2000);
+            }
+        });
+        
+        console.log('SNS share buttons setup complete');
+    }
+    
+    setupWaveformDisplay() {
+        console.log('🌊 Setting up waveform display...');
+        
         this.spectrumCanvas = document.getElementById('spectrum-canvas');
         if (!this.spectrumCanvas) {
             console.error('❌ Spectrum canvas not found');
@@ -3394,9 +3499,7 @@ class PianoVisualizer {
     }
     
     startSpectrumAnimation() {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId);
-        }
+        if (!this.analyserNode || !this.spectrumContext) return;
         
         const drawSpectrum = () => {
             if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.spectrumContext) {
@@ -3435,37 +3538,15 @@ class PianoVisualizer {
         this.spectrumContext.shadowBlur = 15;
         this.spectrumContext.shadowColor = '#4ecdc4';
         
-        // Begin drawing waveform
+        // Draw waveform
         this.spectrumContext.beginPath();
         
         const sliceWidth = width / bufferLength;
         let x = 0;
         
         for (let i = 0; i < bufferLength; i++) {
-            const v = dataArray[i] / 128.0; // Convert to 0-2 range
-            const y = v * height / 2; // Scale to canvas height
-            
-            if (i === 0) {
-                this.spectrumContext.moveTo(x, y);
-            } else {
-                this.spectrumContext.lineTo(x, y);
-            }
-            
-            x += sliceWidth;
-        }
-        
-        this.spectrumContext.stroke();
-        
-        // Draw a second waveform with different opacity for depth
-        this.spectrumContext.globalAlpha = 0.5;
-        this.spectrumContext.lineWidth = 1;
-        this.spectrumContext.shadowBlur = 8;
-        this.spectrumContext.beginPath();
-        
-        x = 0;
-        for (let i = 0; i < bufferLength; i++) {
             const v = dataArray[i] / 128.0;
-            const y = height - (v * height / 2); // Inverted waveform
+            const y = v * height / 2;
             
             if (i === 0) {
                 this.spectrumContext.moveTo(x, y);
@@ -3477,76 +3558,6 @@ class PianoVisualizer {
         }
         
         this.spectrumContext.stroke();
-        this.spectrumContext.globalAlpha = 1.0; // Reset alpha
-    }
-    
-    setupSNSShareButtons() {
-        const twitterBtn = document.querySelector('.twitter-btn');
-        const facebookBtn = document.querySelector('.facebook-btn');
-        const lineBtn = document.querySelector('.line-btn');
-        const copyBtn = document.querySelector('.copy-btn');
-        
-        const shareData = {
-            title: 'Piano Visualizer - Interactive 3D Piano with MIDI Support',
-            text: '🎹 美しい3Dビジュアライゼーション付きピアノ演奏ツール！MIDIサポート、ColorHunt Retroパレット、Full HD録画機能搭載。',
-            url: window.location.href
-        };
-        
-        // Twitter share
-        twitterBtn.addEventListener('click', () => {
-            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=PianoVisualizer,MIDI,3D,音楽,ピアノ`;
-            window.open(twitterUrl, '_blank', 'width=550,height=420');
-        });
-        
-        // Facebook share
-        facebookBtn.addEventListener('click', () => {
-            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareData.url)}`;
-            window.open(facebookUrl, '_blank', 'width=580,height=296');
-        });
-        
-        // LINE share
-        lineBtn.addEventListener('click', () => {
-            const lineUrl = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareData.url)}&text=${encodeURIComponent(shareData.text)}`;
-            window.open(lineUrl, '_blank', 'width=500,height=500');
-        });
-        
-        // URL copy
-        copyBtn.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(shareData.url);
-                
-                // Visual feedback
-                copyBtn.classList.add('copied');
-                const originalSVG = copyBtn.innerHTML;
-                copyBtn.innerHTML = `
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                `;
-                
-                setTimeout(() => {
-                    copyBtn.classList.remove('copied');
-                    copyBtn.innerHTML = originalSVG;
-                }, 2000);
-                
-                console.log('✅ URL copied to clipboard');
-            } catch (err) {
-                console.error('❌ Failed to copy URL:', err);
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = shareData.url;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    console.log('✅ URL copied using fallback method');
-                } catch (fallbackErr) {
-                    console.error('❌ Fallback copy also failed:', fallbackErr);
-                    alert('URLのコピーに失敗しました。手動でコピーしてください：\n' + shareData.url);
-                }
-                document.body.removeChild(textArea);
-            }
-        });
     }
 }
 
