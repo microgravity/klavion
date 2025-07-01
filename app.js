@@ -985,29 +985,44 @@ class PianoVisualizer {
         if (!this.audioContext || !this.analyserNode) return;
 
         try {
-            // 非常に小さな音量（実質的に無音）でオシレーターを作成
-            const oscillator = this.audioContext.createOscillator();
-            const gainNode = this.audioContext.createGain();
+            // ベロシティに基づいた視覚化用ボリューム計算
+            const velocityRatio = velocity / 127;
+            const baseVolume = 0.002 + (velocityRatio * 0.018); // 0.002～0.02の範囲に拡大
             
-            // 周波数を設定（実際の音程に合わせる）
-            oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-            oscillator.type = 'sine';
+            // メインオシレーター（基音）
+            const mainOsc = this.audioContext.createOscillator();
+            const mainGain = this.audioContext.createGain();
             
-            // 実質的に無音のボリューム（analyzerには影響するが聞こえない）
-            const visualizationVolume = 0.0001; // 非常に小さな値
-            gainNode.gain.setValueAtTime(visualizationVolume, this.audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.00001, this.audioContext.currentTime + 0.1);
+            mainOsc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+            mainOsc.type = 'sine';
+            mainGain.gain.setValueAtTime(baseVolume, this.audioContext.currentTime);
+            mainGain.gain.exponentialRampToValueAtTime(baseVolume * 0.1, this.audioContext.currentTime + 0.2);
             
-            // analyzerNodeにのみ接続（音声出力には接続しない）
-            oscillator.connect(gainNode);
-            gainNode.connect(this.analyserNode);
+            mainOsc.connect(mainGain);
+            mainGain.connect(this.analyserNode);
             
-            // 短時間だけ再生
+            // 第2ハーモニクス（より豊かな波形のため）
+            const harmonic2 = this.audioContext.createOscillator();
+            const harmonic2Gain = this.audioContext.createGain();
+            
+            harmonic2.frequency.setValueAtTime(frequency * 2, this.audioContext.currentTime);
+            harmonic2.type = 'sine';
+            harmonic2Gain.gain.setValueAtTime(baseVolume * 0.3, this.audioContext.currentTime);
+            harmonic2Gain.gain.exponentialRampToValueAtTime(baseVolume * 0.03, this.audioContext.currentTime + 0.15);
+            
+            harmonic2.connect(harmonic2Gain);
+            harmonic2Gain.connect(this.analyserNode);
+            
+            // 再生実行
             const currentTime = this.audioContext.currentTime;
-            oscillator.start(currentTime);
-            oscillator.stop(currentTime + 0.1); // 100ms
             
-            console.log(`🔇 Silent visualization signal generated: ${frequency.toFixed(1)}Hz for analyzer`);
+            mainOsc.start(currentTime);
+            mainOsc.stop(currentTime + 0.2);
+            
+            harmonic2.start(currentTime);
+            harmonic2.stop(currentTime + 0.15);
+            
+            console.log(`🔇 Enhanced visualization signal: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${baseVolume.toFixed(4)}`);
             
         } catch (error) {
             console.warn('Failed to generate silent visualization signal:', error);
