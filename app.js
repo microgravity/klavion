@@ -963,42 +963,118 @@ class PianoVisualizer {
     }
     
     createAcousticPiano(frequency, volume, currentTime, duration) {
-        // Acoustic piano with multiple harmonics
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
+        // High-quality acoustic piano with complex harmonics and realistic envelope
+        const fundamentalOsc = this.audioContext.createOscillator();
+        const harmonic2 = this.audioContext.createOscillator();
+        const harmonic3 = this.audioContext.createOscillator();
+        const harmonic4 = this.audioContext.createOscillator();
+        const harmonic5 = this.audioContext.createOscillator();
+        const subOsc = this.audioContext.createOscillator();
         
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency * 3, currentTime);
+        const mainGain = this.audioContext.createGain();
+        const harmonic2Gain = this.audioContext.createGain();
+        const harmonic3Gain = this.audioContext.createGain();
+        const harmonic4Gain = this.audioContext.createGain();
+        const harmonic5Gain = this.audioContext.createGain();
+        const subGain = this.audioContext.createGain();
         
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2000, currentTime);
-        filter.Q.setValueAtTime(1, currentTime);
+        const masterGain = this.audioContext.createGain();
+        const lowPassFilter = this.audioContext.createBiquadFilter();
+        const highPassFilter = this.audioContext.createBiquadFilter();
+        const compressor = this.audioContext.createDynamicsCompressor();
         
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        // Create realistic piano waveforms with complex harmonics
+        fundamentalOsc.type = 'sine';
+        fundamentalOsc.frequency.setValueAtTime(frequency, currentTime);
         
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
-        gainNode.connect(filter);
-        this.connectAudioOutput(filter);
+        harmonic2.type = 'sine';
+        harmonic2.frequency.setValueAtTime(frequency * 2.0, currentTime);
         
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
+        harmonic3.type = 'sine';
+        harmonic3.frequency.setValueAtTime(frequency * 3.1, currentTime); // Slightly detuned for realism
         
-        return gainNode;
+        harmonic4.type = 'sine';
+        harmonic4.frequency.setValueAtTime(frequency * 4.2, currentTime);
+        
+        harmonic5.type = 'sine';
+        harmonic5.frequency.setValueAtTime(frequency * 5.3, currentTime);
+        
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(frequency * 0.5, currentTime);
+        
+        // Set harmonic levels for realistic piano timbre
+        mainGain.gain.setValueAtTime(volume * 1.0, currentTime);
+        harmonic2Gain.gain.setValueAtTime(volume * 0.6, currentTime);
+        harmonic3Gain.gain.setValueAtTime(volume * 0.4, currentTime);
+        harmonic4Gain.gain.setValueAtTime(volume * 0.2, currentTime);
+        harmonic5Gain.gain.setValueAtTime(volume * 0.1, currentTime);
+        subGain.gain.setValueAtTime(volume * 0.3, currentTime);
+        
+        // Advanced filtering for piano-like frequency response
+        lowPassFilter.type = 'lowpass';
+        const cutoffFreq = Math.min(4000, frequency * 8); // Frequency-dependent filtering
+        lowPassFilter.frequency.setValueAtTime(cutoffFreq, currentTime);
+        lowPassFilter.Q.setValueAtTime(0.7, currentTime);
+        
+        highPassFilter.type = 'highpass';
+        highPassFilter.frequency.setValueAtTime(frequency * 0.8, currentTime);
+        highPassFilter.Q.setValueAtTime(0.5, currentTime);
+        
+        // Compression for dynamic realism
+        compressor.threshold.setValueAtTime(-24, currentTime);
+        compressor.knee.setValueAtTime(30, currentTime);
+        compressor.ratio.setValueAtTime(3, currentTime);
+        compressor.attack.setValueAtTime(0.003, currentTime);
+        compressor.release.setValueAtTime(0.25, currentTime);
+        
+        // Realistic piano envelope (sharp attack, complex decay)
+        masterGain.gain.setValueAtTime(0, currentTime);
+        masterGain.gain.linearRampToValueAtTime(volume, currentTime + 0.02); // Fast attack
+        masterGain.gain.exponentialRampToValueAtTime(volume * 0.8, currentTime + 0.1);
+        masterGain.gain.exponentialRampToValueAtTime(volume * 0.6, currentTime + 0.3);
+        masterGain.gain.exponentialRampToValueAtTime(volume * 0.4, currentTime + 0.8);
+        masterGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+        
+        // Advanced frequency modulation for realism
+        const vibrato = this.audioContext.createOscillator();
+        const vibratoGain = this.audioContext.createGain();
+        vibrato.type = 'sine';
+        vibrato.frequency.setValueAtTime(4.5, currentTime);
+        vibratoGain.gain.setValueAtTime(frequency * 0.002, currentTime); // Subtle vibrato
+        
+        vibrato.connect(vibratoGain);
+        vibratoGain.connect(fundamentalOsc.frequency);
+        
+        // Connect oscillators to gains
+        fundamentalOsc.connect(mainGain);
+        harmonic2.connect(harmonic2Gain);
+        harmonic3.connect(harmonic3Gain);
+        harmonic4.connect(harmonic4Gain);
+        harmonic5.connect(harmonic5Gain);
+        subOsc.connect(subGain);
+        
+        // Connect all gains to master processing chain
+        mainGain.connect(compressor);
+        harmonic2Gain.connect(compressor);
+        harmonic3Gain.connect(compressor);
+        harmonic4Gain.connect(compressor);
+        harmonic5Gain.connect(compressor);
+        subGain.connect(compressor);
+        
+        compressor.connect(highPassFilter);
+        highPassFilter.connect(lowPassFilter);
+        lowPassFilter.connect(masterGain);
+        
+        // Start all oscillators
+        const oscillators = [fundamentalOsc, harmonic2, harmonic3, harmonic4, harmonic5, subOsc, vibrato];
+        oscillators.forEach(osc => {
+            osc.start(currentTime);
+            osc.stop(currentTime + duration);
+        });
+        
+        this.connectAudioOutput(masterGain);
+        
+        return masterGain;
     }
     
     createElectricPiano(frequency, volume, currentTime, duration) {
