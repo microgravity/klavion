@@ -1678,7 +1678,7 @@ class PianoVisualizer {
             if (this.spectrumCanvas) {
                 this.spectrumCanvas.style.display = e.target.checked ? 'block' : 'none';
             }
-            console.log(`🌈 Spectrum analyzer: ${e.target.checked ? 'shown' : 'hidden'}`);
+            console.log(`🌊 Waveform display: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
         
         // Audio timbre selector
@@ -3273,7 +3273,7 @@ class PianoVisualizer {
         // Start spectrum animation
         this.startSpectrumAnimation();
         
-        console.log('🌈 Spectrum analyzer initialized');
+        console.log('🌊 Waveform display initialized');
     }
     
     resizeSpectrumCanvas() {
@@ -3291,7 +3291,7 @@ class PianoVisualizer {
         
         const drawSpectrum = () => {
             if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.spectrumContext) {
-                this.drawSpectrumAnalyzer();
+                this.drawWaveform();
             }
             this.animationFrameId = requestAnimationFrame(drawSpectrum);
         };
@@ -3299,12 +3299,12 @@ class PianoVisualizer {
         drawSpectrum();
     }
     
-    drawSpectrumAnalyzer() {
+    drawWaveform() {
         if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
-        const bufferLength = this.analyserNode.frequencyBinCount;
+        const bufferLength = this.analyserNode.fftSize;
         const dataArray = new Uint8Array(bufferLength);
-        this.analyserNode.getByteFrequencyData(dataArray);
+        this.analyserNode.getByteTimeDomainData(dataArray);
         
         const width = this.spectrumCanvas.width;
         const height = this.spectrumCanvas.height;
@@ -3312,41 +3312,63 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
-        // Calculate bar width
-        const barWidth = (width / bufferLength) * 2.5;
-        let x = 0;
-        
-        // Create gradient for bars
-        const gradient = this.spectrumContext.createLinearGradient(0, height, 0, 0);
+        // Create gradient for waveform
+        const gradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
         gradient.addColorStop(0, '#ff6b6b');
-        gradient.addColorStop(0.3, '#4ecdc4');
-        gradient.addColorStop(0.6, '#45b7d1');
-        gradient.addColorStop(1, '#96ceb4');
+        gradient.addColorStop(0.25, '#4ecdc4');
+        gradient.addColorStop(0.5, '#45b7d1');
+        gradient.addColorStop(0.75, '#96ceb4');
+        gradient.addColorStop(1, '#feca57');
         
-        // Draw frequency bars
-        for (let i = 0; i < bufferLength; i++) {
-            const barHeight = (dataArray[i] / 255) * height * 0.8;
-            
-            this.spectrumContext.fillStyle = gradient;
-            this.spectrumContext.fillRect(x, height - barHeight, barWidth, barHeight);
-            
-            x += barWidth + 1;
-        }
-        
-        // Add glow effect
-        this.spectrumContext.shadowBlur = 10;
+        // Set line style
+        this.spectrumContext.lineWidth = 3;
+        this.spectrumContext.strokeStyle = gradient;
+        this.spectrumContext.shadowBlur = 15;
         this.spectrumContext.shadowColor = '#4ecdc4';
         
-        // Draw mirrored spectrum for symmetry
-        x = 0;
-        for (let i = bufferLength - 1; i >= 0; i--) {
-            const barHeight = (dataArray[i] / 255) * height * 0.4;
+        // Begin drawing waveform
+        this.spectrumContext.beginPath();
+        
+        const sliceWidth = width / bufferLength;
+        let x = 0;
+        
+        for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0; // Convert to 0-2 range
+            const y = v * height / 2; // Scale to canvas height
             
-            this.spectrumContext.fillStyle = gradient;
-            this.spectrumContext.fillRect(width - x - barWidth, height - barHeight, barWidth, barHeight);
+            if (i === 0) {
+                this.spectrumContext.moveTo(x, y);
+            } else {
+                this.spectrumContext.lineTo(x, y);
+            }
             
-            x += barWidth + 1;
+            x += sliceWidth;
         }
+        
+        this.spectrumContext.stroke();
+        
+        // Draw a second waveform with different opacity for depth
+        this.spectrumContext.globalAlpha = 0.5;
+        this.spectrumContext.lineWidth = 1;
+        this.spectrumContext.shadowBlur = 8;
+        this.spectrumContext.beginPath();
+        
+        x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0;
+            const y = height - (v * height / 2); // Inverted waveform
+            
+            if (i === 0) {
+                this.spectrumContext.moveTo(x, y);
+            } else {
+                this.spectrumContext.lineTo(x, y);
+            }
+            
+            x += sliceWidth;
+        }
+        
+        this.spectrumContext.stroke();
+        this.spectrumContext.globalAlpha = 1.0; // Reset alpha
     }
     
     setupSNSShareButtons() {
