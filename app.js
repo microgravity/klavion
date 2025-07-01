@@ -40,7 +40,7 @@ class PianoVisualizer {
             colorIntensity: 1.0,
             motionBlur: 0.3,
             glowIntensity: 1.0,
-            fontFamily: 'Noto Sans JP',
+            fontFamily: 'M PLUS 1p',
             pianoRange: '3-octave',
             volume: 0.75,
             isMuted: false,
