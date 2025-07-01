@@ -2343,15 +2343,29 @@ class PianoVisualizer {
         
         // デバッグログ: 初期状態
         console.log(`[MIDI Playback] Starting playback - Total events: ${allEvents.length}, Starting eventIndex: ${eventIndex}, SeekOffset: ${seekOffset}`);
+        console.log(`[MIDI Playback] Raw events: ${allRawEvents.length}, Processed note events: ${allEvents.length}`);
+        if (allEvents.length > 0) {
+            console.log(`[MIDI Playback] First event: ${allEvents[0].type} note ${allEvents[0].note} at ${allEvents[0].timeInSeconds.toFixed(3)}s`);
+            if (allEvents.length > 1) {
+                console.log(`[MIDI Playback] Second event: ${allEvents[1].type} note ${allEvents[1].note} at ${allEvents[1].timeInSeconds.toFixed(3)}s`);
+            }
+        }
         
+        let frameCount = 0;
         const playLoop = () => {
+            frameCount++;
             if (!this.isPlaying) {
-                console.log(`[MIDI Playback] Stopped - isPlaying: false`);
+                console.log(`[MIDI Playback] Stopped - isPlaying: false (frame: ${frameCount})`);
                 return;
             }
             
             const elapsed = seekOffset + (Date.now() - startTime) / 1000 * this.playbackRate;
             this.currentTime = elapsed;
+            
+            // 最初の数フレームをログ出力
+            if (frameCount <= 5) {
+                console.log(`[MIDI Playback] Frame ${frameCount}: elapsed=${elapsed.toFixed(3)}s, eventIndex=${eventIndex}/${allEvents.length}`);
+            }
             
             let eventsProcessed = 0;
             while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds <= elapsed) {
@@ -2391,8 +2405,14 @@ class PianoVisualizer {
             }
             
             this.animationFrameId = requestAnimationFrame(playLoop);
+            
+            // 最初の数フレームでanimationFrameId設定をログ出力
+            if (frameCount <= 5) {
+                console.log(`[MIDI Playback] Frame ${frameCount}: Scheduled next frame with ID: ${this.animationFrameId}`);
+            }
         };
         
+        console.log(`[MIDI Playback] Starting playLoop`);
         playLoop();
     }
     
