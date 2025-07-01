@@ -17,7 +17,23 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 ## ✨ 最新の改善 / Latest Improvements
 
-### v1.3.0 の新機能 / New in v1.3.0 (Latest)
+### v1.4.0 の新機能 / New in v1.4.0 (Latest)
+
+- 🦶 **MIDIペダル視覚表示** - サスティンペダルのON/OFF状態を視覚的に表示
+- ⌨️ **キーボードペダルシミュレーション** - Shiftキーでサスティンペダルを操作可能
+- 🎛️ **リアルタイム状態表示** - ペダル操作時の動的なアニメーション効果
+- 🎨 **統合UI設計** - MIDI入力セクションにペダル状態インジケーター統合
+- 📖 **操作ガイド強化** - キーボードヘルプにペダル操作説明を追加
+
+### New in v1.4.0 (Latest)
+
+- 🦶 **MIDI Pedal Visual Display** - Visual indication of sustain pedal ON/OFF state
+- ⌨️ **Keyboard Pedal Simulation** - Sustain pedal control using Shift key
+- 🎛️ **Real-time Status Display** - Dynamic animation effects during pedal operation
+- 🎨 **Integrated UI Design** - Pedal status indicator integrated into MIDI input section
+- 📖 **Enhanced Operation Guide** - Pedal operation instructions added to keyboard help
+
+### v1.3.0 の新機能 / New in v1.3.0
 
 - 🎨 **ColorHunt Retroパレットコレクション** - 12種類の美しいRetroカラーパレット（Synthwave, Miami Vice等）
 - 🎬 **YouTube Full HD録画対応** - 1920×1080高品質録画でYouTube投稿に最適
@@ -25,7 +41,7 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - 🎹 **鍵盤付き録画機能** - 演奏時の鍵盤押下状態も含めた合成録画
 - 🌈 **ランダムRetroカラー** - 演奏時に美しいRetroカラーでランダム表示
 
-### New in v1.3.0 (Latest)
+### New in v1.3.0
 
 - 🎨 **ColorHunt Retro Palette Collection** - 12 beautiful retro palettes (Synthwave, Miami Vice, etc.)
 - 🎬 **YouTube Full HD Recording** - 1920×1080 high-quality recording optimized for YouTube
@@ -62,13 +78,17 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 - **Real-time MIDI input** - Connect any MIDI device and play in real-time
 - **Auto-detection of 88-key devices** - Automatically switches to full piano range
-- **Sustain pedal support** - CC64 sustain pedal functionality
+- **Sustain pedal support** - CC64 sustain pedal functionality with visual feedback
+- **Pedal visualization** - Real-time visual indication of pedal ON/OFF state
 - **Computer keyboard input** - Play using your computer keyboard as fallback
+- **Keyboard pedal simulation** - Sustain pedal control using Shift key
 
 - **リアルタイム MIDI 入力** - 任意の MIDI デバイスを接続してリアルタイム演奏
 - **88 鍵デバイスの自動検出** - フルピアノ範囲への自動切り替え
-- **サスティンペダル対応** - CC64 サスティンペダル機能
+- **サスティンペダル対応** - 視覚的フィードバック付きCC64サスティンペダル機能
+- **ペダルビジュアライゼーション** - ペダルON/OFF状態のリアルタイム視覚表示
 - **コンピューターキーボード入力** - フォールバックとしてコンピューターキーボードで演奏
+- **キーボードペダルシミュレーション** - Shiftキーによるサスティンペダル操作
 
 ### 🎵 Audio Engine / オーディオエンジン
 
@@ -142,40 +162,12 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 | 📱 Tablet / タブレット | 768px+ | ✅ Full Features / 全機能 |
 | 💻 Desktop/Laptop / PC | Any / 任意 | ✅ Optimal Experience / 最適体験 |
 
-## Installation / インストール
-
-### Prerequisites / 前提条件
+## Prerequisites / 前提条件
 
 - Modern web browser with WebGL support
 - MIDI device (optional - can use computer keyboard)
 - WebGL 対応の最新ブラウザ
 - MIDI デバイス（オプション - コンピューターキーボード使用可）
-
-### Setup / セットアップ
-
-1. **Clone the repository / リポジトリをクローン**
-
-   ```bash
-   git clone https://github.com/microgravity/piano-visualiser.git
-   cd piano-visualiser
-   ```
-
-2. **Serve the files / ファイルを配信**
-
-   ```bash
-   # Using Python / Pythonを使用
-   python -m http.server 8000
-
-   # Using Node.js / Node.jsを使用
-   npx serve .
-
-   # Using any other web server / その他のWebサーバーを使用
-   ```
-
-3. **Open in browser / ブラウザで開く**
-   ```
-   http://localhost:8000
-   ```
 
 ## Usage / 使用方法
 
@@ -246,6 +238,13 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 | U                                 | A#4                   | ラ#4              | 70        |
 | J                                 | B4                    | シ4               | 71        |
 | K                                 | C5                    | ド5               | 72        |
+
+#### Pedal Controls / ペダル操作
+
+| Computer Key / コンピューターキー | Function / 機能                         |
+| --------------------------------- | --------------------------------------- |
+| Shift (Left/Right)               | Sustain Pedal ON/OFF / サスティンペダル |
+| Space                            | MIDI Playback Play/Stop / MIDI再生停止 |
 
 ## Technical Details / 技術詳細
 
@@ -415,7 +414,16 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## Version History / バージョン履歴
 
-### v1.3.0 (Latest / 最新) - December 2024
+### v1.4.0 (Latest / 最新) - December 2024
+
+#### 🦶 MIDI Pedal Visualization / MIDIペダルビジュアライゼーション
+- **Visual Pedal Indicator** - Real-time sustain pedal ON/OFF state display
+- **Dynamic Animations** - Scale animations and visual feedback on pedal changes  
+- **Integrated UI Design** - Pedal status seamlessly integrated into MIDI input section
+- **Keyboard Simulation** - Shift key sustain pedal control for computer keyboard users
+- **Enhanced Help Documentation** - Comprehensive pedal operation guide
+
+### v1.3.0 - December 2024
 
 #### 🎨 ColorHunt Retro Collection / ColorHunt Retroコレクション
 - **12 Retro Palettes** - Synthwave, Miami Vice, Vaporwave, Electric, and more
