@@ -1523,9 +1523,9 @@ class PianoVisualizer {
         }
         this.activeNoteSprites.set(midiNote, sprite);
         
-        // Debug: Log sprite creation and positioning
-        console.log(`🎨 Sprite created: ${mainText}, position: (${x.toFixed(2)}, ${sprite.position.y}, ${sprite.position.z}), scale: ${displaySize.toFixed(2)}`);
-        console.log(`📊 Scene stats: ${this.noteObjects.length} sprites, camera pos: (${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z})`);
+        // Debug: Log sprite creation and positioning (disabled for performance)
+        // console.log(`🎨 Sprite created: note ${midiNote}, position: (${x.toFixed(2)}, ${sprite.position.y}, ${sprite.position.z}), scale: ${displaySize.toFixed(2)}`);
+        // console.log(`📊 Scene stats: ${this.noteObjects.length} sprites, camera pos: (${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z})`);
         
         // Clean up old notes (less aggressive cleanup since notes last longer now)
         if (this.noteObjects.length > 100) {
@@ -2362,10 +2362,10 @@ class PianoVisualizer {
             const elapsed = seekOffset + (Date.now() - startTime) / 1000 * this.playbackRate;
             this.currentTime = elapsed;
             
-            // 最初の数フレームをログ出力
-            if (frameCount <= 5) {
-                console.log(`[MIDI Playback] Frame ${frameCount}: elapsed=${elapsed.toFixed(3)}s, eventIndex=${eventIndex}/${allEvents.length}`);
-            }
+            // 最初の数フレームをログ出力（必要時のみ）
+            // if (frameCount <= 5) {
+            //     console.log(`[MIDI Playback] Frame ${frameCount}: elapsed=${elapsed.toFixed(3)}s, eventIndex=${eventIndex}/${allEvents.length}`);
+            // }
             
             let eventsProcessed = 0;
             while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds <= elapsed) {
@@ -2406,10 +2406,10 @@ class PianoVisualizer {
             
             this.animationFrameId = requestAnimationFrame(playLoop);
             
-            // 最初の数フレームでanimationFrameId設定をログ出力
-            if (frameCount <= 5) {
-                console.log(`[MIDI Playback] Frame ${frameCount}: Scheduled next frame with ID: ${this.animationFrameId}`);
-            }
+            // 最初の数フレームでanimationFrameId設定をログ出力（必要時のみ）
+            // if (frameCount <= 5) {
+            //     console.log(`[MIDI Playback] Frame ${frameCount}: Scheduled next frame with ID: ${this.animationFrameId}`);
+            // }
         };
         
         console.log(`[MIDI Playback] Starting playLoop`);

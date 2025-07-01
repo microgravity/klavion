@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>MIDI再生デバッグ</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #e5e7eb; }
+        .log { background: #0f0f23; padding: 10px; margin: 10px 0; border-radius: 5px; white-space: pre-wrap; }
+        .controls { margin: 20px 0; }
+        button { padding: 10px 20px; margin: 5px; background: #4338ca; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:disabled { background: #64748b; cursor: not-allowed; }
+        input[type="file"] { margin: 10px; }
+        .progress-bar { width: 300px; height: 20px; background: #374151; border-radius: 10px; margin: 10px 0; }
+        .progress-fill { height: 100%; background: #10b981; border-radius: 10px; width: 0%; transition: width 0.1s; }
+    </style>
+</head>
+<body>
+    <h1>MIDI再生デバッグツール</h1>
+    
+    <div class="controls">
+        <input type="file" id="file-input" accept=".mid,.midi">
+        <br>
+        <button id="play-btn" disabled>再生</button>
+        <button id="pause-btn" disabled>一時停止</button>
+        <button id="stop-btn" disabled>停止</button>
+        <button id="seek-btn" disabled>5秒位置にシーク</button>
+    </div>
+    
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    
+    <div>
+        時間: <span id="time-display">00:00 / 00:00</span>
+    </div>
+    
+    <div class="log" id="log"></div>
+    
+    <script>
+        class MIDIDebugger {
+            constructor() {
+                this.midiData = null;
+                this.isPlaying = false;
+                this.currentTime = 0;
+                this.totalTime = 0;
+                this.playbackRate = 1.0;
+                this.animationFrameId = null;
+                
+                this.setupElements();
+                this.setupControls();
+            }
+            
+            setupElements() {
+                this.fileInput = document.getElementById('file-input');
+                this.playBtn = document.getElementById('play-btn');
+                this.pauseBtn = document.getElementById('pause-btn');
+                this.stopBtn = document.getElementById('stop-btn');
+                this.seekBtn = document.getElementById('seek-btn');
+                this.progressFill = document.getElementById('progress-fill');
+                this.timeDisplay = document.getElementById('time-display');
+                this.logDiv = document.getElementById('log');
+            }
+            
+            setupControls() {
+                this.fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        this.loadMidiFile(file);
+                    }
+                });
+                
+                this.playBtn.addEventListener('click', () => this.playMidi());
+                this.pauseBtn.addEventListener('click', () => this.pauseMidi());
+                this.stopBtn.addEventListener('click', () => this.stopMidi());
+                this.seekBtn.addEventListener('click', () => this.seekToTime(5.0));
+            }
+            
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                const logMessage = `[${timestamp}] ${message}`;
+                console.log(logMessage);
+                this.logDiv.textContent += logMessage + '\n';
+                this.logDiv.scrollTop = this.logDiv.scrollHeight;
+            }
+            
+            async loadMidiFile(file) {
+                try {
+                    this.log(`MIDIファイル読み込み開始: ${file.name}`);
+                    const arrayBuffer = await file.arrayBuffer();
+                    this.midiData = this.parseMidi(arrayBuffer);
+                    this.totalTime = this.calculateTotalTime();
+                    this.currentTime = 0;
+                    
+                    this.log(`読み込み完了 - トラック数: ${this.midiData.tracks.length}`);
+                    this.log(`総再生時間: ${this.totalTime.toFixed(3)}秒`);
+                    this.log(`Division: ${this.midiData.division}`);
+                    
+                    // トラック別のイベント数を表示
+                    this.midiData.tracks.forEach((track, index) => {
+                        const noteEvents = track.filter(e => e.type === 'noteOn' || e.type === 'noteOff');
+                        this.log(`トラック${index}: 総イベント${track.length}個, 音符イベント${noteEvents.length}個`);
+                    });
+                    
+                    this.playBtn.disabled = false;
+                    this.seekBtn.disabled = false;
+                    this.updateTimeDisplay();
+                    
+                } catch (error) {
+                    this.log(`エラー: ${error.message}`);
+                }
+            }
+            
+            parseMidi(arrayBuffer) {
+                // 既存のparseMidi関数をコピー
+                const view = new DataView(arrayBuffer);
+                let offset = 0;
+                
+                const readString = (length) => {
+                    const str = Array.from(new Uint8Array(arrayBuffer, offset, length))
+                        .map(b => String.fromCharCode(b)).join('');
+                    offset += length;
+                    return str;
+                };
+                
+                const readUInt32 = () => {
+                    const value = view.getUint32(offset, false);
+                    offset += 4;
+                    return value;
+                };
+                
+                const readUInt16 = () => {
+                    const value = view.getUint16(offset, false);
+                    offset += 2;
+                    return value;
+                };
+                
+                const readUInt8 = () => {
+                    const value = view.getUint8(offset);
+                    offset += 1;
+                    return value;
+                };
+                
+                const readVariableLength = () => {
+                    let value = 0;
+                    let byte;
+                    do {
+                        byte = readUInt8();
+                        value = (value << 7) | (byte & 0x7F);
+                    } while (byte & 0x80);
+                    return value;
+                };
+                
+                // ヘッダー解析
+                const headerChunk = readString(4);
+                if (headerChunk !== 'MThd') {
+                    throw new Error('Invalid MIDI file');
+                }
+                
+                const headerLength = readUInt32();
+                const format = readUInt16();
+                const trackCount = readUInt16();
+                const division = readUInt16();
+                
+                this.log(`MIDI形式: ${format}, トラック数: ${trackCount}, Division: ${division}`);
+                
+                const tracks = [];
+                
+                for (let trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+                    const trackChunk = readString(4);
+                    if (trackChunk !== 'MTrk') {
+                        throw new Error(`Invalid track chunk: ${trackChunk}`);
+                    }
+                    
+                    const trackLength = readUInt32();
+                    const trackEnd = offset + trackLength;
+                    const track = [];
+                    
+                    let currentTime = 0;
+                    let runningStatus = 0;
+                    
+                    while (offset < trackEnd) {
+                        const deltaTime = readVariableLength();
+                        currentTime += deltaTime;
+                        
+                        let status = readUInt8();
+                        
+                        if (status < 0x80) {
+                            offset--;
+                            status = runningStatus;
+                        } else {
+                            runningStatus = status;
+                        }
+                        
+                        const messageType = status & 0xF0;
+                        const channel = status & 0x0F;
+                        
+                        if (messageType === 0x90) { // Note On
+                            const note = readUInt8();
+                            const velocity = readUInt8();
+                            if (velocity > 0) {
+                                track.push({
+                                    type: 'noteOn',
+                                    time: currentTime,
+                                    note: note,
+                                    velocity: velocity,
+                                    channel: channel
+                                });
+                            } else {
+                                track.push({
+                                    type: 'noteOff',
+                                    time: currentTime,
+                                    note: note,
+                                    velocity: 0,
+                                    channel: channel
+                                });
+                            }
+                        } else if (messageType === 0x80) { // Note Off
+                            const note = readUInt8();
+                            const velocity = readUInt8();
+                            track.push({
+                                type: 'noteOff',
+                                time: currentTime,
+                                note: note,
+                                velocity: velocity,
+                                channel: channel
+                            });
+                        } else if (messageType === 0xFF) { // Meta Event
+                            const metaType = readUInt8();
+                            const metaLength = readVariableLength();
+                            
+                            if (metaType === 0x51) { // Set Tempo
+                                const tempo = (readUInt8() << 16) | (readUInt8() << 8) | readUInt8();
+                                track.push({
+                                    type: 'setTempo',
+                                    time: currentTime,
+                                    microsecondsPerBeat: tempo
+                                });
+                            } else {
+                                offset += metaLength;
+                            }
+                        } else {
+                            // その他のイベントをスキップ
+                            if (messageType === 0xC0 || messageType === 0xD0) {
+                                readUInt8(); // 1バイトパラメータ
+                            } else if (messageType === 0xB0 || messageType === 0xA0 || messageType === 0xE0) {
+                                readUInt8(); // 2バイトパラメータ
+                                readUInt8();
+                            }
+                        }
+                    }
+                    
+                    tracks.push(track);
+                }
+                
+                return {
+                    format: format,
+                    tracks: tracks,
+                    division: division
+                };
+            }
+            
+            calculateTotalTime() {
+                if (!this.midiData) return 0;
+                
+                let maxTime = 0;
+                const ticksPerBeat = this.midiData.division;
+                let microsecondsPerBeat = 500000;
+                
+                this.midiData.tracks.forEach(track => {
+                    let currentTime = 0;
+                    track.forEach(event => {
+                        if (event.type === 'setTempo') {
+                            microsecondsPerBeat = event.microsecondsPerBeat;
+                        }
+                        currentTime = event.time;
+                    });
+                    
+                    const timeInSeconds = (currentTime / ticksPerBeat) * (microsecondsPerBeat / 1000000);
+                    maxTime = Math.max(maxTime, timeInSeconds);
+                });
+                
+                return maxTime;
+            }
+            
+            playMidi() {
+                if (!this.midiData || this.isPlaying) return;
+                
+                this.log(`再生開始 - 現在位置: ${this.currentTime.toFixed(3)}秒`);
+                this.isPlaying = true;
+                this.playBtn.disabled = true;
+                this.pauseBtn.disabled = false;
+                this.stopBtn.disabled = false;
+                
+                this.startMidiPlayback();
+            }
+            
+            pauseMidi() {
+                this.log(`一時停止 - 現在位置: ${this.currentTime.toFixed(3)}秒`);
+                this.isPlaying = false;
+                this.playBtn.disabled = false;
+                this.pauseBtn.disabled = true;
+                
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+            }
+            
+            stopMidi() {
+                this.log(`停止`);
+                this.isPlaying = false;
+                this.currentTime = 0;
+                this.playBtn.disabled = false;
+                this.pauseBtn.disabled = true;
+                this.stopBtn.disabled = true;
+                
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+                
+                this.updateUI();
+            }
+            
+            seekToTime(targetTime) {
+                this.log(`シーク: ${targetTime.toFixed(3)}秒へ移動`);
+                this.currentTime = Math.max(0, Math.min(targetTime, this.totalTime));
+                
+                if (this.isPlaying) {
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                        this.animationFrameId = null;
+                    }
+                    this.startMidiPlayback();
+                }
+                
+                this.updateUI();
+            }
+            
+            startMidiPlayback() {
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+                
+                const startTime = Date.now();
+                const seekOffset = this.currentTime;
+                const ticksPerBeat = this.midiData.division;
+                let microsecondsPerBeat = 500000;
+                
+                // すべてのイベントを収集
+                const allRawEvents = [];
+                this.midiData.tracks.forEach((track, trackIndex) => {
+                    track.forEach(event => {
+                        allRawEvents.push({
+                            ...event,
+                            trackIndex,
+                            tickTime: event.time
+                        });
+                    });
+                });
+                
+                allRawEvents.sort((a, b) => a.tickTime - b.tickTime);
+                
+                // 時間計算
+                const allEvents = [];
+                let currentTempo = microsecondsPerBeat;
+                let currentTickTime = 0;
+                let currentRealTime = 0;
+                
+                allRawEvents.forEach(event => {
+                    const tickDelta = event.tickTime - currentTickTime;
+                    const timeDelta = (tickDelta / ticksPerBeat) * (currentTempo / 1000000);
+                    currentRealTime += timeDelta;
+                    currentTickTime = event.tickTime;
+                    
+                    if (event.type === 'setTempo') {
+                        currentTempo = event.microsecondsPerBeat;
+                    } else if (event.type === 'noteOn' || event.type === 'noteOff') {
+                        allEvents.push({
+                            ...event,
+                            timeInSeconds: currentRealTime
+                        });
+                    }
+                });
+                
+                let eventIndex = 0;
+                while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds < seekOffset) {
+                    eventIndex++;
+                }
+                
+                this.log(`再生開始詳細 - 総イベント: ${allEvents.length}, 開始インデックス: ${eventIndex}, シークオフセット: ${seekOffset.toFixed(3)}秒`);
+                
+                if (allEvents.length > 0) {
+                    this.log(`最初のイベント: ${allEvents[0].type} note ${allEvents[0].note} at ${allEvents[0].timeInSeconds.toFixed(3)}s`);
+                    if (allEvents.length > 1) {
+                        this.log(`2番目のイベント: ${allEvents[1].type} note ${allEvents[1].note} at ${allEvents[1].timeInSeconds.toFixed(3)}s`);
+                    }
+                }
+                
+                let frameCount = 0;
+                const playLoop = () => {
+                    frameCount++;
+                    
+                    if (!this.isPlaying) {
+                        this.log(`再生停止 (フレーム: ${frameCount})`);
+                        return;
+                    }
+                    
+                    const elapsed = seekOffset + (Date.now() - startTime) / 1000 * this.playbackRate;
+                    this.currentTime = elapsed;
+                    
+                    if (frameCount <= 10) {
+                        this.log(`フレーム ${frameCount}: 経過時間=${elapsed.toFixed(3)}s, eventIndex=${eventIndex}/${allEvents.length}`);
+                    }
+                    
+                    let eventsProcessed = 0;
+                    while (eventIndex < allEvents.length && allEvents[eventIndex].timeInSeconds <= elapsed) {
+                        const event = allEvents[eventIndex];
+                        eventsProcessed++;
+                        
+                        this.log(`イベント処理: ${event.type} note ${event.note} at ${elapsed.toFixed(3)}s (予定時間: ${event.timeInSeconds.toFixed(3)}s)`);
+                        eventIndex++;
+                    }
+                    
+                    if (eventsProcessed > 0) {
+                        this.log(`フレーム ${frameCount}: ${eventsProcessed}個のイベントを処理, currentIndex: ${eventIndex}/${allEvents.length}`);
+                    }
+                    
+                    this.updateUI();
+                    
+                    if (elapsed >= this.totalTime || eventIndex >= allEvents.length) {
+                        this.log(`再生終了 - 経過時間: ${elapsed.toFixed(3)}s, 総時間: ${this.totalTime.toFixed(3)}s, eventIndex: ${eventIndex}/${allEvents.length}`);
+                        this.stopMidi();
+                        return;
+                    }
+                    
+                    this.animationFrameId = requestAnimationFrame(playLoop);
+                    
+                    if (frameCount <= 10) {
+                        this.log(`フレーム ${frameCount}: 次フレームをスケジュール ID: ${this.animationFrameId}`);
+                    }
+                };
+                
+                this.log(`playLoop開始`);
+                playLoop();
+            }
+            
+            updateUI() {
+                const progress = this.totalTime > 0 ? (this.currentTime / this.totalTime) * 100 : 0;
+                this.progressFill.style.width = `${Math.min(progress, 100)}%`;
+                this.updateTimeDisplay();
+            }
+            
+            updateTimeDisplay() {
+                const formatTime = (seconds) => {
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                };
+                
+                this.timeDisplay.textContent = `${formatTime(this.currentTime)} / ${formatTime(this.totalTime)}`;
+            }
+        }
+        
+        const debugger = new MIDIDebugger();
+    </script>
+</body>
+</html>
