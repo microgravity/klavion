@@ -2289,49 +2289,49 @@ class PianoVisualizer {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Only draw waveform if analyzer is available and enabled
-        if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.waveformData) {
+        // Draw visualization based on display mode
+        if (this.analyserNode && this.waveformData && this.settings.displayMode !== 'none') {
             try {
-                // Get frequency data for spectrum
-                this.analyserNode.getByteFrequencyData(this.waveformData);
-                
-                // Draw spectrum bars
-                const barWidth = canvas.width / this.waveformData.length;
-                ctx.fillStyle = 'rgba(96, 165, 250, 0.3)';
-                
-                for (let i = 0; i < this.waveformData.length; i++) {
-                    const barHeight = (this.waveformData[i] / 255) * canvas.height * 0.5;
-                    const x = i * barWidth;
-                    const y = canvas.height - barHeight;
+                if (this.settings.displayMode === 'spectrum') {
+                    // Draw spectrum analyzer bars
+                    this.analyserNode.getByteFrequencyData(this.waveformData);
                     
-                    ctx.fillRect(x, y, barWidth - 1, barHeight);
-                }
-                
-                // Get time domain data for waveform
-                this.analyserNode.getByteTimeDomainData(this.timeData);
-                
-                // Draw waveform line
-                ctx.strokeStyle = 'rgba(52, 211, 153, 0.6)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                const sliceWidth = canvas.width / this.timeData.length;
-                let x = 0;
-                
-                for (let i = 0; i < this.timeData.length; i++) {
-                    const v = this.timeData[i] / 128.0;
-                    const y = v * canvas.height / 2;
+                    const barWidth = canvas.width / this.waveformData.length;
+                    ctx.fillStyle = 'rgba(96, 165, 250, 0.6)';
                     
-                    if (i === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
+                    for (let i = 0; i < this.waveformData.length; i++) {
+                        const barHeight = (this.waveformData[i] / 255) * canvas.height * 0.7;
+                        const x = i * barWidth;
+                        const y = canvas.height - barHeight;
+                        
+                        ctx.fillRect(x, y, barWidth - 1, barHeight);
+                    }
+                } else if (this.settings.displayMode === 'waveform') {
+                    // Draw waveform line
+                    this.analyserNode.getByteTimeDomainData(this.timeData);
+                    
+                    ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    
+                    const sliceWidth = canvas.width / this.timeData.length;
+                    let x = 0;
+                    
+                    for (let i = 0; i < this.timeData.length; i++) {
+                        const v = this.timeData[i] / 128.0;
+                        const y = v * canvas.height / 2;
+                        
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                        
+                        x += sliceWidth;
                     }
                     
-                    x += sliceWidth;
+                    ctx.stroke();
                 }
-                
-                ctx.stroke();
                 
                 // Force texture update
                 if (this.backgroundPlane && this.backgroundPlane.material.map) {
