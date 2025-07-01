@@ -414,8 +414,12 @@ class PianoVisualizer {
             
             // Create analyzer node for spectrum visualization
             this.analyserNode = this.audioContext.createAnalyser();
-            this.analyserNode.fftSize = 256;
+            this.analyserNode.fftSize = 512;
             this.analyserNode.smoothingTimeConstant = 0.8;
+            
+            // Initialize waveform data arrays
+            this.waveformData = new Uint8Array(this.analyserNode.frequencyBinCount);
+            this.timeData = new Uint8Array(this.analyserNode.fftSize);
             
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
@@ -1073,7 +1077,7 @@ class PianoVisualizer {
             const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.7);
             context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
             context.shadowBlur = 10 * glowIntensity;
-            context.fillText(`(${velocity})`, canvas.width / 2, velocityTextY);
+            context.fillText(`${velocity}`, canvas.width / 2, velocityTextY);
         }
     }
 
@@ -2150,14 +2154,11 @@ class PianoVisualizer {
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
             
-            // 美しい放射状グラデーション描画
-            const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
-            gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
-            gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+            // Store canvas and context for waveform updates
+            this.backgroundCanvas = canvas;
+            this.backgroundContext = ctx;
             
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 512, 512);
+            this.drawBackgroundWithWaveform();
             
             // Canvas要素からテクスチャを作成
             const texture = new THREE.CanvasTexture(canvas);
@@ -2188,6 +2189,79 @@ class PianoVisualizer {
             
         } catch (error) {
             console.error('❌ Error creating canvas background:', error);
+        }
+    }
+    
+    drawBackgroundWithWaveform() {
+        if (!this.backgroundContext) return;
+        
+        const ctx = this.backgroundContext;
+        const canvas = this.backgroundCanvas;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw gradient background
+        const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.2)');
+        gradient.addColorStop(0.5, 'rgba(118, 75, 162, 0.15)');
+        gradient.addColorStop(1, 'rgba(15, 15, 35, 0.1)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw waveform if analyzer is available
+        if (this.analyserNode && this.waveformData) {
+            try {
+                // Get frequency data for spectrum
+                this.analyserNode.getByteFrequencyData(this.waveformData);
+                
+                // Draw spectrum bars
+                const barWidth = canvas.width / this.waveformData.length;
+                ctx.fillStyle = 'rgba(96, 165, 250, 0.3)';
+                
+                for (let i = 0; i < this.waveformData.length; i++) {
+                    const barHeight = (this.waveformData[i] / 255) * canvas.height * 0.5;
+                    const x = i * barWidth;
+                    const y = canvas.height - barHeight;
+                    
+                    ctx.fillRect(x, y, barWidth - 1, barHeight);
+                }
+                
+                // Get time domain data for waveform
+                this.analyserNode.getByteTimeDomainData(this.timeData);
+                
+                // Draw waveform line
+                ctx.strokeStyle = 'rgba(52, 211, 153, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                const sliceWidth = canvas.width / this.timeData.length;
+                let x = 0;
+                
+                for (let i = 0; i < this.timeData.length; i++) {
+                    const v = this.timeData[i] / 128.0;
+                    const y = v * canvas.height / 2;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                    
+                    x += sliceWidth;
+                }
+                
+                ctx.stroke();
+                
+                // Update texture
+                if (this.backgroundPlane && this.backgroundPlane.material.map) {
+                    this.backgroundPlane.material.map.needsUpdate = true;
+                }
+                
+            } catch (error) {
+                console.warn('Waveform drawing error:', error);
+            }
         }
     }
     
@@ -2601,6 +2675,9 @@ class PianoVisualizer {
                     this.noteObjects.splice(i, 1);
                 }
             }
+            
+            // Update waveform background
+            this.drawBackgroundWithWaveform();
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
