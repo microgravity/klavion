@@ -26,6 +26,13 @@ class PianoVisualizer {
         // Piano key visual state tracking
         this.activeKeys = new Set(); // Track which keys are currently pressed
         
+        // Performance optimization: Canvas and texture caching
+        this.canvasPool = []; // Reusable canvas pool
+        this.textureCache = new Map(); // Cache for text textures
+        this.spritePool = []; // Reusable sprite pool
+        this.maxPoolSize = 20; // Maximum cached objects
+        this.lastNoteTime = 0; // Track last note activity for performance
+        
         this.settings = {
             animationSpeed: 1.0,
             sizeMultiplier: 1.0,
@@ -955,6 +962,114 @@ class PianoVisualizer {
         }
     }
     
+    // Canvas pool management for performance
+    getCanvasFromPool() {
+        if (this.canvasPool.length > 0) {
+            return this.canvasPool.pop();
+        }
+        
+        // Create new canvas if pool is empty
+        const canvas = document.createElement('canvas');
+        canvas.width = 768; // Increased from 512 for larger fonts
+        canvas.height = 576; // Increased to accommodate velocity text
+        return canvas;
+    }
+    
+    returnCanvasToPool(canvas) {
+        if (this.canvasPool.length < this.maxPoolSize) {
+            // Clear canvas and return to pool
+            const context = canvas.getContext('2d');
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            this.canvasPool.push(canvas);
+        }
+    }
+    
+    // Sprite pool management for performance
+    getSpriteFromPool() {
+        if (this.spritePool.length > 0) {
+            const sprite = this.spritePool.pop();
+            sprite.visible = true;
+            return sprite;
+        }
+        return null; // Will create new sprite if none available
+    }
+    
+    returnSpriteToPool(sprite) {
+        if (this.spritePool.length < this.maxPoolSize) {
+            sprite.visible = false;
+            sprite.material.map = null; // Clear texture reference
+            sprite.position.set(0, 0, 0);
+            sprite.scale.set(1, 1, 1);
+            this.spritePool.push(sprite);
+        }
+    }
+
+    // Optimized text rendering method
+    renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size) {
+        const glowIntensity = this.settings.glowIntensity;
+        const fontFamily = this.settings.fontFamily;
+        
+        // Prepare note name components
+        const noteIndex = midiNote % 12;
+        const octave = Math.floor(midiNote / 12) - 1;
+        const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
+        
+        let mainText = noteNamesArray[noteIndex];
+        if (this.settings.showOctaveNumbers) {
+            mainText += octave;
+        }
+        
+        // Convert hex to rgba for canvas
+        let textColor = 'rgba(255, 255, 255, 1)';
+        if (color) {
+            const hex = color.replace('#', '');
+            if (hex.length === 6) {
+                const r = parseInt(hex.substr(0, 2), 16);
+                const g = parseInt(hex.substr(2, 2), 16);
+                const b = parseInt(hex.substr(4, 2), 16);
+                textColor = `rgba(${r}, ${g}, ${b}, 1)`;
+            }
+        }
+        
+        context.fillStyle = textColor;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        
+        // Optimized font size calculations for increased readability (130% improvement)
+        const mainFontSize = !this.hasMidiInput ? 127 * size : 184 * size; // Increased by 130%
+        const velocityFontSize = !this.hasMidiInput ? 69 * size : 115 * size; // Increased by 130%
+        const lineHeight = 1.4;
+        const canvasCenter = canvas.height / 2;
+        
+        let mainTextY = canvasCenter;
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            const totalHeight = mainFontSize + (velocityFontSize * lineHeight);
+            mainTextY = canvasCenter - (totalHeight / 4);
+        }
+        
+        // Draw main note name with optimized rendering
+        context.font = `bold ${mainFontSize}px ${fontFamily}, Arial, sans-serif`;
+        
+        // Simplified glow effect for better performance
+        if (glowIntensity > 0) {
+            context.shadowColor = textColor.replace(', 1)', ', ' + (glowIntensity * 0.8) + ')');
+            context.shadowBlur = 15 * glowIntensity;
+            context.shadowOffsetX = 0;
+            context.shadowOffsetY = 0;
+        }
+        
+        // Single optimized text draw
+        context.fillText(mainText, canvas.width / 2, mainTextY);
+        
+        // Draw velocity number if enabled
+        if (this.settings.showVelocityNumbers && velocity !== null) {
+            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.7);
+            context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
+            context.shadowBlur = 10 * glowIntensity;
+            context.fillText(`(${velocity})`, canvas.width / 2, velocityTextY);
+        }
+    }
+
     getTimbreDuration(timbre) {
         const durations = {
             'acoustic-piano': 2.5,
@@ -1285,122 +1400,54 @@ class PianoVisualizer {
             return;
         }
         
-        console.log(`🎵 visualizeNoteThreeJS called: ${noteName}, MIDI:${midiNote}, vel:${velocity}`);
+        // Update last note time for performance optimization
+        this.lastNoteTime = performance.now();
         
         const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
-        // Create text sprite with larger canvas for better quality
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        // Increase canvas size to accommodate velocity text without clipping
-        canvas.width = 512;
-        canvas.height = this.settings.showVelocityNumbers && velocity !== null ? 384 : 256; // 1.5x height for velocity display
+        // Check cache first for performance optimization
+        const cacheKey = `${noteName}-${velocity}-${this.settings.showVelocityNumbers}-${this.settings.showOctaveNumbers}-${this.settings.noteNameStyle}-${color}`;
+        let texture = this.textureCache.get(cacheKey);
         
-        // Enhanced text rendering with glow effect
-        const glowIntensity = this.settings.glowIntensity;
-        const fontFamily = this.settings.fontFamily;
-        
-        // Prepare note name components
-        const noteIndex = midiNote % 12;
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
-        
-        let mainText = noteNamesArray[noteIndex];
-        if (this.settings.showOctaveNumbers) {
-            mainText += octave;
-        }
-        
-        // Get note color using the color palette system
-        const noteColorHex = this.getNoteColor(midiNote, velocity);
-        console.log(`🎨 Note color for MIDI ${midiNote}: ${noteColorHex} (colorScale: ${this.settings.colorScale})`);
-        
-        // Convert hex to rgba for canvas
-        let textColor = 'rgba(255, 255, 255, 1)'; // Fallback
-        if (noteColorHex) {
-            const hex = noteColorHex.replace('#', '');
-            if (hex.length === 6) {
-                const r = parseInt(hex.substr(0, 2), 16);
-                const g = parseInt(hex.substr(2, 2), 16);
-                const b = parseInt(hex.substr(4, 2), 16);
-                textColor = `rgba(${r}, ${g}, ${b}, 1)`;
-                console.log(`🎨 Converted to RGBA: ${textColor}`);
-            }
-        }
-        context.fillStyle = textColor;
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        
-        // Calculate line positions based on font size, line-height, and canvas size
-        const mainFontSize = !this.hasMidiInput ? 55 * size : 80 * size;
-        const velocityFontSize = !this.hasMidiInput ? 30 * size : 50 * size;
-        const lineHeight = !this.hasMidiInput ? 1.6 : 2.0; // Tighter spacing for PC keyboard input
-        const canvasCenter = canvas.height / 2; // Dynamic center based on canvas height
-        
-        let mainTextY = canvasCenter; // Default center position
-        if (this.settings.showVelocityNumbers && velocity !== null) {
-            // Adjust main text position to accommodate velocity text below
-            const totalHeight = mainFontSize + (velocityFontSize * lineHeight);
-            mainTextY = canvasCenter - (totalHeight / 4); // Move up to center both lines
-        }
-        
-        // Draw main note name
-        context.font = `bold ${mainFontSize}px ${fontFamily}, Arial, sans-serif`;
-        
-        // Add glow effect for main text (using same color as text)
-        if (glowIntensity > 0) {
-            const glowColor = textColor.replace('rgba(', '').replace(')', '').replace(', 1', ', ' + glowIntensity);
-            context.shadowColor = 'rgba(' + glowColor + ')';
-            context.shadowBlur = 20 * glowIntensity;
-            context.shadowOffsetX = 0;
-            context.shadowOffsetY = 0;
+        if (!texture) {
+            // Get canvas from pool or create new one
+            const canvas = this.getCanvasFromPool();
+            const context = canvas.getContext('2d');
             
-            // Multiple glow layers for intensity
-            for (let i = 0; i < 3; i++) {
-                context.fillText(mainText, canvas.width / 2, mainTextY);
-            }
-        }
+            // Clear canvas for reuse
+            context.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Main text
-        context.shadowBlur = 5;
-        context.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        context.shadowOffsetX = 2;
-        context.shadowOffsetY = 2;
-        context.fillText(mainText, canvas.width / 2, mainTextY);
-        
-        // Draw velocity number with smaller font if enabled
-        if (this.settings.showVelocityNumbers && velocity !== null) {
-            // Calculate velocity text position based on line-height
-            const velocityTextY = mainTextY + (mainFontSize * lineHeight * 0.8); // Line-height spacing from main text
+            // Render text to canvas only if not cached
+            this.renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size);
             
-            context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
-            const velocityText = `(${velocity})`;
+            // Create texture and cache it
+            texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
             
-            // Add glow effect for velocity text (using same color as main text)
-            if (glowIntensity > 0) {
-                const glowColor = textColor.replace('rgba(', '').replace(')', '').replace(', 1', ', ' + glowIntensity);
-                context.shadowColor = 'rgba(' + glowColor + ')';
-                context.shadowBlur = 15 * glowIntensity;
-                
-                for (let i = 0; i < 2; i++) {
-                    context.fillText(velocityText, canvas.width / 2, velocityTextY);
-                }
+            // Cache texture for reuse (limit cache size)
+            if (this.textureCache.size < 50) {
+                this.textureCache.set(cacheKey, texture);
             }
             
-            // Velocity text with proper line-height spacing
-            context.shadowBlur = 3;
-            context.fillText(velocityText, canvas.width / 2, velocityTextY);
+            // Return canvas to pool for reuse
+            this.returnCanvasToPool(canvas);
         }
         
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        
-        const spriteMaterial = new THREE.SpriteMaterial({ 
-            map: texture, 
-            transparent: true,
-            alphaTest: 0.1
-        });
-        const sprite = new THREE.Sprite(spriteMaterial);
+        // Try to get sprite from pool, otherwise create new
+        let sprite = this.getSpriteFromPool();
+        if (!sprite) {
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture, 
+                transparent: true,
+                alphaTest: 0.1
+            });
+            sprite = new THREE.Sprite(spriteMaterial);
+        } else {
+            // Reuse sprite material but update texture
+            sprite.material.map = texture;
+            sprite.material.needsUpdate = true;
+        }
         
         // Position based on piano key
         const keyElement = this.pianoKeyboard.querySelector(`[data-note="${midiNote}"]`);
@@ -1435,6 +1482,13 @@ class PianoVisualizer {
         
         this.scene.add(sprite);
         this.noteObjects.push(sprite);
+        
+        // Limit maximum note objects for performance (high-speed playing)
+        if (this.noteObjects.length > 100) {
+            const oldestSprite = this.noteObjects.shift();
+            this.scene.remove(oldestSprite);
+            this.returnSpriteToPool(oldestSprite);
+        }
         
         // Track active note sprite
         if (this.activeNoteSprites.has(midiNote)) {
@@ -2432,15 +2486,21 @@ class PianoVisualizer {
         
         console.log('✅ Starting Three.js animation loop');
         
-        const animate = () => {
-            const currentTime = performance.now();
+        let lastFrameTime = 0;
+        const frameTimeLimit = 16.67; // ~60fps limit
+        
+        const animate = (currentTime) => {
+            // Throttle frame rate for consistent performance
+            if (currentTime - lastFrameTime < frameTimeLimit) {
+                requestAnimationFrame(animate);
+                return;
+            }
+            lastFrameTime = currentTime;
             
-            // Fluid background animation removed for debugging
-            
-            // Debug: Log sprite count every 2 seconds
-            if (Math.floor(currentTime / 2000) > this.lastDebugTime) {
-                this.lastDebugTime = Math.floor(currentTime / 2000);
-                console.log(`🎵 Animation loop running - Active sprites: ${this.noteObjects.length}`);
+            // Skip rendering if no active sprites and no recent activity
+            if (this.noteObjects.length === 0 && currentTime - this.lastNoteTime > 1000) {
+                requestAnimationFrame(animate);
+                return;
             }
             
             // Update note sprites with sustained note logic
@@ -2531,10 +2591,9 @@ class PianoVisualizer {
                 // Remove sprite if needed
                 if (shouldRemove) {
                     this.scene.remove(sprite);
-                    if (sprite.material.map) {
-                        sprite.material.map.dispose();
-                    }
-                    sprite.material.dispose();
+                    
+                    // Return sprite to pool instead of disposing
+                    this.returnSpriteToPool(sprite);
                     this.noteObjects.splice(i, 1);
                 }
             }
