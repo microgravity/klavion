@@ -3591,20 +3591,24 @@ class PianoVisualizer {
     startSpectrumAnimation() {
         if (!this.analyserNode || !this.spectrumContext) return;
         
-        const drawSpectrum = () => {
-            if (this.settings.showSpectrumAnalyzer && this.analyserNode && this.spectrumContext) {
-                this.drawWaveform();
+        const drawVisualization = () => {
+            if (this.analyserNode && this.spectrumContext && this.settings.displayMode !== 'none') {
+                if (this.settings.displayMode === 'spectrum') {
+                    this.drawSpectrumBars();
+                } else if (this.settings.displayMode === 'waveform') {
+                    this.drawWaveformLine();
+                }
             } else if (this.spectrumContext && this.spectrumCanvas) {
                 // Clear spectrum canvas when disabled
                 this.spectrumContext.clearRect(0, 0, this.spectrumCanvas.width, this.spectrumCanvas.height);
             }
-            this.animationFrameId = requestAnimationFrame(drawSpectrum);
+            this.animationFrameId = requestAnimationFrame(drawVisualization);
         };
         
-        drawSpectrum();
+        drawVisualization();
     }
     
-    drawWaveform() {
+    drawWaveformLine() {
         if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
         const bufferLength = this.analyserNode.fftSize;
@@ -3651,6 +3655,37 @@ class PianoVisualizer {
         }
         
         this.spectrumContext.stroke();
+    }
+    
+    drawSpectrumBars() {
+        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
+        
+        const bufferLength = this.analyserNode.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        this.analyserNode.getByteFrequencyData(dataArray);
+        
+        const width = this.spectrumCanvas.width;
+        const height = this.spectrumCanvas.height;
+        
+        // Clear canvas
+        this.spectrumContext.clearRect(0, 0, width, height);
+        
+        // Draw spectrum bars
+        const barWidth = width / bufferLength;
+        
+        for (let i = 0; i < bufferLength; i++) {
+            const barHeight = (dataArray[i] / 255) * height * 0.8;
+            const x = i * barWidth;
+            const y = height - barHeight;
+            
+            // Create gradient for each bar
+            const gradient = this.spectrumContext.createLinearGradient(0, y, 0, height);
+            gradient.addColorStop(0, `hsl(${(i / bufferLength) * 360}, 70%, 60%)`);
+            gradient.addColorStop(1, `hsl(${(i / bufferLength) * 360}, 70%, 30%)`);
+            
+            this.spectrumContext.fillStyle = gradient;
+            this.spectrumContext.fillRect(x, y, barWidth - 1, barHeight);
+        }
     }
 }
 
