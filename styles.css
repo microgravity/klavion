@@ -457,6 +457,71 @@ body {
     font-weight: 500;
 }
 
+/* カスタムカラー選択機能 */
+#color-customization {
+    display: none;
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#color-customization.visible {
+    display: block;
+}
+
+#base-color-picker {
+    width: 100%;
+    height: 40px;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    margin-bottom: 12px;
+}
+
+#color-code-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+    border-radius: 6px;
+    background: rgba(31, 41, 55, 0.8);
+    color: #e5e7eb;
+    font-size: 0.875rem;
+    font-family: 'Roboto Mono', monospace;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+
+#color-code-input:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+#apply-color-code {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #60a5fa;
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#apply-color-code:hover {
+    background: #3b82f6;
+}
+
+#apply-color-code:active {
+    background: #2563eb;
+    transform: translateY(1px);
+}
+
 .audio-controls {
     margin: 20px 0;
 }
