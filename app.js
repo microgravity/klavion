@@ -52,7 +52,8 @@ class PianoVisualizer {
             displayMode: 'waveform',
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
-            customBaseColor: '#ffffff'
+            customBaseColor: '#ffffff',
+            showVisualizationWhenMuted: true
         };
         
         // Piano configuration
@@ -876,6 +877,11 @@ class PianoVisualizer {
         // Check if audio is muted (but allow during recording)
         if (this.settings.isMuted && !this.isRecording) {
             console.log(`🔇 Audio synthesis skipped - muted`);
+            // ミュート時でも波形・スペクトラム表示のためのサイレント信号を生成（設定により制御）
+            if (this.settings.showVisualizationWhenMuted) {
+                console.log(`🌊 Generating silent visualization signal for muted audio`);
+                this.generateSilentVisualizationSignal(frequency, velocity, midiNote);
+            }
             return;
         }
         
@@ -971,6 +977,40 @@ class PianoVisualizer {
         // Connect to analyzer node for spectrum analyzer
         if (this.analyserNode) {
             node.connect(this.analyserNode);
+        }
+    }
+
+    // ミュート時の波形・スペクトラム表示用のサイレント信号生成
+    generateSilentVisualizationSignal(frequency, velocity, midiNote = null) {
+        if (!this.audioContext || !this.analyserNode) return;
+
+        try {
+            // 非常に小さな音量（実質的に無音）でオシレーターを作成
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            // 周波数を設定（実際の音程に合わせる）
+            oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+            oscillator.type = 'sine';
+            
+            // 実質的に無音のボリューム（analyzerには影響するが聞こえない）
+            const visualizationVolume = 0.0001; // 非常に小さな値
+            gainNode.gain.setValueAtTime(visualizationVolume, this.audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, this.audioContext.currentTime + 0.1);
+            
+            // analyzerNodeにのみ接続（音声出力には接続しない）
+            oscillator.connect(gainNode);
+            gainNode.connect(this.analyserNode);
+            
+            // 短時間だけ再生
+            const currentTime = this.audioContext.currentTime;
+            oscillator.start(currentTime);
+            oscillator.stop(currentTime + 0.1); // 100ms
+            
+            console.log(`🔇 Silent visualization signal generated: ${frequency.toFixed(1)}Hz for analyzer`);
+            
+        } catch (error) {
+            console.warn('Failed to generate silent visualization signal:', error);
         }
     }
     
@@ -1756,6 +1796,15 @@ class PianoVisualizer {
             this.settings.showOctaveNumbers = e.target.checked;
             console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
+
+        // Show visualization when muted toggle
+        const visualizationWhenMutedToggle = document.getElementById('show-visualization-when-muted');
+        if (visualizationWhenMutedToggle) {
+            visualizationWhenMutedToggle.addEventListener('change', (e) => {
+                this.settings.showVisualizationWhenMuted = e.target.checked;
+                console.log(`🔇 Visualization when muted: ${e.target.checked ? 'enabled' : 'disabled'}`);
+            });
+        }
         
         // Display mode selector (waveform/spectrum/none)
         const displayModeSelector = document.getElementById('display-mode');
