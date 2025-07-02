@@ -385,23 +385,31 @@ body {
     font-family: monospace;
 }
 
-/* MIDIペダル状態表示 */
+/* MIDIペダル状態表示 - 鍵盤下エリア中央配置 */
 .midi-pedal-status {
-    margin-top: 12px;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    background: rgba(15, 15, 35, 0.95);
+    border-radius: 8px;
+    border: 1px solid rgba(156, 163, 175, 0.2);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 110;
 }
 
 .pedal-indicator {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 8px;
-    border-radius: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
     transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
+    min-width: 120px;
+    justify-content: center;
 }
 
 .pedal-indicator.active {
@@ -714,6 +722,35 @@ body {
     
     .modal-message {
         font-size: 0.875rem;
+    }
+    
+    /* ペダル表示のモバイル調整 */
+    .piano-container {
+        left: 0;
+    }
+    
+    .midi-pedal-status {
+        bottom: 4px;
+        padding: 6px 10px;
+    }
+    
+    .pedal-indicator {
+        gap: 6px;
+        padding: 3px 6px;
+        min-width: 100px;
+    }
+    
+    .pedal-icon {
+        font-size: 14px;
+    }
+    
+    .pedal-label {
+        font-size: 10px;
+    }
+    
+    .pedal-status {
+        font-size: 9px;
+        padding: 1px 4px;
     }
 }
 
