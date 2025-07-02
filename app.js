@@ -3839,14 +3839,14 @@ class PianoVisualizer {
         }
         
         const shareData = {
-            title: 'Piano Visualizer - Interactive 3D Piano with MIDI Support',
-            text: '🎹 美しい3Dビジュアライゼーション付きピアノ演奏ツール！MIDIサポート、ColorHunt Retroパレット、Full HD録画機能搭載。',
+            title: 'Klavion - MIDIピアノビジュアライザー',
+            text: '🎹 Klavionは、MIDIキーボードの演奏をリアルタイムに可視化できるWebアプリです。ピアノの練習や発表、趣味の記録にも。ブラウザだけですぐ使えます。',
             url: window.location.href
         };
         
         // Twitter share
         twitterBtn.addEventListener('click', () => {
-            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=PianoVisualizer,MIDI,3D,音楽,ピアノ`;
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=Klavion,ピアノ練習ツール,MIDIビジュアライザー`;
             window.open(twitterUrl, '_blank', 'width=550,height=420');
         });
         
