@@ -976,9 +976,9 @@ class PianoVisualizer {
         if (!this.audioContext || !this.analyserNode) return;
 
         try {
-            // ベロシティに基づいた視覚化用ボリューム計算
+            // ベロシティに基づいた視覚化用ボリューム計算（波形表示用に大きく設定）
             const velocityRatio = velocity / 127;
-            const baseVolume = 0.002 + (velocityRatio * 0.018); // 0.002～0.02の範囲に拡大
+            const baseVolume = 0.1 + (velocityRatio * 0.4); // 0.1～0.5の範囲で波形表示用
             
             // メインオシレーター（基音）
             const mainOsc = this.audioContext.createOscillator();
@@ -3434,11 +3434,22 @@ class PianoVisualizer {
     }
     
     drawWaveformLine() {
-        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
+        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) {
+            console.warn('🌊 Waveform drawing skipped - missing components');
+            return;
+        }
         
         const bufferLength = this.analyserNode.fftSize;
         const dataArray = new Uint8Array(bufferLength);
         this.analyserNode.getByteTimeDomainData(dataArray);
+        
+        // デバッグ: データの存在確認
+        const hasData = dataArray.some(value => Math.abs(value - 128) > 1);
+        if (!hasData && Math.random() < 0.01) { // 1%の確率でログ出力
+            console.warn('🌊 No waveform data detected');
+        } else if (hasData && Math.random() < 0.01) {
+            console.log('🌊 Waveform data detected, range:', Math.min(...dataArray), '-', Math.max(...dataArray));
+        }
         
         const width = this.spectrumCanvas.width;
         const height = this.spectrumCanvas.height;
@@ -3483,11 +3494,22 @@ class PianoVisualizer {
     }
     
     drawSpectrumBars() {
-        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
+        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) {
+            console.warn('🎵 Spectrum drawing skipped - missing components');
+            return;
+        }
         
         const bufferLength = this.analyserNode.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
         this.analyserNode.getByteFrequencyData(dataArray);
+        
+        // デバッグ: データの存在確認
+        const hasData = dataArray.some(value => value > 0);
+        if (!hasData && Math.random() < 0.01) { // 1%の確率でログ出力
+            console.warn('🎵 No spectrum data detected');
+        } else if (hasData && Math.random() < 0.01) {
+            console.log('🎵 Spectrum data detected, max:', Math.max(...dataArray));
+        }
         
         const width = this.spectrumCanvas.width;
         const height = this.spectrumCanvas.height;
