@@ -715,11 +715,11 @@ class PianoVisualizer {
         this.createPianoKeyboard();
     }
     
-    playNote(midiNote, velocity, timestamp = performance.now()) {
+    playNote(midiNote, velocity, timestamp = performance.now(), enableVisualization = true) {
         const frequency = this.midiNoteToFrequency(midiNote);
         const noteName = this.midiNoteToNoteName(midiNote, velocity);
         
-        this.synthesizeNote(frequency, velocity, midiNote);
+        this.synthesizeNote(frequency, velocity, midiNote, enableVisualization);
         this.visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp);
         
         // Update piano key visual state
@@ -733,7 +733,7 @@ class PianoVisualizer {
         this.updateRecordingCanvasImmediate();
     }
     
-    stopNote(midiNote, timestamp = performance.now()) {
+    stopNote(midiNote, timestamp = performance.now(), enableVisualization = true) {
         // Mark visual note as inactive
         if (this.activeNoteSprites.has(midiNote)) {
             const sprite = this.activeNoteSprites.get(midiNote);
@@ -844,7 +844,7 @@ class PianoVisualizer {
         this.highlightPianoKey(midiNote, false);
     }
     
-    synthesizeNote(frequency, velocity, midiNote = null) {
+    synthesizeNote(frequency, velocity, midiNote = null, enableVisualization = true) {
         if (!this.audioContext) {
             console.log('🔇 Audio synthesis skipped - no AudioContext');
             return;
@@ -860,7 +860,7 @@ class PianoVisualizer {
         if (this.settings.isMuted && !this.isRecording) {
             console.log(`🔇 Audio synthesis skipped - muted`);
             // ミュート時でも波形・スペクトラム表示のためのサイレント信号を生成（設定により制御）
-            if (this.settings.showVisualizationWhenMuted) {
+            if (this.settings.showVisualizationWhenMuted && enableVisualization) {
                 console.log(`🌊 Generating silent visualization signal for muted audio`);
                 this.generateSilentVisualizationSignal(frequency, velocity, midiNote);
             }
@@ -878,12 +878,12 @@ class PianoVisualizer {
         
         // Create audio nodes based on selected timbre
         const timbre = this.settings.audioTimbre;
-        const audioNodes = this.createTimbreNodes(frequency, finalVolume, timbre, midiNote);
+        const audioNodes = this.createTimbreNodes(frequency, finalVolume, timbre, midiNote, enableVisualization);
         
         console.log(`🎵 Synthesized ${timbre}: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${finalVolume.toFixed(3)} ${midiNote ? `(MIDI:${midiNote})` : ''}`);
     }
     
-    createTimbreNodes(frequency, volume, timbre, midiNote = null) {
+    createTimbreNodes(frequency, volume, timbre, midiNote = null, enableVisualization = true) {
         // Use immediate audio context time for minimal latency
         const currentTime = this.audioContext.currentTime;
         const startTime = currentTime + 0.001; // Minimal 1ms delay to prevent click/pop
@@ -895,37 +895,37 @@ class PianoVisualizer {
         let gainNode;
         switch (timbre) {
             case 'acoustic-piano':
-                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration);
+                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'electric-piano':
-                gainNode = this.createElectricPiano(frequency, volume, startTime, actualDuration);
+                gainNode = this.createElectricPiano(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'harpsichord':
-                gainNode = this.createHarpsichord(frequency, volume, startTime, actualDuration);
+                gainNode = this.createHarpsichord(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'organ':
-                gainNode = this.createOrgan(frequency, volume, startTime, actualDuration);
+                gainNode = this.createOrgan(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'strings':
-                gainNode = this.createStrings(frequency, volume, startTime, actualDuration);
+                gainNode = this.createStrings(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'vibraphone':
-                gainNode = this.createVibraphone(frequency, volume, startTime, actualDuration);
+                gainNode = this.createVibraphone(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'music-box':
-                gainNode = this.createMusicBox(frequency, volume, startTime, actualDuration);
+                gainNode = this.createMusicBox(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'synthesizer':
-                gainNode = this.createSynthesizer(frequency, volume, startTime, actualDuration);
+                gainNode = this.createSynthesizer(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'bell':
-                gainNode = this.createBell(frequency, volume, startTime, actualDuration);
+                gainNode = this.createBell(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'flute':
-                gainNode = this.createFlute(frequency, volume, startTime, actualDuration);
+                gainNode = this.createFlute(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             default:
-                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration);
+                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
         }
         
@@ -947,17 +947,23 @@ class PianoVisualizer {
     }
     
     // Helper function to connect audio nodes to both speakers and recording destination
-    connectAudioOutput(node) {
-        // Connect to master gain node (which is permanently connected to analyzer and destination)
-        if (this.masterGainNode) {
-            node.connect(this.masterGainNode);
-            console.log('🔗 Audio node connected to master gain (analyzer path)');
-        } else {
-            // Fallback: direct connection if master gain not available
-            node.connect(this.audioContext.destination);
-            if (this.analyserNode) {
-                node.connect(this.analyserNode);
+    connectAudioOutput(node, enableVisualization = true) {
+        if (enableVisualization) {
+            // Connect to master gain node (which is permanently connected to analyzer and destination)
+            if (this.masterGainNode) {
+                node.connect(this.masterGainNode);
+                console.log('🔗 Audio node connected to master gain (analyzer path)');
+            } else {
+                // Fallback: direct connection if master gain not available
+                node.connect(this.audioContext.destination);
+                if (this.analyserNode) {
+                    node.connect(this.analyserNode);
+                }
             }
+        } else {
+            // MIDI再生時: 波形表示を無効化し、直接destinationに接続
+            node.connect(this.audioContext.destination);
+            console.log('🔗 Audio node connected directly to destination (no visualization)');
         }
     }
 
@@ -1159,7 +1165,7 @@ class PianoVisualizer {
         return durations[timbre] || 2.0;
     }
     
-    createAcousticPiano(frequency, volume, currentTime, duration) {
+    createAcousticPiano(frequency, volume, currentTime, duration, enableVisualization = true) {
         // Acoustic piano with multiple harmonics
         const osc1 = this.audioContext.createOscillator();
         const osc2 = this.audioContext.createOscillator();
@@ -1186,7 +1192,7 @@ class PianoVisualizer {
         osc2.connect(gainNode);
         osc3.connect(gainNode);
         gainNode.connect(filter);
-        this.connectAudioOutput(filter);
+        this.connectAudioOutput(filter, enableVisualization);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1198,7 +1204,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createElectricPiano(frequency, volume, currentTime, duration) {
+    createElectricPiano(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc1 = this.audioContext.createOscillator();
         const osc2 = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
@@ -1220,7 +1226,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(filter);
-        this.connectAudioOutput(filter);
+        this.connectAudioOutput(filter, enableVisualization);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1230,7 +1236,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createHarpsichord(frequency, volume, currentTime, duration) {
+    createHarpsichord(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         const filter = this.audioContext.createBiquadFilter();
@@ -1247,7 +1253,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1255,7 +1261,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createOrgan(frequency, volume, currentTime, duration) {
+    createOrgan(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc1 = this.audioContext.createOscillator();
         const osc2 = this.audioContext.createOscillator();
         const osc3 = this.audioContext.createOscillator();
@@ -1275,7 +1281,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         osc3.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1287,7 +1293,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createStrings(frequency, volume, currentTime, duration) {
+    createStrings(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         const filter = this.audioContext.createBiquadFilter();
@@ -1305,7 +1311,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1313,7 +1319,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createVibraphone(frequency, volume, currentTime, duration) {
+    createVibraphone(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc1 = this.audioContext.createOscillator();
         const osc2 = this.audioContext.createOscillator();
         const lfo = this.audioContext.createOscillator();
@@ -1338,7 +1344,7 @@ class PianoVisualizer {
         
         osc1.connect(gainNode);
         osc2.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1350,7 +1356,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createMusicBox(frequency, volume, currentTime, duration) {
+    createMusicBox(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         const filter = this.audioContext.createBiquadFilter();
@@ -1367,7 +1373,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -1375,7 +1381,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createSynthesizer(frequency, volume, currentTime, duration) {
+    createSynthesizer(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc1 = this.audioContext.createOscillator();
         const osc2 = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
@@ -1396,7 +1402,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(filter);
-        this.connectAudioOutput(filter);
+        this.connectAudioOutput(filter, enableVisualization);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1406,7 +1412,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createBell(frequency, volume, currentTime, duration) {
+    createBell(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc1 = this.audioContext.createOscillator();
         const osc2 = this.audioContext.createOscillator();
         const osc3 = this.audioContext.createOscillator();
@@ -1426,7 +1432,7 @@ class PianoVisualizer {
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         osc3.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc1.start(currentTime);
         osc2.start(currentTime);
@@ -1438,7 +1444,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createFlute(frequency, volume, currentTime, duration) {
+    createFlute(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
         const filter = this.audioContext.createBiquadFilter();
@@ -1457,7 +1463,7 @@ class PianoVisualizer {
         
         osc.connect(filter);
         filter.connect(gainNode);
-        this.connectAudioOutput(gainNode);
+        this.connectAudioOutput(gainNode, enableVisualization);
         
         osc.start(currentTime);
         osc.stop(currentTime + duration);
@@ -2439,12 +2445,12 @@ class PianoVisualizer {
                 
                 if (event.type === 'noteOn') {
                     console.log(`[MIDI] Note ON: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
-                    // Use current time for immediate visualization
-                    this.playNote(event.note, event.velocity, performance.now());
+                    // MIDI再生時は波形表示を無効化
+                    this.playNote(event.note, event.velocity, performance.now(), false);
                     this.highlightPianoKey(event.note, true);
                 } else if (event.type === 'noteOff') {
                     console.log(`[MIDI] Note OFF: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
-                    this.stopNote(event.note, performance.now());
+                    this.stopNote(event.note, performance.now(), false);
                     this.highlightPianoKey(event.note, false);
                 } else if (event.type === 'controlChange') {
                     console.log(`[MIDI] Control Change: CC${event.controller} = ${event.value} at ${elapsed.toFixed(3)}s`);
