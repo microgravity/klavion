@@ -31,13 +31,6 @@ class PianoVisualizer {
         this.lastNoteTime = 0; // Track last note activity for performance
         
         this.settings = {
-            animationSpeed: 1.0,
-            sizeMultiplier: 1.0,
-            velocitySensitivity: 2.2,
-            fadeDuration: 3.0,
-            colorIntensity: 1.0,
-            motionBlur: 0.3,
-            glowIntensity: 1.0,
             pianoRange: '3-octave',
             volume: 0.75,
             isMuted: false,
@@ -47,8 +40,7 @@ class PianoVisualizer {
             displayMode: 'waveform',
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
-            customBaseColor: '#ffffff',
-            showVisualizationWhenMuted: true
+            customBaseColor: '#ffffff'
         };
         
         // Piano configuration
@@ -859,10 +851,6 @@ class PianoVisualizer {
         
         // Check if audio is muted
         if (this.settings.isMuted) {
-            // ミュート時でも波形・スペクトラム表示のためのサイレント信号を生成（設定により制御）
-            if (this.settings.showVisualizationWhenMuted && enableVisualization) {
-                this.generateSilentVisualizationSignal(frequency, velocity, midiNote);
-            }
             return;
         }
         
@@ -959,62 +947,6 @@ class PianoVisualizer {
         }
     }
 
-    // ミュート時の波形・スペクトラム表示用のサイレント信号生成
-    generateSilentVisualizationSignal(frequency, velocity, midiNote = null) {
-        if (!this.audioContext || !this.analyserNode) return;
-
-        try {
-            // ベロシティに基づいた視覚化用ボリューム計算
-            const velocityRatio = velocity / 127;
-            const baseVolume = 0.002 + (velocityRatio * 0.018); // 0.002～0.02の範囲に拡大
-            
-            // メインオシレーター（基音）
-            const mainOsc = this.audioContext.createOscillator();
-            const mainGain = this.audioContext.createGain();
-            
-            mainOsc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-            mainOsc.type = 'sine';
-            mainGain.gain.setValueAtTime(baseVolume, this.audioContext.currentTime);
-            mainGain.gain.exponentialRampToValueAtTime(baseVolume * 0.1, this.audioContext.currentTime + 0.2);
-            
-            mainOsc.connect(mainGain);
-            // Connect to master gain instead of directly to analyzer
-            if (this.masterGainNode) {
-                mainGain.connect(this.masterGainNode);
-            } else {
-                mainGain.connect(this.analyserNode);
-            }
-            
-            // 第2ハーモニクス（より豊かな波形のため）
-            const harmonic2 = this.audioContext.createOscillator();
-            const harmonic2Gain = this.audioContext.createGain();
-            
-            harmonic2.frequency.setValueAtTime(frequency * 2, this.audioContext.currentTime);
-            harmonic2.type = 'sine';
-            harmonic2Gain.gain.setValueAtTime(baseVolume * 0.3, this.audioContext.currentTime);
-            harmonic2Gain.gain.exponentialRampToValueAtTime(baseVolume * 0.03, this.audioContext.currentTime + 0.15);
-            
-            harmonic2.connect(harmonic2Gain);
-            // Connect to master gain instead of directly to analyzer
-            if (this.masterGainNode) {
-                harmonic2Gain.connect(this.masterGainNode);
-            } else {
-                harmonic2Gain.connect(this.analyserNode);
-            }
-            
-            // 再生実行
-            const currentTime = this.audioContext.currentTime;
-            
-            mainOsc.start(currentTime);
-            mainOsc.stop(currentTime + 0.2);
-            
-            harmonic2.start(currentTime);
-            harmonic2.stop(currentTime + 0.15);
-            
-            
-        } catch (error) {
-        }
-    }
     
     // Canvas pool management for performance
     getCanvasFromPool(size = 1.0) {
@@ -1067,7 +999,7 @@ class PianoVisualizer {
     // Optimized text rendering method
     renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size) {
         
-        const glowIntensity = this.settings.glowIntensity;
+        const glowIntensity = 1.0;
         const fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
         
         // Prepare note name components
@@ -1521,7 +1453,7 @@ class PianoVisualizer {
         }
         
         sprite.position.set(x, -10, 0); // Start from bottom of screen
-        const displaySize = size * (2 + this.settings.sizeMultiplier);
+        const displaySize = size * 3;
         sprite.scale.set(displaySize, displaySize * 0.7, 1);
         
         // Enhanced animation properties for sustained notes
@@ -1606,7 +1538,7 @@ class PianoVisualizer {
         const baseColor = modernColors[colorIndex];
         
         const velocityFactor = Math.max(0.6, velocity / 127);
-        const intensityFactor = this.settings.colorIntensity;
+        const intensityFactor = 1.0;
         
         return {
             r: Math.min(1.0, baseColor.r * velocityFactor * intensityFactor),
@@ -1616,14 +1548,14 @@ class PianoVisualizer {
     }
     
     getNoteSizeMultiplier(velocity) {
-        const baseSize = this.settings.sizeMultiplier;
-        const velocityEffect = (velocity / 127) * this.settings.velocitySensitivity;
+        const baseSize = 1.0;
+        const velocityEffect = (velocity / 127) * 2.2;
         // Cap maximum size to prevent font cutoff at high velocities
         return Math.max(0.3, Math.min(3.0, baseSize + velocityEffect));
     }
     
     getNoteSizeClass(velocity) {
-        const scaledVelocity = velocity * this.settings.sizeMultiplier;
+        const scaledVelocity = velocity;
         if (scaledVelocity > 100) return 'large';
         if (scaledVelocity > 60) return 'medium';
         return 'small';
@@ -1633,10 +1565,10 @@ class PianoVisualizer {
         const baseSize = 20;
         if (!this.hasMidiInput) {
             // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
-            const defaultSize = baseSize + (60 / 127) * 30 * this.settings.sizeMultiplier;
+            const defaultSize = baseSize + (60 / 127) * 30;
             return Math.max(defaultSize, 16);
         }
-        const scaledSize = baseSize + (velocity / 127) * 30 * this.settings.sizeMultiplier;
+        const scaledSize = baseSize + (velocity / 127) * 30;
         return Math.max(scaledSize, 16);
     }
     
@@ -1679,7 +1611,7 @@ class PianoVisualizer {
         
         // Apply velocity and intensity
         const velocityFactor = Math.max(0.6, velocity / 127);
-        const intensityFactor = this.settings.colorIntensity;
+        const intensityFactor = 1.0;
         
         r = Math.round(r * velocityFactor * intensityFactor);
         g = Math.round(g * velocityFactor * intensityFactor);
@@ -1706,27 +1638,6 @@ class PianoVisualizer {
     }
     
     setupEventListeners() {
-        const controls = {
-            'animation-speed': { setting: 'animationSpeed', display: 'speed-value' },
-            'size-multiplier': { setting: 'sizeMultiplier', display: 'size-value' },
-            'velocity-sensitivity': { setting: 'velocitySensitivity', display: 'velocity-value' },
-            'fade-duration': { setting: 'fadeDuration', display: 'fade-value' },
-            'color-intensity': { setting: 'colorIntensity', display: 'color-value' },
-            'motion-blur': { setting: 'motionBlur', display: 'blur-value' },
-            'glow-intensity': { setting: 'glowIntensity', display: 'glow-value' }
-        };
-        
-        Object.entries(controls).forEach(([id, config]) => {
-            const slider = document.getElementById(id);
-            const display = document.getElementById(config.display);
-            
-            slider.addEventListener('input', (e) => {
-                this.settings[config.setting] = parseFloat(e.target.value);
-                display.textContent = e.target.value;
-                
-                // Fluid background updates removed for debugging
-            });
-        });
         
         
         // Piano range selector
@@ -1762,13 +1673,6 @@ class PianoVisualizer {
             this.settings.showVelocityNumbers = e.target.checked;
         });
 
-        // Show visualization when muted toggle
-        const visualizationWhenMutedToggle = document.getElementById('show-visualization-when-muted');
-        if (visualizationWhenMutedToggle) {
-            visualizationWhenMutedToggle.addEventListener('change', (e) => {
-                this.settings.showVisualizationWhenMuted = e.target.checked;
-            });
-        }
         
         // Display mode selector (waveform/spectrum/none)
         const displayModeSelector = document.getElementById('display-mode');
@@ -2815,7 +2719,7 @@ class PianoVisualizer {
         
         noteElement.style.left = `${x}px`;
         noteElement.style.top = `${y}px`;
-        noteElement.style.animationDuration = `${(this.settings.fadeDuration + 1) / this.settings.animationSpeed}s`;
+        noteElement.style.animationDuration = `4s`;
         
         document.body.appendChild(noteElement);
         
@@ -2823,7 +2727,7 @@ class PianoVisualizer {
             if (noteElement.parentNode) {
                 noteElement.parentNode.removeChild(noteElement);
             }
-        }, ((this.settings.fadeDuration + 1) / this.settings.animationSpeed) * 1000);
+        }, 4000);
     }
     
     startVisualization() {
@@ -2855,7 +2759,7 @@ class PianoVisualizer {
                 const sprite = this.noteObjects[i];
                 const userData = sprite.userData;
                 const velocityIntensity = userData.velocity / 127;
-                const motionBlurFactor = this.settings.motionBlur;
+                const motionBlurFactor = 0.3;
                 
                 let shouldRemove = false;
                 

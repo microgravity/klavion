@@ -105,7 +105,7 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - **Customizable colors** - Multiple color scales or custom color picker
 - **Font customization** - Japanese (ドレミ) or Western (CDEFG) note names
 - **Velocity display** - Optional velocity numbers with smaller font
-- **Glow effects** - Customizable intensity and motion blur
+- **Glow effects** - Beautiful note glow effects
 
 - **3D 音符ビジュアライゼーション** - スムーズなアニメーションで音符が上昇
 - **持続音符表示** - 実際のピアノの動作に合わせて音符が上昇・持続・フェード
@@ -114,7 +114,7 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - **カスタマイズ可能な色** - 複数のカラースケールまたはカスタムカラーピッカー
 - **フォントカスタマイゼーション** - 日本語（ドレミ）または西洋式（CDEFG）音名
 - **ベロシティ表示** - 小さなフォントでオプションのベロシティ数値
-- **グローエフェクト** - カスタマイズ可能な強度とモーションブラー
+- **グローエフェクト** - 美しい音符のグロー効果
 
 
 ### 📱 Device Compatibility / デバイス対応
@@ -170,11 +170,7 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 #### Visual Settings / ビジュアル設定
 
-- **Animation Speed** - Control note movement speed / 音符の移動速度を制御
-- **Size Multiplier** - Adjust note size / 音符のサイズを調整
-- **Velocity Sensitivity** - How much velocity affects size / ベロシティがサイズに与える影響
-- **Fade Duration** - How long notes remain visible / 音符が表示される時間
-- **Glow Intensity** - Brightness of glow effects / グローエフェクトの明るさ
+- **Note Visualization** - Beautiful 3D note animation with automatic settings / 美しい3D音符アニメーション（自動設定）
 
 #### Color Settings / 色設定
 
