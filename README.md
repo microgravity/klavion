@@ -36,17 +36,11 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 ### v1.3.0 の新機能 / New in v1.3.0
 
 - 🎨 **ColorHunt Retroパレットコレクション** - 12種類の美しいRetroカラーパレット（Synthwave, Miami Vice等）
-- 🎬 **YouTube Full HD録画対応** - 1920×1080高品質録画でYouTube投稿に最適
-- ⚡ **音声・映像完全同期** - 60FPS録画と即座更新による遅延ゼロ録画
-- 🎹 **鍵盤付き録画機能** - 演奏時の鍵盤押下状態も含めた合成録画
 - 🌈 **ランダムRetroカラー** - 演奏時に美しいRetroカラーでランダム表示
 
 ### New in v1.3.0
 
 - 🎨 **ColorHunt Retro Palette Collection** - 12 beautiful retro palettes (Synthwave, Miami Vice, etc.)
-- 🎬 **YouTube Full HD Recording** - 1920×1080 high-quality recording optimized for YouTube
-- ⚡ **Perfect Audio/Video Sync** - 60 FPS recording with immediate updates for zero-latency recording
-- 🎹 **Piano Keyboard Recording** - Composite recording including piano key press visualization
 - 🌈 **Random Retro Colors** - Beautiful random retro color display during performance
 
 ### v1.2.0 の新機能 / New in v1.2.0
@@ -111,7 +105,6 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - **Customizable colors** - Multiple color scales or custom color picker
 - **Font customization** - Japanese (ドレミ) or Western (CDEFG) note names
 - **Velocity display** - Optional velocity numbers with smaller font
-- **Octave numbers** - Optional octave number display
 - **Glow effects** - Customizable intensity and motion blur
 
 - **3D 音符ビジュアライゼーション** - スムーズなアニメーションで音符が上昇
@@ -121,26 +114,8 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - **カスタマイズ可能な色** - 複数のカラースケールまたはカスタムカラーピッカー
 - **フォントカスタマイゼーション** - 日本語（ドレミ）または西洋式（CDEFG）音名
 - **ベロシティ表示** - 小さなフォントでオプションのベロシティ数値
-- **オクターブ番号** - オプションのオクターブ番号表示
 - **グローエフェクト** - カスタマイズ可能な強度とモーションブラー
 
-### 📹 Screen Recording / 画面録画
-
-- **Built-in screen recording** - Record your performances directly in the browser
-- **Piano keyboard included** - Composite recording with visual piano key presses
-- **YouTube Full HD recording** - 1920×1080 high-quality format optimized for YouTube
-- **Perfect audio/video sync** - 60 FPS recording with zero-latency audio capture
-- **iPhone-compatible MP4** - H.264 codec for maximum compatibility
-- **Permission management** - User consent for screen recording access
-- **Multiple codec support** - Automatic fallback for different browsers
-
-- **内蔵画面録画** - ブラウザで直接演奏を録画
-- **鍵盤付き録画** - 鍵盤の押下状態を含む合成録画
-- **YouTube Full HD録画** - YouTube投稿に最適化された1920×1080高品質フォーマット
-- **完全音声・映像同期** - 60FPS録画とゼロ遅延音声キャプチャ
-- **iPhone 対応 MP4** - 最大互換性のための H.264 コーデック
-- **権限管理** - 画面録画アクセスのユーザー同意
-- **複数コーデック対応** - 異なるブラウザでの自動フォールバック
 
 ### 📱 Device Compatibility / デバイス対応
 
@@ -210,7 +185,6 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 #### Display Options / 表示オプション
 
 - **Show Velocity Numbers** - Display velocity values like "ファ(127)" / "ファ(127)"のようにベロシティ値を表示
-- **Show Octave Numbers** - Display octave numbers / オクターブ番号を表示
 - **Note Name Style** - Japanese (ドレミ) or Western (CDEFG) / 日本語（ドレミ）または西洋式（CDEFG）
 
 #### Audio Settings / オーディオ設定
@@ -393,10 +367,6 @@ piano-visualiser/
 - Close other browser tabs / 他のブラウザタブを閉じる
 - Use a desktop browser instead of mobile / モバイルではなくデスクトップブラウザを使用
 
-#### Recording Issues / 録画の問題
-
-- Grant screen recording permissions when prompted / プロンプトが表示されたら画面録画権限を許可
-- Use Chrome for best recording compatibility / 最適な録画互換性のために Chrome を使用
 - Check available disk space / 利用可能なディスク容量を確認
 
 ## License / ライセンス
@@ -431,10 +401,6 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - **Beautiful Color Harmony** - Professionally designed retro color schemes
 - **Sidebar Integration** - Easy palette selection from dropdown menu
 
-#### 🎬 Advanced Recording Features / 高度な録画機能
-- **Piano Keyboard Recording** - Visual piano key presses included in recordings
-- **YouTube Full HD Format** - 1920×1080 recording optimized for YouTube upload
-- **Perfect Audio/Video Sync** - 60 FPS recording with immediate canvas updates
 - **Zero-Latency Capture** - Real-time audio and video synchronization
 
 #### ✨ Enhanced Note Visualization / 強化された音符ビジュアライゼーション
@@ -480,7 +446,6 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 - Initial release with full MIDI and audio support / MIDI・オーディオ完全サポートの初回リリース
 - 3D visualization with customizable effects / カスタマイズ可能なエフェクト付き 3D ビジュアライゼーション
-- Screen recording functionality / 画面録画機能
 - Multi-language support (Japanese/English) / 多言語サポート（日本語/英語）
 
 ---

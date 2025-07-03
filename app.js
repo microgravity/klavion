@@ -42,7 +42,6 @@ class PianoVisualizer {
             volume: 0.75,
             isMuted: false,
             colorScale: 'chromatic', // Will be overridden in initializeRetroColors()
-            showOctaveNumbers: false,
             showVelocityNumbers: true,
             showSpectrumAnalyzer: false,
             displayMode: 'waveform',
@@ -71,7 +70,6 @@ class PianoVisualizer {
         this.sustainedNotes = new Set(); // Track sustained notes
         this.activeAudioNodes = new Map(); // Track active audio nodes for sustain
         
-        // Screen recording settings removed
         
         this.noteNames = {
             japanese: ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'],
@@ -185,20 +183,14 @@ class PianoVisualizer {
     
     loadSettings() {
         try {
-            // Screen recording settings removed
-            
+                
         } catch (error) {
-            console.warn('⚠️ Failed to load settings from localStorage:', error);
         }
     }
     
     saveSettings() {
         try {
-            localStorage.setItem('screenRecordingEnabled', JSON.stringify(this.screenRecordingEnabled));
-            localStorage.setItem('screenRecordingPermissionAsked', JSON.stringify(this.screenRecordingPermissionAsked));
-            console.log(`💾 Settings saved to localStorage`);
         } catch (error) {
-            console.warn('⚠️ Failed to save settings to localStorage:', error);
         }
     }
     
@@ -213,12 +205,9 @@ class PianoVisualizer {
         
         // Show warning for phones only (not tablets)
         if (isMobile && !isTablet) {
-            console.log('📱 Mobile device detected, showing compatibility warning');
             this.showMobileWarning();
         } else if (isTablet) {
-            console.log('📱 Tablet device detected, proceeding normally');
         } else {
-            console.log('💻 Desktop device detected, proceeding normally');
         }
     }
     
@@ -235,7 +224,6 @@ class PianoVisualizer {
             continueBtn.addEventListener('click', () => {
                 warningElement.style.display = 'none';
                 document.body.classList.remove('mobile-warning-shown');
-                console.log('📱 User chose to continue on mobile device');
                 
                 // Store preference in localStorage
                 localStorage.setItem('mobileWarningDismissed', 'true');
@@ -264,7 +252,6 @@ class PianoVisualizer {
         this.setupAudioControls();
         this.setupCollapsibleSections();
         this.updateCustomColors(); // Initialize custom colors
-        this.setupScreenRecording();
         this.setupWaveformDisplay();
         
         // Initialize with random retro palette after DOM is ready
@@ -276,16 +263,13 @@ class PianoVisualizer {
     }
     
     initThreeJS() {
-        console.log(`🔧 initThreeJS called: THREE=${typeof THREE}, container=${!!this.container}`);
         // Check if THREE is available
         if (typeof THREE === 'undefined') {
-            console.error('❌ THREE.js not loaded. Using DOM visualization.');
             return;
         }
         
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
-        console.log(`📐 Container dimensions: ${width}x${height}`);
         
         // Scene
         this.scene = new THREE.Scene();
@@ -303,7 +287,7 @@ class PianoVisualizer {
                 antialias: true, 
                 alpha: true,
                 powerPreference: "high-performance",
-                preserveDrawingBuffer: true // Required for canvas recording
+                preserveDrawingBuffer: true
             });
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -311,9 +295,7 @@ class PianoVisualizer {
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             
             this.container.appendChild(this.renderer.domElement);
-            console.log(`✅ WebGL renderer created successfully: ${width}x${height}`);
         } catch (error) {
-            console.error('❌ Failed to create WebGL renderer:', error);
             this.renderer = null;
             return;
         }
@@ -340,7 +322,6 @@ class PianoVisualizer {
         // Initialize canvas background after scene setup
         this.createCanvasBackground();
         
-        console.log('✅ Three.js scene initialized with canvas background');
     }
     
     
@@ -359,10 +340,10 @@ class PianoVisualizer {
     
     async initAudio() {
         try {
-            // Create AudioContext with optimized settings for low-latency recording
+            // Create AudioContext with optimized settings
             const audioContextOptions = {
-                latencyHint: 'playback', // Better for recording stability than 'interactive'
-                sampleRate: 48000        // Higher sample rate for better recording quality
+                latencyHint: 'playback',
+                sampleRate: 48000
             };
 
             // Add buffer size optimization if supported
@@ -373,26 +354,8 @@ class PianoVisualizer {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
             this.audioContextResumed = false;
             
-            // Create audio destination for recording with low latency buffer
+            // Create audio destination
             this.audioDestination = this.audioContext.createMediaStreamDestination();
-            
-            // Create optimized low-latency compressor chain for recording
-            this.recordingCompressor = this.audioContext.createDynamicsCompressor();
-            this.recordingCompressor.threshold.setValueAtTime(-20, this.audioContext.currentTime); // Slightly higher threshold for cleaner sound
-            this.recordingCompressor.knee.setValueAtTime(40, this.audioContext.currentTime);       // Softer knee for smoother compression
-            this.recordingCompressor.ratio.setValueAtTime(3, this.audioContext.currentTime);       // More aggressive ratio for consistent levels
-            this.recordingCompressor.attack.setValueAtTime(0.0005, this.audioContext.currentTime); // Ultra-fast attack for minimal latency
-            this.recordingCompressor.release.setValueAtTime(0.03, this.audioContext.currentTime);  // Even faster release for cleaner transients
-            
-            // Add a high-pass filter to remove DC offset and low-frequency noise
-            this.recordingFilter = this.audioContext.createBiquadFilter();
-            this.recordingFilter.type = 'highpass';
-            this.recordingFilter.frequency.setValueAtTime(20, this.audioContext.currentTime); // Remove sub-bass frequencies
-            this.recordingFilter.Q.setValueAtTime(0.707, this.audioContext.currentTime);
-            
-            // Create recording chain: input -> filter -> compressor -> destination
-            this.recordingFilter.connect(this.recordingCompressor);
-            this.recordingCompressor.connect(this.audioDestination);
             
             // Create analyzer node for spectrum visualization
             this.analyserNode = this.audioContext.createAnalyser();
@@ -414,10 +377,7 @@ class PianoVisualizer {
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
             
-            console.log('🎵 AudioContext created with optimized low-latency recording chain');
-            console.log(`📊 Sample rate: ${this.audioContext.sampleRate}Hz, Base latency: ${this.audioContext.baseLatency * 1000}ms`);
         } catch (error) {
-            console.error('Audio context initialization failed:', error);
         }
     }
     
@@ -443,7 +403,6 @@ class PianoVisualizer {
                 try {
                     await this.audioContext.resume();
                     this.audioContextResumed = true;
-                    console.log('🎵 AudioContext resumed after user interaction');
                     
                     // Hide notice
                     const notice = document.getElementById('audio-context-notice');
@@ -451,7 +410,6 @@ class PianoVisualizer {
                         notice.style.display = 'none';
                     }
                 } catch (error) {
-                    console.error('Failed to resume AudioContext:', error);
                 }
             } else if (this.audioContext && this.audioContext.state === 'running') {
                 this.audioContextResumed = true;
@@ -484,7 +442,6 @@ class PianoVisualizer {
             this.midiInputs.clear();
             
             for (let input of this.midiAccess.inputs.values()) {
-                console.log(`🎹 MIDI Input connected: ${input.name}`, {
                     id: input.id,
                     manufacturer: input.manufacturer,
                     name: input.name,
@@ -507,14 +464,12 @@ class PianoVisualizer {
                 this.settings.pianoRange = '88-key';
                 document.getElementById('piano-range').value = '88-key';
                 this.recreatePianoKeyboard();
-                console.log('MIDI input detected - enabled 88-key mode');
             }
             
             this.midiAccess.onstatechange = (event) => {
                 const port = event.port;
                 if (port.type === 'input') {
                     if (port.state === 'connected') {
-                        console.log(`MIDI Input connected: ${port.name}`);
                         
                         if (!this.hasMidiInput) {
                             this.hasMidiInput = true;
@@ -522,7 +477,6 @@ class PianoVisualizer {
                             this.settings.pianoRange = '88-key';
                             document.getElementById('piano-range').value = '88-key';
                             this.recreatePianoKeyboard();
-                            console.log('MIDI input detected - enabled 88-key mode');
                         }
                         
                         // Update device list
@@ -535,7 +489,6 @@ class PianoVisualizer {
                         this.setupMidiInputHandlers();
                         this.updateMidiStatus();
                     } else if (port.state === 'disconnected') {
-                        console.log(`MIDI Input disconnected: ${port.name}`);
                         
                         // Check if any inputs are still connected
                         let stillHasInputs = false;
@@ -557,9 +510,7 @@ class PianoVisualizer {
                 }
             };
             
-            console.log('MIDI initialized successfully');
         } catch (error) {
-            console.log('MIDI not available or permission denied:', error);
         }
     }
     
@@ -567,7 +518,6 @@ class PianoVisualizer {
         // Debug: Always log raw MIDI input to console
         const [command, note, velocity] = message.data;
         const timestamp = message.timeStamp || performance.now();
-        console.log(`🎹 MIDI Input Debug:`, {
             command: command,
             commandHex: `0x${command.toString(16).toUpperCase()}`,
             note: note,
@@ -581,7 +531,6 @@ class PianoVisualizer {
         if (this.selectedInputDevice === 'keyboard') {
             // コンピューターキーボード選択時もペダル操作は処理する
             if (type === 'controlchange' && note === 64) {
-                console.log(`🦶 Sustain pedal processed even with keyboard selected`);
                 this.handleSustainPedal(velocity >= 64);
             }
             return; // ペダル以外のMIDI入力は無視
@@ -591,11 +540,9 @@ class PianoVisualizer {
         if (this.midiInputs.size > 1) {
             const selectedInput = this.getSelectedMidiInput();
             if (!selectedInput) {
-                console.log(`⚠️ MIDI input ignored - No valid device selected`);
                 return; // No valid MIDI device selected
             }
         } else {
-            console.log(`✅ MIDI input accepted - Single device mode`);
         }
         
         // Log MIDI activity
@@ -605,20 +552,17 @@ class PianoVisualizer {
         if (command === 144 && velocity > 0) {
             // Note On
             const noteName = this.midiNoteToNoteName(note, velocity);
-            console.log(`🎵 Note ON: ${noteName} (MIDI:${note}) velocity:${velocity}`);
             this.logMidiActivity(`▶ ${noteName} (${note}) vel:${velocity}`);
             this.playNote(note, velocity, timestamp);
             this.highlightPianoKey(note, true); // Highlight the key
         } else if (command === 128 || (command === 144 && velocity === 0)) {
             // Note Off
             const noteName = this.midiNoteToNoteName(note);
-            console.log(`🎵 Note OFF: ${noteName} (MIDI:${note})`);
             this.logMidiActivity(`⏹ ${noteName} (${note})`);
             this.stopNote(note, timestamp);
             this.highlightPianoKey(note, false); // Remove highlight
         } else if ((command & 0xF0) === 0xB0) {
             // Control Change
-            console.log(`🎛️ Control Change: CC${note} = ${velocity}`);
             this.logMidiActivity(`CC:${note} Val:${velocity}`);
             
             // Handle sustain pedal (CC 64)
@@ -627,11 +571,9 @@ class PianoVisualizer {
             }
         } else if ((command & 0xF0) === 0xC0) {
             // Program Change
-            console.log(`🎹 Program Change: PC${note}`);
             this.logMidiActivity(`PC:${note}`);
         } else {
             // Other MIDI messages
-            console.log(`🎼 Other MIDI: Command:${command} Data1:${note} Data2:${velocity}`);
             this.logMidiActivity(`Other: ${command}:${note}:${velocity}`);
         }
     }
@@ -660,9 +602,8 @@ class PianoVisualizer {
         
         for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
             const noteIndex = midiNote % 12;
-            const octave = Math.floor(midiNote / 12) - 1;
             const key = this.keyLayout[noteIndex];
-            const noteName = `${key.note}${octave}`;
+            const noteName = key.note;
             
             const keyElement = document.createElement('div');
             keyElement.className = `piano-key ${key.type}`;
@@ -745,11 +686,6 @@ class PianoVisualizer {
         this.activeKeys.add(midiNote);
         this.scheduleKeyVisualUpdate(midiNote);
         
-        // Immediately update recording canvas if recording for better sync
-        if (this.isRecording) {
-            console.log(`⚡ Immediate sync: Note ${midiNote} pressed, updating recording canvas`);
-        }
-        this.updateRecordingCanvasImmediate();
     }
     
     stopNote(midiNote, timestamp = performance.now(), enableVisualization = true) {
@@ -760,7 +696,6 @@ class PianoVisualizer {
                 sprite.userData.isActive = false;
                 sprite.userData.movementPhase = 'falling';
                 sprite.userData.noteOffTime = timestamp;
-                console.log(`🎵 Note ${this.midiNoteToNoteName(midiNote)} marked for visual fade`);
             }
             this.activeNoteSprites.delete(midiNote);
         }
@@ -772,7 +707,6 @@ class PianoVisualizer {
         // If sustain pedal is pressed, don't stop the audio immediately
         if (this.sustainPedalPressed) {
             this.sustainedNotes.add(midiNote);
-            console.log(`🦶 Note ${this.midiNoteToNoteName(midiNote)} sustained by pedal`);
             // Update visual state to show sustained note if needed
             this.scheduleAllKeyVisualUpdates();
             return;
@@ -781,8 +715,6 @@ class PianoVisualizer {
         // Stop the note immediately
         this.stopSustainedNote(midiNote);
         
-        // Immediately update recording canvas if recording for better sync
-        this.updateRecordingCanvasImmediate();
     }
     
     updatePianoKeyVisual(midiNote, isPressed) {
@@ -835,7 +767,6 @@ class PianoVisualizer {
     
     midiNoteToNoteName(midiNote, velocity = null) {
         const noteIndex = midiNote % 12;
-        const octave = Math.floor(midiNote / 12) - 1;
         const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
         
         let noteName = noteNamesArray[noteIndex];
@@ -843,16 +774,6 @@ class PianoVisualizer {
         // Add velocity number if enabled and velocity is provided
         if (this.settings.showVelocityNumbers && velocity !== null) {
             noteName += `(${velocity})`;
-        }
-        
-        // Add octave number if enabled
-        if (this.settings.showOctaveNumbers) {
-            // Insert octave before velocity if both are shown
-            if (this.settings.showVelocityNumbers && velocity !== null) {
-                noteName = noteNamesArray[noteIndex] + octave + `(${velocity})`;
-            } else {
-                noteName += octave;
-            }
         }
         
         return noteName;
@@ -865,10 +786,8 @@ class PianoVisualizer {
         this.updatePedalStatusDisplay(isPressed);
         
         if (isPressed) {
-            console.log('🦶 Sustain pedal pressed - notes will sustain');
             this.logMidiActivity('🦶 Sustain ON');
         } else {
-            console.log('🦶 Sustain pedal released - stopping sustained notes');
             this.logMidiActivity('🦶 Sustain OFF');
             
             // Stop all sustained notes
@@ -945,31 +864,23 @@ class PianoVisualizer {
     
     synthesizeNote(frequency, velocity, midiNote = null, enableVisualization = true) {
         if (!this.audioContext) {
-            console.log('🔇 Audio synthesis skipped - no AudioContext');
             return;
         }
         
         // Check AudioContext state
         if (this.audioContext.state === 'suspended') {
-            console.log('🔇 Audio synthesis skipped - AudioContext suspended (waiting for user interaction)');
             return;
         }
         
-        // Check if audio is muted (but allow during recording)
-        if (this.settings.isMuted && !this.isRecording) {
-            console.log(`🔇 Audio synthesis skipped - muted`);
+        // Check if audio is muted
+        if (this.settings.isMuted) {
             // ミュート時でも波形・スペクトラム表示のためのサイレント信号を生成（設定により制御）
             if (this.settings.showVisualizationWhenMuted && enableVisualization) {
-                console.log(`🌊 Generating silent visualization signal for muted audio`);
                 this.generateSilentVisualizationSignal(frequency, velocity, midiNote);
             }
             return;
         }
         
-        // Always play audio during recording
-        if (this.isRecording) {
-            console.log(`🎬 Recording mode: Audio synthesis enabled`);
-        }
         
         // Apply both velocity and global volume settings
         const velocityVolume = (velocity / 127) * 0.3;
@@ -979,7 +890,6 @@ class PianoVisualizer {
         const timbre = this.settings.audioTimbre;
         const audioNodes = this.createTimbreNodes(frequency, finalVolume, timbre, midiNote, enableVisualization);
         
-        console.log(`🎵 Synthesized ${timbre}: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${finalVolume.toFixed(3)} ${midiNote ? `(MIDI:${midiNote})` : ''}`);
     }
     
     createTimbreNodes(frequency, volume, timbre, midiNote = null, enableVisualization = true) {
@@ -1051,7 +961,6 @@ class PianoVisualizer {
             // Connect to master gain node (which is permanently connected to analyzer and destination)
             if (this.masterGainNode) {
                 node.connect(this.masterGainNode);
-                console.log('🔗 Audio node connected to master gain (analyzer path)');
             } else {
                 // Fallback: direct connection if master gain not available
                 node.connect(this.audioContext.destination);
@@ -1062,7 +971,6 @@ class PianoVisualizer {
         } else {
             // MIDI再生時: 波形表示を無効化し、直接destinationに接続
             node.connect(this.audioContext.destination);
-            console.log('🔗 Audio node connected directly to destination (no visualization)');
         }
     }
 
@@ -1118,10 +1026,8 @@ class PianoVisualizer {
             harmonic2.start(currentTime);
             harmonic2.stop(currentTime + 0.15);
             
-            console.log(`🔇 Enhanced visualization signal: ${frequency.toFixed(1)}Hz, velocity:${velocity}, volume:${baseVolume.toFixed(4)}`);
             
         } catch (error) {
-            console.warn('Failed to generate silent visualization signal:', error);
         }
     }
     
@@ -1175,20 +1081,15 @@ class PianoVisualizer {
 
     // Optimized text rendering method
     renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size) {
-        console.log(`🎨 Rendering text: ${noteName}, velocity: ${velocity}, color: ${color}`);
         
         const glowIntensity = this.settings.glowIntensity;
         const fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
         
         // Prepare note name components
         const noteIndex = midiNote % 12;
-        const octave = Math.floor(midiNote / 12) - 1;
         const noteNamesArray = this.noteNames[this.settings.noteNameStyle];
         
         let mainText = noteNamesArray[noteIndex];
-        if (this.settings.showOctaveNumbers) {
-            mainText += octave;
-        }
         
         // Convert hex to rgba for canvas
         let textColor = 'rgba(255, 255, 255, 1)';
@@ -1573,7 +1474,6 @@ class PianoVisualizer {
     visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp) {
         // Fallback to DOM if THREE.js not available
         if (!this.scene || typeof THREE === 'undefined') {
-            console.log(`⚠️ Three.js fallback: scene=${!!this.scene}, THREE=${typeof THREE}`);
             this.visualizeNoteFallback(noteName, midiNote, velocity);
             return;
         }
@@ -1585,7 +1485,7 @@ class PianoVisualizer {
         const size = this.getNoteSizeMultiplier(velocity);
         
         // Check cache first for performance optimization (temporarily disabled for debugging)
-        const cacheKey = `${noteName}-${velocity}-${this.settings.showVelocityNumbers}-${this.settings.showOctaveNumbers}-${this.settings.noteNameStyle}-${color}`;
+        const cacheKey = `${noteName}-${velocity}-${this.settings.showVelocityNumbers}-${this.settings.noteNameStyle}-${color}`;
         let texture = null; // Temporarily disable cache to fix display issue
         // let texture = this.textureCache.get(cacheKey);
         
@@ -1675,8 +1575,6 @@ class PianoVisualizer {
         this.activeNoteSprites.set(midiNote, sprite);
         
         // Debug: Log sprite creation and positioning (disabled for performance)
-        // console.log(`🎨 Sprite created: note ${midiNote}, position: (${x.toFixed(2)}, ${sprite.position.y}, ${sprite.position.z}), scale: ${displaySize.toFixed(2)}`);
-        // console.log(`📊 Scene stats: ${this.noteObjects.length} sprites, camera pos: (${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z})`);
         
         // Clean up old notes (less aggressive cleanup since notes last longer now)
         if (this.noteObjects.length > 100) {
@@ -1701,7 +1599,6 @@ class PianoVisualizer {
         // Use retro colors if retro palette is selected
         if (this.settings.colorScale.startsWith('retro-')) {
             const retroHex = this.getRandomRetroColor();
-            console.log(`🎨 Three.js using retro color: ${retroHex} from ${this.settings.colorScale}`);
             return this.hexToRgb(retroHex);
         }
         
@@ -1762,7 +1659,6 @@ class PianoVisualizer {
         // Special handling for retro palettes - use random color selection
         if (this.settings.colorScale.startsWith('retro-')) {
             const retroColor = this.getRandomRetroColor();
-            console.log(`🎨 Using retro color: ${retroColor} from ${this.settings.colorScale}`);
             return retroColor;
         }
         
@@ -1790,22 +1686,11 @@ class PianoVisualizer {
         
         const baseColor = palette[scalePosition] || '#ffffff';
         
-        // Create gradient based on octave (higher octave = lighter)
-        const octave = Math.floor(midiNote / 12) - 1;
-        const octaveRange = 8; // A0 to C8
-        const normalizedOctave = Math.max(0, Math.min(1, octave / octaveRange));
-        
         // Parse hex color
         const hex = baseColor.replace('#', '');
         let r = parseInt(hex.substr(0, 2), 16);
         let g = parseInt(hex.substr(2, 2), 16);
         let b = parseInt(hex.substr(4, 2), 16);
-        
-        // Apply octave gradient (lighter for higher octaves)
-        const gradientFactor = 0.3 + (normalizedOctave * 0.7);
-        r = Math.round(r + (255 - r) * (1 - gradientFactor));
-        g = Math.round(g + (255 - g) * (1 - gradientFactor));
-        b = Math.round(b + (255 - b) * (1 - gradientFactor));
         
         // Apply velocity and intensity
         const velocityFactor = Math.max(0.6, velocity / 127);
@@ -1882,10 +1767,7 @@ class PianoVisualizer {
             
             // Special handling for retro palettes
             if (e.target.value.startsWith('retro-')) {
-                console.log(`🎨 ColorHunt Retro palette selected: ${e.target.value}`);
-                console.log(`🌈 Colors: ${this.colorPalettes[e.target.value].join(', ')}`);
             } else {
-                console.log(`🎨 Color scale changed to: ${e.target.value}`);
             }
         });
         
@@ -1893,14 +1775,6 @@ class PianoVisualizer {
         const velocityToggle = document.getElementById('show-velocity-numbers');
         velocityToggle.addEventListener('change', (e) => {
             this.settings.showVelocityNumbers = e.target.checked;
-            console.log(`🎯 Velocity numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
-        });
-        
-        // Octave numbers toggle
-        const octaveToggle = document.getElementById('show-octave-numbers');
-        octaveToggle.addEventListener('change', (e) => {
-            this.settings.showOctaveNumbers = e.target.checked;
-            console.log(`🔢 Octave numbers: ${e.target.checked ? 'shown' : 'hidden'}`);
         });
 
         // Show visualization when muted toggle
@@ -1908,7 +1782,6 @@ class PianoVisualizer {
         if (visualizationWhenMutedToggle) {
             visualizationWhenMutedToggle.addEventListener('change', (e) => {
                 this.settings.showVisualizationWhenMuted = e.target.checked;
-                console.log(`🔇 Visualization when muted: ${e.target.checked ? 'enabled' : 'disabled'}`);
             });
         }
         
@@ -1917,7 +1790,6 @@ class PianoVisualizer {
         if (displayModeSelector) {
             displayModeSelector.addEventListener('change', (e) => {
                 this.settings.displayMode = e.target.value;
-                console.log(`🌊 Display mode: ${e.target.value}`);
                 
                 // Handle display mode changes
                 if (this.spectrumCanvas) {
@@ -1980,7 +1852,6 @@ class PianoVisualizer {
         const timbreSelector = document.getElementById('audio-timbre');
         timbreSelector.addEventListener('change', (e) => {
             this.settings.audioTimbre = e.target.value;
-            console.log(`🎵 Audio timbre changed to: ${e.target.value}`);
         });
         
         // Note name style selector
@@ -1988,7 +1859,6 @@ class PianoVisualizer {
         noteNameStyleSelector.addEventListener('change', (e) => {
             this.settings.noteNameStyle = e.target.value;
             this.updateKeyboardHelp();
-            console.log(`🎶 Note name style changed to: ${e.target.value}`);
         });
         
         // Base color picker
@@ -1998,7 +1868,6 @@ class PianoVisualizer {
             if (this.settings.colorScale === 'custom') {
                 this.updateCustomColors();
             }
-            console.log(`🎨 Base color changed to: ${e.target.value}`);
         });
         
         // Color code input
@@ -2013,10 +1882,8 @@ class PianoVisualizer {
                 if (this.settings.colorScale === 'custom') {
                     this.updateCustomColors();
                 }
-                console.log(`🎨 Color code applied: ${colorCode}`);
                 colorCodeInput.style.borderColor = '';
             } else {
-                console.warn(`❌ Invalid color code: ${colorCode}`);
                 colorCodeInput.style.borderColor = '#ff4444';
             }
         });
@@ -2027,7 +1894,6 @@ class PianoVisualizer {
             }
         });
         
-        // Recording functionality removed
     }
     
     setupMidiControls() {
@@ -2064,7 +1930,6 @@ class PianoVisualizer {
             const percentage = parseInt(e.target.value);
             this.playbackRate = percentage / 100.0;
             tempoValue.textContent = `${percentage}%`;
-            console.log(`🎼 MIDI tempo changed to: ${percentage}% (${this.playbackRate.toFixed(2)}x)`);
         });
 
         // 再生位置コントロールのセットアップ
@@ -2241,9 +2106,7 @@ class PianoVisualizer {
             this.updateTimeDisplay(0, this.totalTime);
             this.updatePositionInfo(0);
             
-            console.log('MIDI file loaded successfully', this.midiData);
         } catch (error) {
-            console.error('Error loading MIDI file:', error);
             document.getElementById('midi-info').textContent = 'Error loading file';
             this.hidePlaybackControls();
             document.getElementById('play-midi').disabled = true;
@@ -2507,12 +2370,8 @@ class PianoVisualizer {
         }
         
         // デバッグログ: 初期状態
-        console.log(`[MIDI Playback] Starting playback - Total events: ${allEvents.length}, Starting eventIndex: ${eventIndex}, SeekOffset: ${seekOffset}`);
-        console.log(`[MIDI Playback] Raw events: ${allRawEvents.length}, Processed note events: ${allEvents.length}`);
         if (allEvents.length > 0) {
-            console.log(`[MIDI Playback] First event: ${allEvents[0].type} note ${allEvents[0].note} at ${allEvents[0].timeInSeconds.toFixed(3)}s`);
             if (allEvents.length > 1) {
-                console.log(`[MIDI Playback] Second event: ${allEvents[1].type} note ${allEvents[1].note} at ${allEvents[1].timeInSeconds.toFixed(3)}s`);
             }
         }
         
@@ -2520,7 +2379,6 @@ class PianoVisualizer {
         const playLoop = () => {
             frameCount++;
             if (!this.isPlaying) {
-                console.log(`[MIDI Playback] Stopped - isPlaying: false (frame: ${frameCount})`);
                 return;
             }
             
@@ -2529,7 +2387,6 @@ class PianoVisualizer {
             
             // 最初の数フレームをログ出力（必要時のみ）
             // if (frameCount <= 5) {
-            //     console.log(`[MIDI Playback] Frame ${frameCount}: elapsed=${elapsed.toFixed(3)}s, eventIndex=${eventIndex}/${allEvents.length}`);
             // }
             
             let eventsProcessed = 0;
@@ -2538,21 +2395,17 @@ class PianoVisualizer {
                 eventsProcessed++;
                 
                 if (event.type === 'noteOn') {
-                    console.log(`[MIDI] Note ON: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
                     // MIDI再生時は波形表示を無効化
                     this.playNote(event.note, event.velocity, performance.now(), false);
                     this.highlightPianoKey(event.note, true);
                 } else if (event.type === 'noteOff') {
-                    console.log(`[MIDI] Note OFF: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
                     this.stopNote(event.note, performance.now(), false);
                     this.highlightPianoKey(event.note, false);
                 } else if (event.type === 'controlChange') {
-                    console.log(`[MIDI] Control Change: CC${event.controller} = ${event.value} at ${elapsed.toFixed(3)}s`);
                     
                     // Handle sustain pedal (CC 64)
                     if (event.controller === 64) {
                         this.handleSustainPedal(event.value >= 64);
-                        console.log(`[MIDI] Sustain pedal ${event.value >= 64 ? 'ON' : 'OFF'} (CC64=${event.value})`);
                     }
                 }
                 
@@ -2561,7 +2414,6 @@ class PianoVisualizer {
             
             // デバッグログ: 各フレームの処理状況（eventsProcessed > 0の場合のみ）
             if (eventsProcessed > 0) {
-                console.log(`[MIDI Playbook] Frame processed ${eventsProcessed} events, currentIndex: ${eventIndex}/${allEvents.length}, elapsed: ${elapsed.toFixed(3)}s`);
             }
             
             const progress = this.totalTime > 0 ? (elapsed / this.totalTime) * 100 : 0;
@@ -2572,7 +2424,6 @@ class PianoVisualizer {
             this.updatePositionInfo(elapsed);
             
             if (elapsed >= this.totalTime || eventIndex >= allEvents.length) {
-                console.log(`[MIDI Playback] Ending playback - elapsed: ${elapsed.toFixed(3)}s, totalTime: ${this.totalTime.toFixed(3)}s, eventIndex: ${eventIndex}/${allEvents.length}`);
                 this.stopMidi();
                 return;
             }
@@ -2581,11 +2432,9 @@ class PianoVisualizer {
             
             // 最初の数フレームでanimationFrameId設定をログ出力（必要時のみ）
             // if (frameCount <= 5) {
-            //     console.log(`[MIDI Playback] Frame ${frameCount}: Scheduled next frame with ID: ${this.animationFrameId}`);
             // }
         };
         
-        console.log(`[MIDI Playback] Starting playLoop`);
         playLoop();
     }
     
@@ -2625,25 +2474,20 @@ class PianoVisualizer {
                         content.style.maxHeight = content.scrollHeight + 'px';
                     });
                     header.classList.remove('collapsed');
-                    console.log(`📂 Expanded section: ${sectionName}`);
                 } else {
                     // Collapse
                     content.classList.add('collapsed');
                     content.style.maxHeight = '0';
                     header.classList.add('collapsed');
-                    console.log(`📁 Collapsed section: ${sectionName}`);
                 }
             });
         });
         
-        console.log('✅ Collapsible sections initialized');
     }
     
     createCanvasBackground() {
-        console.log('🎨 Creating canvas gradient background...');
         
         if (!this.scene || !this.camera) {
-            console.warn('⚠️ Scene or camera not ready for background');
             return;
         }
         
@@ -2685,10 +2529,8 @@ class PianoVisualizer {
             
             this.backgroundPlane = backgroundPlane;
             
-            console.log('✅ Canvas gradient background created successfully');
             
         } catch (error) {
-            console.error('❌ Error creating canvas background:', error);
         }
     }
     
@@ -2783,7 +2625,6 @@ class PianoVisualizer {
         
         const palette = this.colorPalettes[selectedPalette];
         if (!palette || palette.length === 0) {
-            console.warn(`No palette found for ${selectedPalette}, using default`);
             return '#ffffff'; // Fallback color
         }
         
@@ -2792,7 +2633,6 @@ class PianoVisualizer {
         
         // Throttled logging to avoid spam
         if (!this.lastColorLog || Date.now() - this.lastColorLog > 2000) {
-            console.log(`🎨 Selected color ${selectedColor} (index ${randomColorIndex}) from ${selectedPalette} palette:`, palette);
             this.lastColorLog = Date.now();
         }
         
@@ -2811,14 +2651,11 @@ class PianoVisualizer {
     initializeRetroColors() {
         // Set random retro palette as default
         this.settings.colorScale = this.getRandomRetroPalette();
-        console.log(`🎨 Initialized with random retro palette: ${this.settings.colorScale}`);
-        console.log(`🌈 Palette colors:`, this.colorPalettes[this.settings.colorScale]);
         
         // Update HTML select box to reflect the selection
         const colorScaleSelector = document.getElementById('color-scale');
         if (colorScaleSelector) {
             colorScaleSelector.value = this.settings.colorScale;
-            console.log(`🎛️ Updated color scale selector to: ${this.settings.colorScale}`);
             
             // Hide custom controls since we're using retro palette
             const customControls = document.getElementById('color-customization');
@@ -2826,12 +2663,10 @@ class PianoVisualizer {
                 customControls.style.display = 'none';
             }
         } else {
-            console.warn(`⚠️ Color scale selector not found in DOM`);
         }
         
         // Test color selection
         const testColor = this.getRandomRetroColor();
-        console.log(`🧪 Test color selection: ${testColor}`);
     }
     
     hslToHex(h, s, l) {
@@ -2862,7 +2697,6 @@ class PianoVisualizer {
         const baseColor = this.settings.customBaseColor;
         const scaleLength = this.scales[this.settings.colorScale] ? this.scales[this.settings.colorScale].length : 12;
         this.colorPalettes.custom = this.generateCustomColors(baseColor, scaleLength);
-        console.log(`🎨 Generated ${scaleLength} custom colors from base: ${baseColor}`);
     }
     
     updateKeyboardHelp() {
@@ -2920,10 +2754,8 @@ class PianoVisualizer {
                 if (this.midiData) { // Only if MIDI file is loaded
                     if (this.isPlaying) {
                         this.pauseMidi();
-                        console.log('⏸️ MIDI paused via spacebar');
                     } else {
                         this.playMidi();
-                        console.log('▶️ MIDI playing via spacebar');
                     }
                 }
                 return; // Don't process as piano key
@@ -3010,14 +2842,11 @@ class PianoVisualizer {
     }
     
     startVisualization() {
-        console.log(`🚀 startVisualization called: renderer=${!!this.renderer}, THREE=${typeof THREE}, scene=${!!this.scene}`);
         if (!this.renderer || typeof THREE === 'undefined') {
             // Fallback: just animate background if THREE.js failed
-            console.log('⚠️ Using fallback visualization - THREE.js or renderer not available');
             return;
         }
         
-        console.log('✅ Starting Three.js animation loop');
         
         let lastFrameTime = 0;
         const frameTimeLimit = 16.67; // ~60fps limit
@@ -3137,395 +2966,18 @@ class PianoVisualizer {
             // Render the scene
             this.renderer.render(this.scene, this.camera);
             
-            // Copy canvas for recording immediately after render for better sync
-            this.copyCanvasForRecording();
             
             requestAnimationFrame(animate);
         };
         animate();
     }
     
-    updateRecordingCanvasImmediate() {
-        // Quick update of just the piano area for immediate sync
-        if (!this.isRecording || !this.recordingContext || !this.recordingLayout) {
-            return;
-        }
-        
-        try {
-            const layout = this.recordingLayout;
-            
-            // Clear only the piano area and redraw it immediately
-            this.recordingContext.fillStyle = '#2a2a2a';
-            this.recordingContext.fillRect(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
-            
-            // Redraw piano keyboard with current key states
-            this.drawPianoKeyboardToCanvas(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
-            
-        } catch (error) {
-            console.warn('Immediate recording update error:', error);
-        }
-    }
     
-    copyCanvasForRecording() {
-        // Only copy if recording with composite canvas
-        if (!this.isRecording || !this.recordingContext || !this.renderer) {
-            return;
-        }
-        
-        try {
-            const sourceCanvas = this.renderer.domElement;
-            
-            // Clear the recording canvas
-            this.recordingContext.clearRect(0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
-            
-            // Use stored layout info for consistent scaling
-            const layout = this.recordingLayout;
-            if (!layout) {
-                console.warn('⚠️ Recording layout not initialized');
-                return;
-            }
-            
-            // Scale and copy Three.js canvas to top portion (maintaining aspect ratio)
-            const sourceWidth = sourceCanvas.width || sourceCanvas.clientWidth;
-            const sourceHeight = sourceCanvas.height || sourceCanvas.clientHeight;
-            
-            // Calculate scaling to fit visualization area while maintaining aspect ratio
-            const scaleX = layout.width / sourceWidth;
-            const scaleY = layout.visualizationHeight / sourceHeight;
-            const scale = Math.min(scaleX, scaleY);
-            
-            const scaledWidth = sourceWidth * scale;
-            const scaledHeight = sourceHeight * scale;
-            const offsetX = (layout.width - scaledWidth) / 2;
-            const offsetY = (layout.visualizationHeight - scaledHeight) / 2;
-            
-            // Draw scaled Three.js canvas centered in visualization area
-            this.recordingContext.drawImage(
-                sourceCanvas, 
-                offsetX, offsetY, 
-                scaledWidth, scaledHeight
-            );
-            
-            // Draw piano keyboard in bottom portion
-            this.drawPianoKeyboardToCanvas(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
-            
-            // Add recording indicator
-            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.9)';
-            this.recordingContext.fillRect(10, 10, 20, 20);
-            this.recordingContext.fillStyle = 'white';
-            this.recordingContext.font = 'bold 12px Arial';
-            this.recordingContext.fillText('REC', 35, 25);
-            
-        } catch (error) {
-            console.warn('Canvas recording error:', error);
-        }
-    }
     
-    drawPianoKeyboardToCanvas(x, y, width, height) {
-        const ctx = this.recordingContext;
-        const config = this.pianoConfigs[this.settings.pianoRange];
-        const startNote = config.startNote;
-        const endNote = config.endNote;
-        
-        // Debug: Log piano drawing info (throttled)
-        const pressedKeysCount = this.activeKeys.size;
-        if (pressedKeysCount > 0 && !this.lastPianoLog || Date.now() - this.lastPianoLog > 1000) {
-            console.log(`🎹 Drawing piano with ${pressedKeysCount} pressed keys`);
-            this.lastPianoLog = Date.now();
-        }
-        
-        // Calculate key dimensions
-        const whiteKeyCount = this.countWhiteKeys(startNote, endNote);
-        const whiteKeyWidth = width / whiteKeyCount;
-        const whiteKeyHeight = height - 20; // Leave some margin
-        const blackKeyWidth = whiteKeyWidth * 0.6;
-        const blackKeyHeight = whiteKeyHeight * 0.6;
-        
-        // Draw background
-        ctx.fillStyle = '#2a2a2a';
-        ctx.fillRect(x, y, width, height);
-        
-        // Draw white keys first
-        let whiteKeyIndex = 0;
-        for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
-            const noteIndex = midiNote % 12;
-            const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(noteIndex);
-            
-            if (isWhiteKey) {
-                const keyX = x + whiteKeyIndex * whiteKeyWidth;
-                const isPressed = this.activeKeys.has(midiNote);
-                
-                // Key background
-                ctx.fillStyle = isPressed ? '#4f46e5' : '#ffffff';
-                ctx.fillRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
-                
-                // Key border
-                ctx.strokeStyle = '#333333';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
-                
-                // Key pressed effect
-                if (isPressed) {
-                    ctx.fillStyle = 'rgba(79, 70, 229, 0.3)';
-                    ctx.fillRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
-                }
-                
-                whiteKeyIndex++;
-            }
-        }
-        
-        // Draw black keys on top
-        whiteKeyIndex = 0;
-        for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
-            const noteIndex = midiNote % 12;
-            const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(noteIndex);
-            const isBlackKey = [1, 3, 6, 8, 10].includes(noteIndex);
-            
-            if (isWhiteKey) {
-                whiteKeyIndex++;
-            } else if (isBlackKey) {
-                const prevWhiteKeyX = x + (whiteKeyIndex - 1) * whiteKeyWidth;
-                const keyX = prevWhiteKeyX + whiteKeyWidth - (blackKeyWidth / 2);
-                const isPressed = this.activeKeys.has(midiNote);
-                
-                // Key background
-                ctx.fillStyle = isPressed ? '#8b5cf6' : '#1a1a1a';
-                ctx.fillRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
-                
-                // Key border
-                ctx.strokeStyle = '#666666';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
-                
-                // Key pressed effect
-                if (isPressed) {
-                    ctx.fillStyle = 'rgba(139, 92, 246, 0.5)';
-                    ctx.fillRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
-                }
-            }
-        }
-        
-        // Add piano label
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Piano Keyboard', x + width / 2, y + height - 5);
-    }
     
-    async startRecording() {
-        try {
-            // Check if screen recording is enabled
-            if (!this.screenRecordingEnabled) {
-                alert('❌ 画面録画が無効になっています。\nチェックボックスをONにしてから録画してください。');
-                return;
-            }
-            
-            console.log('🎬 Starting canvas-only recording with audio...');
-            
-            // Check if Three.js canvas is available
-            if (!this.renderer || !this.renderer.domElement) {
-                alert('❌ Three.jsキャンバスが見つかりません。しばらく待ってから再試行してください。');
-                return;
-            }
-            
-            // Get the Three.js canvas
-            const sourceCanvas = this.renderer.domElement;
-            
-            console.log(`📐 Source canvas: ${sourceCanvas.width}x${sourceCanvas.height}`);
-            console.log(`📐 Source canvas client: ${sourceCanvas.clientWidth}x${sourceCanvas.clientHeight}`);
-            
-            // Always create composite canvas with piano keyboard for recording
-            console.log('🎹 Creating composite canvas with piano keyboard for recording...');
-            
-            // YouTube recommended sizes: 1920x1080 (Full HD)
-            const YOUTUBE_WIDTH = 1920;
-            const YOUTUBE_HEIGHT = 1080;
-            const PIANO_HEIGHT = 160; // Increase piano height for better visibility
-            const VISUALIZATION_HEIGHT = YOUTUBE_HEIGHT - PIANO_HEIGHT;
-            
-            this.recordingCanvas = document.createElement('canvas');
-            this.recordingCanvas.width = YOUTUBE_WIDTH;
-            this.recordingCanvas.height = YOUTUBE_HEIGHT;
-            this.recordingContext = this.recordingCanvas.getContext('2d');
-            
-            // Store layout info for consistent scaling
-            this.recordingLayout = {
-                width: YOUTUBE_WIDTH,
-                height: YOUTUBE_HEIGHT,
-                visualizationHeight: VISUALIZATION_HEIGHT,
-                pianoHeight: PIANO_HEIGHT
-            };
-            
-            console.log(`📐 Recording canvas: ${YOUTUBE_WIDTH}x${YOUTUBE_HEIGHT} (YouTube Full HD)`);
-            console.log(`📐 Layout: Visualization ${VISUALIZATION_HEIGHT}px + Piano ${PIANO_HEIGHT}px`);
-            
-            // Get video stream from composite canvas with higher framerate for better sync
-            const videoStream = this.recordingCanvas.captureStream(60); // 60 FPS for better sync
-            console.log('✅ Composite canvas capture setup complete (60 FPS)');
-            
-            // Get audio stream from our audio destination
-            let combinedStream;
-            if (this.audioDestination && this.audioDestination.stream) {
-                // Combine video and audio streams
-                combinedStream = new MediaStream([
-                    ...videoStream.getVideoTracks(),
-                    ...this.audioDestination.stream.getAudioTracks()
-                ]);
-                console.log('✅ Combined video and audio streams');
-            } else {
-                // Video only if audio destination not available
-                combinedStream = videoStream;
-                console.log('⚠️ Audio destination not available, using video only');
-            }
-            
-            // Try iPhone-compatible codecs first (H.264 MP4)
-            const codecOptions = [
-                { mimeType: 'video/mp4;codecs=avc1.42E01E', name: 'H.264 Baseline (iPhone最適)' },
-                { mimeType: 'video/mp4;codecs=avc1.4D401E', name: 'H.264 Main (iPhone対応)' },
-                { mimeType: 'video/mp4;codecs=h264', name: 'H.264 汎用' },
-                { mimeType: 'video/mp4', name: 'MP4コンテナ' },
-                { mimeType: 'video/webm;codecs=vp9', name: 'WebM VP9 (フォールバック)' },
-                { mimeType: 'video/webm;codecs=vp8', name: 'WebM VP8 (フォールバック)' },
-                { mimeType: 'video/webm', name: 'WebM (フォールバック)' }
-            ];
-            
-            let options = null;
-            for (const codec of codecOptions) {
-                if (MediaRecorder.isTypeSupported(codec.mimeType)) {
-                    options = { 
-                        mimeType: codec.mimeType,
-                        videoBitsPerSecond: 8000000, // 8 Mbps for high quality 1080p
-                        audioBitsPerSecond: 128000   // 128 kbps for good audio quality
-                    };
-                    console.log(`✅ Selected codec: ${codec.name} (${codec.mimeType})`);
-                    console.log(`📊 Quality: Video 8Mbps, Audio 128kbps`);
-                    break;
-                }
-            }
-            
-            if (!options) {
-                console.warn('⚠️ No supported video codecs found, using default');
-                options = {};
-            }
-            
-            // Add low-latency recording options
-            if (!options.audioBitsPerSecond) {
-                options.audioBitsPerSecond = 192000; // Higher audio bitrate for better quality with low latency
-            }
-            
-            // Optimize for real-time recording
-            options.recordingChunkMs = 100; // Smaller chunks for lower latency if supported
-            
-            this.mediaRecorder = new MediaRecorder(combinedStream, options);
-            this.combinedStream = combinedStream;
-            this.recordedChunks = [];
-            
-            this.mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    this.recordedChunks.push(event.data);
-                    console.log(`📹 Recorded chunk: ${event.data.size} bytes`);
-                }
-            };
-            
-            this.mediaRecorder.onstop = () => {
-                console.log('🛑 Recording stopped');
-                document.getElementById('download-recording').disabled = false;
-                
-                // Clean up streams
-                if (this.combinedStream) {
-                    this.combinedStream.getTracks().forEach(track => track.stop());
-                }
-                
-                // Clean up recording canvas
-                this.recordingCanvas = null;
-                this.recordingContext = null;
-                this.combinedStream = null;
-            };
-            
-            // Start the canvas copying process only if using fallback
-            if (this.recordingCanvas) {
-                this.startCanvasCopyLoop();
-            }
-            
-            // Start recording with low-latency chunks (100ms intervals)
-            this.mediaRecorder.start(100);
-            this.isRecording = true;
-            
-            document.getElementById('start-recording').disabled = true;
-            document.getElementById('stop-recording').disabled = false;
-            
-            console.log('🔴 Canvas recording started successfully');
-            
-        } catch (error) {
-            console.error('Failed to start recording:', error);
-            alert('録画を開始できませんでした: ' + error.message);
-        }
-    }
     
-    startCanvasCopyLoop() {
-        // This function is now deprecated - canvas copying happens in main animation loop
-        console.log('Canvas copying is now handled in the main animation loop');
-    }
+    // Recording functionality removed
     
-    stopRecording() {
-        if (this.mediaRecorder && this.isRecording) {
-            console.log('🛑 Stopping canvas recording...');
-            this.mediaRecorder.stop();
-            this.isRecording = false;
-            
-            document.getElementById('start-recording').disabled = false;
-            document.getElementById('stop-recording').disabled = true;
-            
-            console.log('📹 Canvas recording stopped, audio synthesis reverted to normal mode');
-        }
-    }
-    
-    downloadRecording() {
-        if (this.recordedChunks.length === 0) return;
-        
-        // Determine the appropriate MIME type and extension based on what was recorded
-        let mimeType = 'video/mp4';
-        let extension = 'mp4';
-        
-        // Check if the recorded data is MP4 compatible
-        if (this.mediaRecorder && this.mediaRecorder.mimeType) {
-            const recordedMimeType = this.mediaRecorder.mimeType;
-            console.log(`📹 Recorded with MIME type: ${recordedMimeType}`);
-            
-            if (recordedMimeType.includes('mp4')) {
-                mimeType = 'video/mp4';
-                extension = 'mp4';
-            } else if (recordedMimeType.includes('webm')) {
-                mimeType = 'video/webm';
-                extension = 'webm';
-            }
-        }
-        
-        const blob = new Blob(this.recordedChunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const filename = `piano-recording-${timestamp}.${extension}`;
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        URL.revokeObjectURL(url);
-        document.getElementById('download-recording').disabled = true;
-        
-        console.log(`💾 Downloaded: ${filename} (${mimeType})`);
-        
-        // Show user-friendly message
-        if (extension === 'mp4') {
-            alert(`📱 MP4動画をダウンロードしました！\niPhoneのカメラロールでも再生できます。\nファイル名: ${filename}`);
-        } else {
-            alert(`📹 ${extension.toUpperCase()}動画をダウンロードしました。\nファイル名: ${filename}`);
-        }
-    }
     
     updateMidiStatus() {
         const midiDevicesElement = document.getElementById('midi-devices');
@@ -3578,7 +3030,6 @@ class PianoVisualizer {
             this.selectedInputDevice = selectedValue;
             
             // Debug device selection
-            console.log(`🔄 Device Selection Changed:`, {
                 selectedValue: selectedValue,
                 isKeyboard: selectedValue === 'keyboard',
                 availableDevices: Array.from(this.midiInputs.keys()),
@@ -3590,12 +3041,10 @@ class PianoVisualizer {
             
             // Log device change
             if (selectedValue === 'keyboard') {
-                console.log(`⌨️ Input switched to: Computer Keyboard`);
                 this.logMidiActivity('Input switched to: Computer Keyboard');
             } else {
                 const selectedInput = this.midiInputs.get(selectedValue);
                 if (selectedInput) {
-                    console.log(`🎹 Input switched to: ${selectedInput.name}`);
                     this.logMidiActivity(`Input switched to: ${selectedInput.name}`);
                 }
             }
@@ -3603,8 +3052,6 @@ class PianoVisualizer {
     }
     
     setupMidiInputHandlers() {
-        console.log(`🔧 Setting up MIDI input handlers for device: ${this.selectedInputDevice}`);
-        console.log(`📊 Available devices:`, Array.from(this.midiInputs.keys()));
         
         // Clear all existing handlers
         let clearedCount = 0;
@@ -3612,7 +3059,6 @@ class PianoVisualizer {
             input.onmidimessage = null;
             clearedCount++;
         }
-        console.log(`🧹 Cleared ${clearedCount} existing MIDI handlers`);
         
         // Set up handler for selected device or all devices if single device
         if (this.selectedInputDevice !== 'keyboard') {
@@ -3620,24 +3066,19 @@ class PianoVisualizer {
                 // If only one device, set handler for that device regardless of selection
                 const singleDevice = this.midiInputs.values().next().value;
                 singleDevice.onmidimessage = (message) => this.handleMIDIMessage(message);
-                console.log(`✅ Single device mode - MIDI handler set for: ${singleDevice.name}`);
             } else {
                 // Multiple devices - use selected device
                 const selectedInput = this.midiInputs.get(this.selectedInputDevice);
                 if (selectedInput) {
                     selectedInput.onmidimessage = (message) => this.handleMIDIMessage(message);
-                    console.log(`✅ MIDI handler set for selected device: ${selectedInput.name} (ID: ${this.selectedInputDevice})`);
                 } else {
-                    console.log(`❌ Failed to find selected MIDI device: ${this.selectedInputDevice}`);
                     // Fallback: set handlers for all devices
                     for (const [id, input] of this.midiInputs) {
                         input.onmidimessage = (message) => this.handleMIDIMessage(message);
-                        console.log(`🔄 Fallback: Set handler for ${input.name}`);
                     }
                 }
             }
         } else {
-            console.log(`⌨️ Computer keyboard mode - MIDI handlers disabled`);
         }
     }
     
@@ -3657,7 +3098,6 @@ class PianoVisualizer {
         volumeSlider.addEventListener('input', (e) => {
             this.settings.volume = parseFloat(e.target.value);
             volumeValue.textContent = e.target.value;
-            console.log(`🔊 Volume changed: ${this.settings.volume}`);
         });
         
         // Mute button
@@ -3667,11 +3107,9 @@ class PianoVisualizer {
             if (this.settings.isMuted) {
                 muteButton.textContent = '🔇 Muted';
                 muteButton.classList.add('muted');
-                console.log(`🔇 Audio muted`);
             } else {
                 muteButton.textContent = '🔊 Unmuted';
                 muteButton.classList.remove('muted');
-                console.log(`🔊 Audio unmuted`);
             }
         });
     }
@@ -3693,7 +3131,6 @@ class PianoVisualizer {
         let bestDevice = null;
         let highestScore = 0;
         
-        console.log('🔍 Searching for 88-key MIDI device...');
         
         for (const [id, input] of this.midiInputs) {
             const deviceName = input.name.toLowerCase();
@@ -3703,23 +3140,19 @@ class PianoVisualizer {
             for (const keyword of pianoKeywords) {
                 if (deviceName.includes(keyword)) {
                     score += 1;
-                    console.log(`  ✓ "${input.name}" matches keyword: "${keyword}"`);
                 }
             }
             
             // Higher score for devices with explicit 88-key indicators
             if (deviceName.includes('88')) {
                 score += 3;
-                console.log(`  ⭐ "${input.name}" has 88-key indicator (+3 points)`);
             }
             
             // Prefer devices with "piano" or "keyboard" in name
             if (deviceName.includes('piano') || deviceName.includes('keyboard')) {
                 score += 2;
-                console.log(`  🎹 "${input.name}" is identified as piano/keyboard (+2 points)`);
             }
             
-            console.log(`  📊 "${input.name}" total score: ${score}`);
             
             if (score > highestScore) {
                 bestDevice = { id, input };
@@ -3733,12 +3166,9 @@ class PianoVisualizer {
             this.selectedInputDevice = bestDevice.id;
             document.getElementById('midi-input-select').value = bestDevice.id;
             
-            console.log(`🎹 Auto-selected MIDI device: "${bestDevice.input.name}" (score: ${highestScore})`);
-            console.log(`🔄 Device changed from "${oldDevice}" to "${bestDevice.id}"`);
             this.logMidiActivity(`Auto-selected: ${bestDevice.input.name}`);
             
             // Force re-setup of MIDI handlers after auto-selection
-            console.log('🔧 Re-setting up MIDI handlers after auto-selection...');
         } else if (this.midiInputs.size > 0) {
             // If no piano-like device found, select the first available MIDI device
             const firstDevice = this.midiInputs.entries().next().value;
@@ -3746,120 +3176,13 @@ class PianoVisualizer {
             this.selectedInputDevice = firstDevice[0];
             document.getElementById('midi-input-select').value = firstDevice[0];
             
-            console.log(`🎛️ Auto-selected first MIDI device: "${firstDevice[1].name}"`);
-            console.log(`🔄 Device changed from "${oldDevice}" to "${firstDevice[0]}"`);
             this.logMidiActivity(`Auto-selected: ${firstDevice[1].name}`);
             
             // Force re-setup of MIDI handlers after auto-selection
-            console.log('🔧 Re-setting up MIDI handlers after auto-selection...');
         } else {
-            console.log('⌨️ No MIDI devices available, using computer keyboard');
         }
     }
     
-    async setupScreenRecording() {
-        const enableCheckbox = document.getElementById('screen-recording-enabled');
-        
-        // Set checkbox state based on saved settings
-        enableCheckbox.checked = this.screenRecordingEnabled;
-        
-        // Setup checkbox event listener
-        enableCheckbox.addEventListener('change', (e) => {
-            this.screenRecordingEnabled = e.target.checked;
-            console.log(`🎬 Screen recording ${this.screenRecordingEnabled ? 'enabled' : 'disabled'}`);
-            
-            if (!this.screenRecordingEnabled && this.screenRecordingStream) {
-                // Stop existing stream if disabled
-                this.screenRecordingStream.getTracks().forEach(track => track.stop());
-                this.screenRecordingStream = null;
-                console.log('🛑 Screen recording stream stopped');
-            }
-            
-            // Save settings when user changes checkbox
-            this.saveSettings();
-        });
-        
-        // Setup reset button
-        const resetButton = document.getElementById('reset-recording-settings');
-        resetButton.addEventListener('click', () => {
-            this.resetRecordingSettings();
-        });
-        
-        // Show permission dialog only if enabled and not previously asked
-        if (this.screenRecordingEnabled && !this.screenRecordingPermissionAsked) {
-            setTimeout(() => {
-                this.requestScreenRecordingPermission();
-            }, 1000); // Wait 1 second after load
-        } else if (this.screenRecordingPermissionAsked) {
-            console.log('📁 Screen recording permission previously configured, skipping dialog');
-        }
-    }
-    
-    async requestScreenRecordingPermission() {
-        if (!this.screenRecordingEnabled) return;
-        
-        const userConfirmed = confirm(
-            '🎬 画面録画機能を使用しますか？\n\n' +
-            '「OK」を選択すると：\n' +
-            '• ピアノ演奏を音付きでMP4録画できます\n' +
-            '• iPhoneでも再生可能な形式で保存されます\n' +
-            '• 録画時の権限確認をスキップできます\n' +
-            '• この設定は記憶され、次回以降は聞かれません\n\n' +
-            '「キャンセル」を選択すると：\n' +
-            '• 録画機能は無効になります\n' +
-            '• 後でチェックボックスから有効にできます\n' +
-            '• この設定も記憶されます'
-        );
-        
-        // Mark that permission has been asked
-        this.screenRecordingPermissionAsked = true;
-        
-        if (userConfirmed) {
-            try {
-                console.log('🎬 Requesting screen recording permission...');
-                
-                // Request permission and keep the stream for later use
-                this.screenRecordingStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        mediaSource: 'screen',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 30 }
-                    },
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        sampleRate: 44100
-                    }
-                });
-                
-                console.log('✅ Screen recording permission granted');
-                alert('✅ 画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。\n\n※この設定は記憶され、次回以降は自動で有効になります。');
-                
-                // Stop the stream for now - we'll create a new one when recording starts
-                this.screenRecordingStream.getTracks().forEach(track => track.stop());
-                this.screenRecordingStream = null;
-                
-                // Keep recording enabled
-                this.screenRecordingEnabled = true;
-                document.getElementById('screen-recording-enabled').checked = true;
-                
-            } catch (error) {
-                console.log('❌ Screen recording permission denied:', error);
-                this.screenRecordingEnabled = false;
-                document.getElementById('screen-recording-enabled').checked = false;
-                alert('❌ 画面録画の許可が拒否されました。\n録画機能を無効にしました。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
-            }
-        } else {
-            this.screenRecordingEnabled = false;
-            document.getElementById('screen-recording-enabled').checked = false;
-            console.log('👤 User declined screen recording permission');
-            alert('📝 録画機能を無効にしました。\n後でチェックボックスから有効にできます。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
-        }
-        
-        // Save the settings after user decision
-        this.saveSettings();
-    }
     
     setupSNSShareButtons() {
         const twitterBtn = document.querySelector('.twitter-btn');
@@ -3868,7 +3191,6 @@ class PianoVisualizer {
         const copyBtn = document.querySelector('.copy-btn');
         
         if (!twitterBtn || !facebookBtn || !lineBtn || !copyBtn) {
-            console.log('SNS buttons not found, skipping setup');
             return;
         }
         
@@ -3907,7 +3229,6 @@ class PianoVisualizer {
                     copyBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
                 }, 2000);
             } catch (err) {
-                console.error('Failed to copy: ', err);
                 // Fallback for older browsers
                 const textArea = document.createElement('textarea');
                 textArea.value = shareData.url;
@@ -3920,15 +3241,12 @@ class PianoVisualizer {
             }
         });
         
-        console.log('SNS share buttons setup complete');
     }
     
     setupWaveformDisplay() {
-        console.log('🌊 Setting up waveform display...');
         
         this.spectrumCanvas = document.getElementById('spectrum-canvas');
         if (!this.spectrumCanvas) {
-            console.error('❌ Spectrum canvas not found');
             return;
         }
         
@@ -3946,7 +3264,6 @@ class PianoVisualizer {
         // Start spectrum animation
         this.startSpectrumAnimation();
         
-        console.log('🌊 Waveform display initialized');
     }
     
     resizeSpectrumCanvas() {
