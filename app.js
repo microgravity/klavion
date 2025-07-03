@@ -9,7 +9,6 @@ class PianoVisualizer {
         this.renderer = null;
         this.noteObjects = [];
         this.activeNoteSprites = new Map(); // Track active note sprites by MIDI note
-        this.particleSystem = null;
         this.audioContext = null;
         this.midiAccess = null;
         this.backgroundPlane = null;
@@ -152,8 +151,6 @@ class PianoVisualizer {
             'Backslash': 79   // G5
         };
         
-        this.activeKeys = new Set();
-        
         this.midiData = null;
         this.midiPlayer = null;
         this.isPlaying = false;
@@ -164,7 +161,6 @@ class PianoVisualizer {
         this.clock = null;
         
         
-        this.lastDebugTime = 0; // For debug logging
         
         // Check for mobile device and show warning if needed
         this.checkMobileDevice();
@@ -180,11 +176,6 @@ class PianoVisualizer {
         }
     }
     
-    saveSettings() {
-        try {
-        } catch (error) {
-        }
-    }
     
     checkMobileDevice() {
         // Enhanced mobile detection
@@ -337,12 +328,10 @@ class PianoVisualizer {
                 latencyHint: 'playback',
                 sampleRate: 48000
             };
-
             // Add buffer size optimization if supported
             if ('AudioWorkletNode' in window) {
                 audioContextOptions.bufferSize = 256; // Smaller buffer for lower latency
             }
-
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
             this.audioContextResumed = false;
             
@@ -362,9 +351,6 @@ class PianoVisualizer {
             this.masterGainNode.connect(this.analyserNode);
             this.masterGainNode.connect(this.audioContext.destination);
             
-            // Initialize waveform data arrays
-            this.waveformData = new Uint8Array(this.analyserNode.frequencyBinCount);
-            this.timeData = new Uint8Array(this.analyserNode.fftSize);
             
             // Add user interaction listener to resume AudioContext
             this.setupAudioContextResume();
@@ -694,17 +680,6 @@ class PianoVisualizer {
         
     }
     
-    updatePianoKeyVisual(midiNote, isPressed) {
-        // Use cached element instead of DOM query
-        const keyElement = this.pianoKeyElements.get(midiNote);
-        if (keyElement) {
-            if (isPressed) {
-                keyElement.classList.add('pressed');
-            } else {
-                keyElement.classList.remove('pressed');
-            }
-        }
-    }
     
     // Schedule a visual update for batching
     scheduleKeyVisualUpdate(midiNote) {
@@ -817,19 +792,6 @@ class PianoVisualizer {
         this.highlightPianoKey(midiNote, false);
     }
     
-    updateAllKeyVisuals() {
-        // 全ての鍵盤の視覚的状態を現在の状態に合わせて更新（キャッシュ使用）
-        this.pianoKeyElements.forEach((keyElement, midiNote) => {
-            const isActive = this.activeKeys.has(midiNote);
-            const isSustained = this.sustainedNotes.has(midiNote);
-            
-            if (isActive || (isSustained && this.sustainPedalPressed)) {
-                keyElement.classList.add('pressed');
-            } else {
-                keyElement.classList.remove('pressed');
-            }
-        });
-    }
     
     // Schedule all keys for visual update using batched rendering
     scheduleAllKeyVisualUpdates() {
@@ -946,7 +908,6 @@ class PianoVisualizer {
             node.connect(this.audioContext.destination);
         }
     }
-
     
     // Canvas pool management for performance
     getCanvasFromPool(size = 1.0) {
@@ -995,7 +956,6 @@ class PianoVisualizer {
             this.spritePool.push(sprite);
         }
     }
-
     // Optimized text rendering method
     renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size) {
         
@@ -1065,7 +1025,6 @@ class PianoVisualizer {
             context.fillText(`${velocity}`, canvas.width / 2, finalVelocityY);
         }
     }
-
     getTimbreDuration(timbre) {
         const durations = {
             'acoustic-piano': 2.5,
@@ -1672,7 +1631,6 @@ class PianoVisualizer {
         velocityToggle.addEventListener('change', (e) => {
             this.settings.showVelocityNumbers = e.target.checked;
         });
-
         
         // Display mode selector (waveform/spectrum/none)
         const displayModeSelector = document.getElementById('display-mode');
@@ -1820,18 +1778,15 @@ class PianoVisualizer {
             this.playbackRate = percentage / 100.0;
             tempoValue.textContent = `${percentage}%`;
         });
-
         // 再生位置コントロールのセットアップ
         this.setupPlaybackControls();
     }
-
     setupPlaybackControls() {
         const progressBar = document.getElementById('seekable-progress');
         const progressHandle = document.getElementById('progress-handle');
         let isDragging = false;
         let dragStartX = 0;
         let dragStartProgress = 0;
-
         // マウスダウンイベント（シーク開始）
         const startSeek = (e) => {
             if (!this.midiData) return;
@@ -1845,7 +1800,6 @@ class PianoVisualizer {
             progressBar.style.cursor = 'grabbing';
             e.preventDefault();
         };
-
         // マウス移動イベント（シーク中）
         const seekTo = (e) => {
             if (!isDragging || !this.midiData) return;
@@ -1863,7 +1817,6 @@ class PianoVisualizer {
             
             e.preventDefault();
         };
-
         // マウスアップイベント（シーク終了）
         const endSeek = (e) => {
             if (!isDragging || !this.midiData) return;
@@ -1881,7 +1834,6 @@ class PianoVisualizer {
             
             e.preventDefault();
         };
-
         // プログレスバークリックイベント
         progressBar.addEventListener('click', (e) => {
             if (!this.midiData || isDragging) return;
@@ -1893,20 +1845,17 @@ class PianoVisualizer {
             
             this.seekToTime(newTime);
         });
-
         // マウスイベント
         progressHandle.addEventListener('mousedown', startSeek);
         progressBar.addEventListener('mousedown', startSeek);
         document.addEventListener('mousemove', seekTo);
         document.addEventListener('mouseup', endSeek);
-
         // タッチイベント（モバイル対応）
         progressHandle.addEventListener('touchstart', startSeek);
         progressBar.addEventListener('touchstart', startSeek);
         document.addEventListener('touchmove', seekTo);
         document.addEventListener('touchend', endSeek);
     }
-
     seekToTime(targetTime) {
         if (!this.midiData) return;
         
@@ -1937,7 +1886,6 @@ class PianoVisualizer {
         this.updateTimeDisplay(this.currentTime, this.totalTime);
         this.updatePositionInfo(this.currentTime);
     }
-
     // 時間表示を更新
     updateTimeDisplay(currentTime, totalTime) {
         const formatTime = (seconds) => {
@@ -1945,11 +1893,9 @@ class PianoVisualizer {
             const secs = Math.floor(seconds % 60);
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         };
-
         document.getElementById('current-time').textContent = formatTime(currentTime);
         document.getElementById('total-time').textContent = formatTime(totalTime);
     }
-
     // 小節・拍位置を更新
     updatePositionInfo(currentTime) {
         if (!this.midiData) return;
@@ -1963,7 +1909,6 @@ class PianoVisualizer {
         document.getElementById('current-measure').textContent = `小節: ${currentMeasure}`;
         document.getElementById('current-beat').textContent = `拍: ${currentBeat}`;
     }
-
     // 再生位置コントロールの表示/非表示
     showPlaybackControls() {
         const playbackControls = document.getElementById('playback-controls');
@@ -1971,7 +1916,6 @@ class PianoVisualizer {
             playbackControls.style.display = 'block';
         }
     }
-
     hidePlaybackControls() {
         const playbackControls = document.getElementById('playback-controls');
         if (playbackControls) {
@@ -3268,7 +3212,6 @@ class PianoVisualizer {
         this.spectrumContext.shadowBlur = 0;
     }
 }
-
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
     

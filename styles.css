@@ -1,3 +1,23 @@
+:root {
+    --primary: #60a5fa;
+    --success: #34d399;
+    --text: #e5e7eb;
+    --text-muted: #9ca3af;
+    --text-light: #d1d5db;
+    --bg-primary: #0f0f23;
+    --bg-secondary: #1a1a2e;
+    --bg-accent: #16213e;
+    --blue: #3b82f6;
+    --blue-dark: #2563eb;
+    --pink: #E91E63;
+    --border: rgba(156, 163, 175, 0.2);
+    --blur: blur(20px);
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    --transition: all 0.2s ease;
+    --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --radius: 8px;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -5,9 +25,9 @@
 }
 
 body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: linear-gradient(135deg, #0f0f23, #1a1a2e, #16213e);
-    color: #e5e7eb;
+    font-family: var(--font-family);
+    background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary), var(--bg-accent));
+    color: var(--text);
     overflow: hidden;
     font-weight: 400;
     contain: layout style;
@@ -32,7 +52,7 @@ body {
 
 .sidebar h2 {
     margin-bottom: 24px;
-    color: #60a5fa;
+    color: var(--primary);
     font-weight: 600;
     font-size: 1.5rem;
     letter-spacing: -0.025em;
@@ -40,7 +60,7 @@ body {
 
 .sidebar h3 {
     margin: 24px 0 12px 0;
-    color: #34d399;
+    color: var(--success);
     font-weight: 500;
     font-size: 1.125rem;
     letter-spacing: -0.025em;
@@ -61,7 +81,7 @@ body {
 
 .sidebar h3 .toggle-icon {
     font-size: 0.875rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     transition: transform 0.2s ease;
 }
 
@@ -91,14 +111,14 @@ body {
     display: block;
     margin-bottom: 8px;
     font-size: 0.875rem;
-    color: #d1d5db;
+    color: var(--text-light);
     font-weight: 500;
 }
 
 .control-group input[type="range"] {
     width: 100%;
     margin-bottom: 8px;
-    accent-color: #60a5fa;
+    accent-color: var(--primary);
 }
 
 .control-group span {
@@ -113,7 +133,7 @@ body {
     border: 1px solid rgba(156, 163, 175, 0.3);
     border-radius: 8px;
     background: rgba(31, 41, 55, 0.8);
-    color: #e5e7eb;
+    color: var(--text);
     font-size: 0.875rem;
     font-weight: 500;
     transition: all 0.2s ease;
@@ -121,13 +141,13 @@ body {
 
 .control-group select:focus {
     outline: none;
-    border-color: #60a5fa;
+    border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
 }
 
 .control-group select option {
     background: #1f2937;
-    color: #e5e7eb;
+    color: var(--text);
     padding: 8px;
 }
 
@@ -137,7 +157,7 @@ body {
     align-items: center;
     cursor: pointer;
     font-size: 0.875rem;
-    color: #d1d5db;
+    color: var(--text-light);
     font-weight: 500;
     margin-bottom: 8px;
 }
@@ -146,12 +166,12 @@ body {
     margin-right: 8px;
     width: 16px;
     height: 16px;
-    accent-color: #60a5fa;
+    accent-color: var(--primary);
     cursor: pointer;
 }
 
 .checkbox-label:hover {
-    color: #e5e7eb;
+    color: var(--text);
 }
 
 .midi-controls {
@@ -229,12 +249,12 @@ body {
     margin-bottom: 12px;
     font-size: 14px;
     font-weight: 500;
-    color: #e5e7eb;
+    color: var(--text);
 }
 
 .time-separator {
     margin: 0 8px;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .progress-container {
@@ -298,7 +318,7 @@ body {
     align-items: center;
     margin-top: 8px;
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .position-separator {
@@ -383,7 +403,7 @@ body {
 
 .pedal-label {
     font-size: 11px;
-    color: #d1d5db;
+    color: var(--text-light);
     font-weight: 500;
     flex: 1;
 }
@@ -395,7 +415,7 @@ body {
     border-radius: 3px;
     transition: all 0.3s ease;
     background: rgba(255, 255, 255, 0.1);
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .pedal-indicator.active .pedal-status {
@@ -413,7 +433,7 @@ body {
 
 .pedal-controls h4 {
     margin-bottom: 8px;
-    color: #34d399;
+    color: var(--success);
     font-size: 12px;
     font-weight: 500;
 }
@@ -448,7 +468,7 @@ body {
     border: 1px solid rgba(156, 163, 175, 0.3);
     border-radius: 6px;
     background: rgba(31, 41, 55, 0.8);
-    color: #e5e7eb;
+    color: var(--text);
     font-size: 0.875rem;
     font-family: monospace;
     margin-bottom: 8px;
@@ -457,7 +477,7 @@ body {
 
 #color-code-input:focus {
     outline: none;
-    border-color: #60a5fa;
+    border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
 }
 
@@ -466,7 +486,7 @@ body {
     padding: 8px 12px;
     border: none;
     border-radius: 6px;
-    background: #60a5fa;
+    background: var(--primary);
     color: white;
     font-size: 0.875rem;
     font-weight: 500;
@@ -475,7 +495,7 @@ body {
 }
 
 #apply-color-code:hover {
-    background: #3b82f6;
+    background: var(--blue);
 }
 
 #apply-color-code:active {
@@ -537,16 +557,16 @@ body {
 .modal-title {
     flex: 1;
     margin: 0;
-    color: #60a5fa;
+    color: var(--primary);
     font-size: 1.25rem;
     font-weight: 600;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
 }
 
 .modal-close {
     background: none;
     border: none;
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 24px;
     cursor: pointer;
     padding: 4px;
@@ -556,7 +576,7 @@ body {
 }
 
 .modal-close:hover {
-    color: #e5e7eb;
+    color: var(--text);
     background: rgba(255, 255, 255, 0.1);
 }
 
@@ -565,12 +585,12 @@ body {
 }
 
 .modal-message {
-    color: #e5e7eb;
+    color: var(--text);
     font-size: 1rem;
     line-height: 1.6;
     margin: 0;
     white-space: pre-line;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
 }
 
 .modal-footer {
@@ -588,11 +608,11 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
 }
 
 .modal-btn-primary {
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    background: linear-gradient(135deg, var(--blue), #1d4ed8);
     color: white;
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
@@ -790,7 +810,7 @@ body {
 #three-container {
     width: 100%;
     height: calc(100vh - 180px);
-    background: linear-gradient(45deg, #0f0f23, #1a1a2e, #16213e);
+    background: linear-gradient(45deg, var(--bg-primary), var(--bg-secondary), var(--bg-accent));
     position: relative;
     overflow: hidden;
     z-index: 2;
@@ -870,8 +890,8 @@ body {
 }
 
 .piano-key.white {
-    background: linear-gradient(180deg, #f9fafb, #e5e7eb);
-    border: 1px solid #d1d5db;
+    background: linear-gradient(180deg, #f9fafb, #ffffff);
+    border: 1px solid var(--text-light);
     border-radius: 0 0 8px 8px;
     position: relative;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -896,13 +916,13 @@ body {
 }
 
 .piano-key.white.pressed {
-    background: linear-gradient(180deg, #60a5fa, #3b82f6);
+    background: linear-gradient(180deg, var(--primary), var(--blue));
     color: white;
     box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(96, 165, 250, 0.5);
 }
 
 .piano-key.black.pressed {
-    background: linear-gradient(180deg, #34d399, #10b981);
+    background: linear-gradient(180deg, var(--success), #10b981);
     box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(52, 211, 153, 0.5);
 }
 
@@ -914,7 +934,7 @@ body {
                  2px 2px 12px rgba(0, 0, 0, 0.6);
     pointer-events: none;
     z-index: 1000;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
     letter-spacing: 0.05em;
     animation: noteAnimation 3s ease-out forwards;
     backdrop-filter: blur(8px);
@@ -981,7 +1001,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #0f0f23, #1a1a2e, #16213e);
+    background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary), var(--bg-accent));
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -1013,23 +1033,23 @@ body {
 }
 
 .mobile-warning h1 {
-    color: #60a5fa;
+    color: var(--primary);
     font-size: 2rem;
     font-weight: 600;
     margin-bottom: 10px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
 }
 
 .mobile-warning h2 {
-    color: #34d399;
+    color: var(--success);
     font-size: 1.2rem;
     font-weight: 500;
     margin-bottom: 30px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
 }
 
 .mobile-warning-message p {
-    color: #e5e7eb;
+    color: var(--text);
     font-size: 1.1rem;
     margin-bottom: 15px;
     line-height: 1.6;
@@ -1054,7 +1074,7 @@ body {
 
 .mobile-warning-details ul {
     text-align: left;
-    color: #d1d5db;
+    color: var(--text-light);
     font-size: 0.95rem;
     line-height: 1.8;
 }
@@ -1073,7 +1093,7 @@ body {
 
 .device-item {
     background: rgba(34, 197, 94, 0.1);
-    color: #34d399;
+    color: var(--success);
     padding: 12px;
     border-radius: 10px;
     font-weight: 500;
@@ -1081,7 +1101,7 @@ body {
 }
 
 .mobile-continue-btn {
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    background: linear-gradient(135deg, var(--blue), #1d4ed8);
     color: white;
     border: none;
     padding: 15px 30px;
