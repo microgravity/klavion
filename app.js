@@ -38,7 +38,6 @@ class PianoVisualizer {
             colorIntensity: 1.0,
             motionBlur: 0.3,
             glowIntensity: 1.0,
-            fontFamily: 'Noto Sans JP',
             pianoRange: '3-octave',
             volume: 0.75,
             isMuted: false,
@@ -1179,7 +1178,7 @@ class PianoVisualizer {
         console.log(`🎨 Rendering text: ${noteName}, velocity: ${velocity}, color: ${color}`);
         
         const glowIntensity = this.settings.glowIntensity;
-        const fontFamily = this.settings.fontFamily;
+        const fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
         
         // Prepare note name components
         const noteIndex = midiNote % 12;
@@ -1224,7 +1223,7 @@ class PianoVisualizer {
         }
         
         // Draw main note name with optimized rendering
-        context.font = `bold ${mainFontSize}px ${fontFamily}, Arial, sans-serif`;
+        context.font = `bold ${mainFontSize}px ${fontFamily}`;
         
         // Simplified glow effect for better performance
         if (glowIntensity > 0) {
@@ -1243,7 +1242,7 @@ class PianoVisualizer {
             // Ensure velocity text stays within canvas bounds
             const bottomMargin = Math.max(velocityFontSize * 0.6, 15);
             const finalVelocityY = Math.min(canvas.height - bottomMargin, velocityTextY);
-            context.font = `bold ${velocityFontSize}px ${fontFamily}, Arial, sans-serif`;
+            context.font = `bold ${velocityFontSize}px ${fontFamily}`;
             context.shadowBlur = 10 * glowIntensity;
             context.fillText(`${velocity}`, canvas.width / 2, finalVelocityY);
         }
@@ -1859,11 +1858,6 @@ class PianoVisualizer {
             });
         });
         
-        // Font family selector
-        const fontSelector = document.getElementById('font-family');
-        fontSelector.addEventListener('change', (e) => {
-            this.settings.fontFamily = e.target.value;
-        });
         
         // Piano range selector
         const rangeSelector = document.getElementById('piano-range');

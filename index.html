@@ -42,15 +42,6 @@
         .mobile-warning-shown .app-container{display:none}
     </style>
     <link rel="stylesheet" href="styles.css">
-    <!-- Optimized Google Fonts loading -->
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
-    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-    <!-- Core fonts loaded immediately -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
-    <!-- Additional fonts loaded asynchronously -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Poppins:wght@400;500&family=Roboto+Mono:wght@400&family=Montserrat:wght@400;500&family=M+PLUS+1p:wght@400;500&family=M+PLUS+Rounded+1c:wght@400;500&family=Kosugi+Maru&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" media="print" onload="this.media='all'; this.onload=null;">
     <!-- Three.js preloaded for faster initialization -->
     <link rel="preload" href="https://unpkg.com/three@0.149.0/build/three.min.js" as="script">
     <script src="https://unpkg.com/three@0.149.0/build/three.min.js" crossorigin="anonymous"></script>
@@ -250,38 +241,6 @@
                     <label for="glow-intensity">Glow Effect</label>
                     <input type="range" id="glow-intensity" min="0" max="2" step="0.1" value="1">
                     <span id="glow-value">1.0</span>
-                </div>
-                <div class="control-group">
-                    <label for="font-family">Font Family</label>
-                    <select id="font-family">
-                        <optgroup label="日本語フォント">
-                            <option value="M PLUS 1p" selected>M PLUS 1p</option>
-                            <option value="M PLUS Rounded 1c">M PLUS Rounded 1c</option>
-                            <option value="Noto Sans JP">Noto Sans JP</option>
-                            <option value="Noto Serif JP">Noto Serif JP</option>
-                            <option value="Kosugi Maru">こすぎ丸ゴシック</option>
-                            <option value="Kosugi">こすぎゴシック</option>
-                            <option value="Sawarabi Gothic">さわらびゴシック</option>
-                            <option value="Sawarabi Mincho">さわらび明朝</option>
-                            <option value="Zen Kaku Gothic New">Zen角ゴシック</option>
-                            <option value="Zen Old Mincho">Zen旧明朝</option>
-                            <option value="Shippori Mincho">しっぽり明朝</option>
-                            <option value="Dela Gothic One">でらゴシック</option>
-                            <option value="Kiwi Maru">キウイ丸</option>
-                        </optgroup>
-                        <optgroup label="欧文フォント">
-                            <option value="Montserrat">Montserrat</option>
-                            <option value="Inter">Inter</option>
-                            <option value="Poppins">Poppins</option>
-                            <option value="Raleway">Raleway</option>
-                            <option value="Nunito">Nunito</option>
-                            <option value="Orbitron">Orbitron</option>
-                            <option value="Roboto Mono">Roboto Mono</option>
-                            <option value="Playfair Display">Playfair Display</option>
-                            <option value="Oswald">Oswald</option>
-                            <option value="Source Sans Pro">Source Sans Pro</option>
-                        </optgroup>
-                    </select>
                 </div>
                 <div class="control-group">
                     <label for="color-scale">Color Scale</label>
