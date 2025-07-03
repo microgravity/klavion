@@ -756,19 +756,21 @@ class PianoVisualizer {
             this.activeNoteSprites.delete(midiNote);
         }
         
+        // Update piano key visual state immediately (before pedal check)
+        this.activeKeys.delete(midiNote);
+        this.updatePianoKeyVisual(midiNote, false);
+        
         // If sustain pedal is pressed, don't stop the audio immediately
         if (this.sustainPedalPressed) {
             this.sustainedNotes.add(midiNote);
             console.log(`🦶 Note ${this.midiNoteToNoteName(midiNote)} sustained by pedal`);
+            // Update visual state to show sustained note if needed
+            this.updateAllKeyVisuals();
             return;
         }
         
         // Stop the note immediately
         this.stopSustainedNote(midiNote);
-        
-        // Update piano key visual state
-        this.activeKeys.delete(midiNote);
-        this.updatePianoKeyVisual(midiNote, false);
         
         // Immediately update recording canvas if recording for better sync
         this.updateRecordingCanvasImmediate();
@@ -784,6 +786,7 @@ class PianoVisualizer {
             }
         }
     }
+    
     
     midiNoteToFrequency(midiNote) {
         return 440 * Math.pow(2, (midiNote - 69) / 12);
