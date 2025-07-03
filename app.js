@@ -395,6 +395,14 @@ class PianoVisualizer {
             this.analyserNode.fftSize = 512;
             this.analyserNode.smoothingTimeConstant = 0.8;
             
+            // Create master gain node for stable analyzer connection
+            this.masterGainNode = this.audioContext.createGain();
+            this.masterGainNode.gain.value = 1.0;
+            
+            // Connect master gain to analyzer and destination (permanent connection)
+            this.masterGainNode.connect(this.analyserNode);
+            this.masterGainNode.connect(this.audioContext.destination);
+            
             // Initialize waveform data arrays
             this.waveformData = new Uint8Array(this.analyserNode.frequencyBinCount);
             this.timeData = new Uint8Array(this.analyserNode.fftSize);
@@ -940,14 +948,16 @@ class PianoVisualizer {
     
     // Helper function to connect audio nodes to both speakers and recording destination
     connectAudioOutput(node) {
-        // Always connect to speakers
-        node.connect(this.audioContext.destination);
-        
-        // Recording functionality removed
-        
-        // Connect to analyzer node for spectrum analyzer
-        if (this.analyserNode) {
-            node.connect(this.analyserNode);
+        // Connect to master gain node (which is permanently connected to analyzer and destination)
+        if (this.masterGainNode) {
+            node.connect(this.masterGainNode);
+            console.log('🔗 Audio node connected to master gain (analyzer path)');
+        } else {
+            // Fallback: direct connection if master gain not available
+            node.connect(this.audioContext.destination);
+            if (this.analyserNode) {
+                node.connect(this.analyserNode);
+            }
         }
     }
 
@@ -970,7 +980,12 @@ class PianoVisualizer {
             mainGain.gain.exponentialRampToValueAtTime(baseVolume * 0.1, this.audioContext.currentTime + 0.2);
             
             mainOsc.connect(mainGain);
-            mainGain.connect(this.analyserNode);
+            // Connect to master gain instead of directly to analyzer
+            if (this.masterGainNode) {
+                mainGain.connect(this.masterGainNode);
+            } else {
+                mainGain.connect(this.analyserNode);
+            }
             
             // 第2ハーモニクス（より豊かな波形のため）
             const harmonic2 = this.audioContext.createOscillator();
@@ -982,7 +997,12 @@ class PianoVisualizer {
             harmonic2Gain.gain.exponentialRampToValueAtTime(baseVolume * 0.03, this.audioContext.currentTime + 0.15);
             
             harmonic2.connect(harmonic2Gain);
-            harmonic2Gain.connect(this.analyserNode);
+            // Connect to master gain instead of directly to analyzer
+            if (this.masterGainNode) {
+                harmonic2Gain.connect(this.masterGainNode);
+            } else {
+                harmonic2Gain.connect(this.analyserNode);
+            }
             
             // 再生実行
             const currentTime = this.audioContext.currentTime;
