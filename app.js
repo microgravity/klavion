@@ -817,6 +817,9 @@ class PianoVisualizer {
     handleSustainPedal(isPressed) {
         this.sustainPedalPressed = isPressed;
         
+        // UIのペダル状態を更新
+        this.updatePedalStatusDisplay(isPressed);
+        
         if (isPressed) {
             console.log('🦶 Sustain pedal pressed - notes will sustain');
             this.logMidiActivity('🦶 Sustain ON');
@@ -832,6 +835,23 @@ class PianoVisualizer {
             
             // ペダルが離されたときに全ての鍵盤の視覚的状態を更新
             this.updateAllKeyVisuals();
+        }
+    }
+    
+    updatePedalStatusDisplay(isPressed) {
+        const sustainStatus = document.getElementById('sustain-status');
+        const sustainPedal = document.getElementById('sustain-pedal');
+        
+        if (sustainStatus) {
+            sustainStatus.textContent = isPressed ? 'ON' : 'OFF';
+        }
+        
+        if (sustainPedal) {
+            if (isPressed) {
+                sustainPedal.classList.add('active');
+            } else {
+                sustainPedal.classList.remove('active');
+            }
         }
     }
     
