@@ -18,6 +18,11 @@ class PianoVisualizer {
         // Piano key visual state tracking
         this.activeKeys = new Set(); // Track which keys are currently pressed
         
+        // Performance optimization: DOM element caching and batch updates
+        this.pianoKeyElements = new Map(); // Cache piano key elements by MIDI note
+        this.pendingVisualUpdates = new Set(); // Track keys that need visual updates
+        this.renderScheduled = false; // Flag to prevent multiple render scheduling
+        
         // Performance optimization: Canvas and texture caching
         this.canvasPool = []; // Reusable canvas pool
         this.textureCache = new Map(); // Cache for text textures
@@ -633,8 +638,10 @@ class PianoVisualizer {
     }
     
     createPianoKeyboard() {
-        // Clear existing keys
+        // Clear existing keys and cache
         this.pianoKeyboard.innerHTML = '';
+        this.pianoKeyElements.clear();
+        this.pendingVisualUpdates.clear();
         
         const config = this.pianoConfigs[this.settings.pianoRange];
         const startNote = config.startNote;
@@ -696,6 +703,9 @@ class PianoVisualizer {
             });
             
             this.pianoKeyboard.appendChild(keyElement);
+            
+            // Cache the DOM element for performance
+            this.pianoKeyElements.set(midiNote, keyElement);
         }
         
         // Update keyboard container size
@@ -734,7 +744,7 @@ class PianoVisualizer {
         
         // Update piano key visual state
         this.activeKeys.add(midiNote);
-        this.updatePianoKeyVisual(midiNote, true);
+        this.scheduleKeyVisualUpdate(midiNote);
         
         // Immediately update recording canvas if recording for better sync
         if (this.isRecording) {
@@ -758,14 +768,14 @@ class PianoVisualizer {
         
         // Update piano key visual state immediately (before pedal check)
         this.activeKeys.delete(midiNote);
-        this.updatePianoKeyVisual(midiNote, false);
+        this.scheduleKeyVisualUpdate(midiNote);
         
         // If sustain pedal is pressed, don't stop the audio immediately
         if (this.sustainPedalPressed) {
             this.sustainedNotes.add(midiNote);
             console.log(`🦶 Note ${this.midiNoteToNoteName(midiNote)} sustained by pedal`);
             // Update visual state to show sustained note if needed
-            this.updateAllKeyVisuals();
+            this.scheduleAllKeyVisualUpdates();
             return;
         }
         
@@ -777,7 +787,8 @@ class PianoVisualizer {
     }
     
     updatePianoKeyVisual(midiNote, isPressed) {
-        const keyElement = document.querySelector(`[data-note="${midiNote}"]`);
+        // Use cached element instead of DOM query
+        const keyElement = this.pianoKeyElements.get(midiNote);
         if (keyElement) {
             if (isPressed) {
                 keyElement.classList.add('pressed');
@@ -785,6 +796,37 @@ class PianoVisualizer {
                 keyElement.classList.remove('pressed');
             }
         }
+    }
+    
+    // Schedule a visual update for batching
+    scheduleKeyVisualUpdate(midiNote) {
+        this.pendingVisualUpdates.add(midiNote);
+        this.scheduleRender();
+    }
+    
+    // Schedule a render using requestAnimationFrame for optimal performance
+    scheduleRender() {
+        if (this.renderScheduled) return;
+        this.renderScheduled = true;
+        requestAnimationFrame(() => {
+            this.renderBatchedUpdates();
+            this.renderScheduled = false;
+        });
+    }
+    
+    // Apply all pending visual updates in a single batch
+    renderBatchedUpdates() {
+        this.pendingVisualUpdates.forEach(midiNote => {
+            const keyElement = this.pianoKeyElements.get(midiNote);
+            if (keyElement) {
+                const isActive = this.activeKeys.has(midiNote);
+                const isSustained = this.sustainedNotes.has(midiNote);
+                const shouldBePressed = isActive || (isSustained && this.sustainPedalPressed);
+                
+                keyElement.classList.toggle('pressed', shouldBePressed);
+            }
+        });
+        this.pendingVisualUpdates.clear();
     }
     
     
@@ -837,7 +879,7 @@ class PianoVisualizer {
             this.sustainedNotes.clear();
             
             // ペダルが離されたときに全ての鍵盤の視覚的状態を更新
-            this.updateAllKeyVisuals();
+            this.scheduleAllKeyVisualUpdates();
         }
     }
     
@@ -881,9 +923,8 @@ class PianoVisualizer {
     }
     
     updateAllKeyVisuals() {
-        // 全ての鍵盤の視覚的状態を現在の状態に合わせて更新
-        document.querySelectorAll('.piano-key').forEach(keyElement => {
-            const midiNote = parseInt(keyElement.dataset.note);
+        // 全ての鍵盤の視覚的状態を現在の状態に合わせて更新（キャッシュ使用）
+        this.pianoKeyElements.forEach((keyElement, midiNote) => {
             const isActive = this.activeKeys.has(midiNote);
             const isSustained = this.sustainedNotes.has(midiNote);
             
@@ -893,6 +934,14 @@ class PianoVisualizer {
                 keyElement.classList.remove('pressed');
             }
         });
+    }
+    
+    // Schedule all keys for visual update using batched rendering
+    scheduleAllKeyVisualUpdates() {
+        this.pianoKeyElements.forEach((_, midiNote) => {
+            this.pendingVisualUpdates.add(midiNote);
+        });
+        this.scheduleRender();
     }
     
     synthesizeNote(frequency, velocity, midiNote = null, enableVisualization = true) {
@@ -2917,7 +2966,8 @@ class PianoVisualizer {
     }
     
     highlightPianoKey(midiNote, pressed) {
-        const keyElement = this.pianoKeyboard.querySelector(`[data-note="${midiNote}"]`);
+        // Use cached element and schedule update for better performance
+        const keyElement = this.pianoKeyElements.get(midiNote);
         if (keyElement) {
             if (pressed) {
                 keyElement.classList.add('pressed');
