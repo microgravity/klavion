@@ -67,6 +67,10 @@ class PianoVisualizer {
         this.sustainedNotes = new Set(); // Track sustained notes
         this.activeAudioNodes = new Map(); // Track active audio nodes for sustain
         
+        // Screen recording settings
+        this.screenRecordingEnabled = true;
+        this.screenRecordingStream = null;
+        this.screenRecordingPermissionAsked = false;
         
         this.noteNames = {
             japanese: ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'],
@@ -180,16 +184,32 @@ class PianoVisualizer {
     
     loadSettings() {
         try {
-            // Screen recording settings removed
+            // Load screen recording settings from localStorage
+            const savedEnabled = localStorage.getItem('screenRecordingEnabled');
+            const savedAsked = localStorage.getItem('screenRecordingPermissionAsked');
+            
+            if (savedEnabled !== null) {
+                this.screenRecordingEnabled = JSON.parse(savedEnabled);
+                console.log(`📁 Loaded screen recording setting: ${this.screenRecordingEnabled ? 'enabled' : 'disabled'}`);
+            }
+            
+            if (savedAsked !== null) {
+                this.screenRecordingPermissionAsked = JSON.parse(savedAsked);
+                console.log(`📁 Permission previously asked: ${this.screenRecordingPermissionAsked}`);
+            }
             
         } catch (error) {
             console.warn('⚠️ Failed to load settings from localStorage:', error);
+            // Use defaults if loading fails
+            this.screenRecordingEnabled = true;
+            this.screenRecordingPermissionAsked = false;
         }
     }
     
     saveSettings() {
         try {
-            // Screen recording settings removed
+            localStorage.setItem('screenRecordingEnabled', JSON.stringify(this.screenRecordingEnabled));
+            localStorage.setItem('screenRecordingPermissionAsked', JSON.stringify(this.screenRecordingPermissionAsked));
             console.log(`💾 Settings saved to localStorage`);
         } catch (error) {
             console.warn('⚠️ Failed to save settings to localStorage:', error);
@@ -258,6 +278,7 @@ class PianoVisualizer {
         this.setupAudioControls();
         this.setupCollapsibleSections();
         this.updateCustomColors(); // Initialize custom colors
+        this.setupScreenRecording();
         this.setupWaveformDisplay();
         
         // Initialize with random retro palette after DOM is ready
@@ -714,6 +735,12 @@ class PianoVisualizer {
         // Update piano key visual state
         this.activeKeys.add(midiNote);
         this.updatePianoKeyVisual(midiNote, true);
+        
+        // Immediately update recording canvas if recording for better sync
+        if (this.isRecording) {
+            console.log(`⚡ Immediate sync: Note ${midiNote} pressed, updating recording canvas`);
+        }
+        this.updateRecordingCanvasImmediate();
     }
     
     stopNote(midiNote, timestamp = performance.now()) {
@@ -742,6 +769,9 @@ class PianoVisualizer {
         // Update piano key visual state
         this.activeKeys.delete(midiNote);
         this.updatePianoKeyVisual(midiNote, false);
+        
+        // Immediately update recording canvas if recording for better sync
+        this.updateRecordingCanvasImmediate();
     }
     
     updatePianoKeyVisual(midiNote, isPressed) {
@@ -787,9 +817,6 @@ class PianoVisualizer {
     handleSustainPedal(isPressed) {
         this.sustainPedalPressed = isPressed;
         
-        // Update visual pedal indicator
-        this.updatePedalIndicator('sustain', isPressed);
-        
         if (isPressed) {
             console.log('🦶 Sustain pedal pressed - notes will sustain');
             this.logMidiActivity('🦶 Sustain ON');
@@ -803,37 +830,6 @@ class PianoVisualizer {
             });
             this.sustainedNotes.clear();
         }
-    }
-
-    // ペダルインジケーターの視覚的更新
-    updatePedalIndicator(pedalType, isPressed) {
-        const pedalElement = document.getElementById(`${pedalType}-pedal`);
-        const statusElement = document.getElementById(`${pedalType}-status`);
-        
-        if (!pedalElement || !statusElement) return;
-        
-        if (isPressed) {
-            pedalElement.classList.add('active');
-            statusElement.textContent = 'ON';
-            
-            // アニメーション効果を追加
-            pedalElement.style.transform = 'scale(1.05)';
-            setTimeout(() => {
-                pedalElement.style.transform = 'scale(1)';
-            }, 150);
-            
-        } else {
-            pedalElement.classList.remove('active');
-            statusElement.textContent = 'OFF';
-            
-            // リリース時のアニメーション
-            pedalElement.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                pedalElement.style.transform = 'scale(1)';
-            }, 150);
-        }
-        
-        console.log(`🎛️ Pedal indicator updated: ${pedalType} ${isPressed ? 'ON' : 'OFF'}`);
     }
     
     stopSustainedNote(midiNote) {
@@ -870,8 +866,8 @@ class PianoVisualizer {
             return;
         }
         
-        // Check if audio is muted
-        if (this.settings.isMuted) {
+        // Check if audio is muted (but allow during recording)
+        if (this.settings.isMuted && !this.isRecording) {
             console.log(`🔇 Audio synthesis skipped - muted`);
             // ミュート時でも波形・スペクトラム表示のためのサイレント信号を生成（設定により制御）
             if (this.settings.showVisualizationWhenMuted) {
@@ -879,6 +875,11 @@ class PianoVisualizer {
                 this.generateSilentVisualizationSignal(frequency, velocity, midiNote);
             }
             return;
+        }
+        
+        // Always play audio during recording
+        if (this.isRecording) {
+            console.log(`🎬 Recording mode: Audio synthesis enabled`);
         }
         
         // Apply both velocity and global volume settings
@@ -960,10 +961,7 @@ class PianoVisualizer {
         // Always connect to speakers
         node.connect(this.audioContext.destination);
         
-        // Connect to optimized recording chain: node -> filter -> compressor -> destination
-        if (this.audioDestination && this.recordingFilter) {
-            node.connect(this.recordingFilter);
-        }
+        // Recording functionality removed
         
         // Connect to analyzer node for spectrum analyzer
         if (this.analyserNode) {
@@ -976,9 +974,9 @@ class PianoVisualizer {
         if (!this.audioContext || !this.analyserNode) return;
 
         try {
-            // ベロシティに基づいた視覚化用ボリューム計算（波形表示用に大きく設定）
+            // ベロシティに基づいた視覚化用ボリューム計算
             const velocityRatio = velocity / 127;
-            const baseVolume = 0.1 + (velocityRatio * 0.4); // 0.1～0.5の範囲で波形表示用
+            const baseVolume = 0.002 + (velocityRatio * 0.018); // 0.002～0.02の範囲に拡大
             
             // メインオシレーター（基音）
             const mainOsc = this.audioContext.createOscillator();
@@ -1160,92 +1158,42 @@ class PianoVisualizer {
     }
     
     createAcousticPiano(frequency, volume, currentTime, duration) {
-        // Realistic acoustic piano with rich harmonics and complex envelope
-        const masterGain = this.audioContext.createGain();
-        const filter1 = this.audioContext.createBiquadFilter();
-        const filter2 = this.audioContext.createBiquadFilter();
+        // Acoustic piano with multiple harmonics
+        const osc1 = this.audioContext.createOscillator();
+        const osc2 = this.audioContext.createOscillator();
+        const osc3 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
         
-        // Primary tone with slight detuning for warmth
-        const fundamental = this.audioContext.createOscillator();
-        const fundamentalGain = this.audioContext.createGain();
-        fundamental.type = 'sine';
-        fundamental.frequency.setValueAtTime(frequency, currentTime);
-        fundamentalGain.gain.setValueAtTime(volume * 0.6, currentTime);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(frequency, currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(frequency * 3, currentTime);
         
-        // Rich harmonic series with realistic amplitude ratios
-        const harmonics = [];
-        const harmonicGains = [];
-        const harmonicRatios = [2, 3, 4, 5, 6.27, 7.45, 8.93]; // Slightly inharmonic for realism
-        const harmonicAmplitudes = [0.4, 0.25, 0.15, 0.1, 0.06, 0.04, 0.02];
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, currentTime);
+        filter.Q.setValueAtTime(1, currentTime);
         
-        harmonicRatios.forEach((ratio, index) => {
-            const osc = this.audioContext.createOscillator();
-            const gain = this.audioContext.createGain();
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(frequency * ratio, currentTime);
-            gain.gain.setValueAtTime(volume * harmonicAmplitudes[index], currentTime);
-            
-            harmonics.push(osc);
-            harmonicGains.push(gain);
-            
-            osc.connect(gain);
-            gain.connect(masterGain);
-        });
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
         
-        // Add subtle noise component for hammer strike realism
-        const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
-        const noiseData = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < noiseData.length; i++) {
-            noiseData[i] = (Math.random() * 2 - 1) * 0.02;
-        }
-        const noiseSource = this.audioContext.createBufferSource();
-        const noiseGain = this.audioContext.createGain();
-        noiseSource.buffer = noiseBuffer;
-        noiseGain.gain.setValueAtTime(volume * 0.1, currentTime);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.05);
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(filter);
+        this.connectAudioOutput(filter);
         
-        // Multi-stage filtering for realistic timbre
-        filter1.type = 'lowpass';
-        filter1.frequency.setValueAtTime(Math.min(4000, frequency * 8), currentTime);
-        filter1.Q.setValueAtTime(0.7, currentTime);
+        osc1.start(currentTime);
+        osc2.start(currentTime);
+        osc3.start(currentTime);
+        osc1.stop(currentTime + duration);
+        osc2.stop(currentTime + duration);
+        osc3.stop(currentTime + duration);
         
-        filter2.type = 'peaking';
-        filter2.frequency.setValueAtTime(frequency * 2.5, currentTime);
-        filter2.Q.setValueAtTime(2, currentTime);
-        filter2.gain.setValueAtTime(3, currentTime);
-        
-        // Complex envelope for realistic piano attack and decay
-        masterGain.gain.setValueAtTime(0, currentTime);
-        masterGain.gain.linearRampToValueAtTime(volume * 1.2, currentTime + 0.005); // Very fast attack
-        masterGain.gain.exponentialRampToValueAtTime(volume * 0.8, currentTime + 0.02); // Initial decay
-        masterGain.gain.exponentialRampToValueAtTime(volume * 0.3, currentTime + 0.15); // Sustain level
-        masterGain.gain.exponentialRampToValueAtTime(0.001, currentTime + Math.max(duration, 0.5));
-        
-        // Connect fundamental
-        fundamental.connect(fundamentalGain);
-        fundamentalGain.connect(masterGain);
-        
-        // Connect noise
-        noiseSource.connect(noiseGain);
-        noiseGain.connect(masterGain);
-        
-        // Connect filters
-        masterGain.connect(filter1);
-        filter1.connect(filter2);
-        this.connectAudioOutput(filter2);
-        
-        // Start all oscillators
-        fundamental.start(currentTime);
-        harmonics.forEach(osc => osc.start(currentTime));
-        noiseSource.start(currentTime);
-        
-        // Stop all oscillators
-        const stopTime = currentTime + Math.max(duration, 0.5);
-        fundamental.stop(stopTime);
-        harmonics.forEach(osc => osc.stop(stopTime));
-        
-        return masterGain;
+        return gainNode;
     }
     
     createElectricPiano(frequency, volume, currentTime, duration) {
@@ -1976,6 +1924,10 @@ class PianoVisualizer {
                 applyColorButton.click();
             }
         });
+        
+        document.getElementById('start-recording').addEventListener('click', () => this.startRecording());
+        document.getElementById('stop-recording').addEventListener('click', () => this.stopRecording());
+        document.getElementById('download-recording').addEventListener('click', () => this.downloadRecording());
     }
     
     setupMidiControls() {
@@ -2856,15 +2808,6 @@ class PianoVisualizer {
                 }
                 return; // Don't process as piano key
             }
-
-            // Handle Shift key for sustain pedal simulation (computer keyboard only)
-            if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && this.selectedInputDevice === 'keyboard') {
-                if (!this.sustainPedalPressed) {
-                    this.handleSustainPedal(true);
-                    console.log('⌨️ Sustain pedal simulated ON (Shift key)');
-                }
-                return;
-            }
             
             // Only handle keyboard input when computer keyboard is selected
             if (this.selectedInputDevice !== 'keyboard') return;
@@ -2882,15 +2825,6 @@ class PianoVisualizer {
         });
         
         document.addEventListener('keyup', (e) => {
-            // Handle Shift key release for sustain pedal simulation
-            if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && this.selectedInputDevice === 'keyboard') {
-                if (this.sustainPedalPressed) {
-                    this.handleSustainPedal(false);
-                    console.log('⌨️ Sustain pedal simulated OFF (Shift key released)');
-                }
-                return;
-            }
-
             // Only handle keyboard input when computer keyboard is selected
             if (this.selectedInputDevice !== 'keyboard') return;
             
@@ -3082,9 +3016,394 @@ class PianoVisualizer {
             // Render the scene
             this.renderer.render(this.scene, this.camera);
             
+            // Copy canvas for recording immediately after render for better sync
+            this.copyCanvasForRecording();
+            
             requestAnimationFrame(animate);
         };
         animate();
+    }
+    
+    updateRecordingCanvasImmediate() {
+        // Quick update of just the piano area for immediate sync
+        if (!this.isRecording || !this.recordingContext || !this.recordingLayout) {
+            return;
+        }
+        
+        try {
+            const layout = this.recordingLayout;
+            
+            // Clear only the piano area and redraw it immediately
+            this.recordingContext.fillStyle = '#2a2a2a';
+            this.recordingContext.fillRect(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
+            
+            // Redraw piano keyboard with current key states
+            this.drawPianoKeyboardToCanvas(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
+            
+        } catch (error) {
+            console.warn('Immediate recording update error:', error);
+        }
+    }
+    
+    copyCanvasForRecording() {
+        // Only copy if recording with composite canvas
+        if (!this.isRecording || !this.recordingContext || !this.renderer) {
+            return;
+        }
+        
+        try {
+            const sourceCanvas = this.renderer.domElement;
+            
+            // Clear the recording canvas
+            this.recordingContext.clearRect(0, 0, this.recordingCanvas.width, this.recordingCanvas.height);
+            
+            // Use stored layout info for consistent scaling
+            const layout = this.recordingLayout;
+            if (!layout) {
+                console.warn('⚠️ Recording layout not initialized');
+                return;
+            }
+            
+            // Scale and copy Three.js canvas to top portion (maintaining aspect ratio)
+            const sourceWidth = sourceCanvas.width || sourceCanvas.clientWidth;
+            const sourceHeight = sourceCanvas.height || sourceCanvas.clientHeight;
+            
+            // Calculate scaling to fit visualization area while maintaining aspect ratio
+            const scaleX = layout.width / sourceWidth;
+            const scaleY = layout.visualizationHeight / sourceHeight;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const scaledWidth = sourceWidth * scale;
+            const scaledHeight = sourceHeight * scale;
+            const offsetX = (layout.width - scaledWidth) / 2;
+            const offsetY = (layout.visualizationHeight - scaledHeight) / 2;
+            
+            // Draw scaled Three.js canvas centered in visualization area
+            this.recordingContext.drawImage(
+                sourceCanvas, 
+                offsetX, offsetY, 
+                scaledWidth, scaledHeight
+            );
+            
+            // Draw piano keyboard in bottom portion
+            this.drawPianoKeyboardToCanvas(0, layout.visualizationHeight, layout.width, layout.pianoHeight);
+            
+            // Add recording indicator
+            this.recordingContext.fillStyle = 'rgba(255, 0, 0, 0.9)';
+            this.recordingContext.fillRect(10, 10, 20, 20);
+            this.recordingContext.fillStyle = 'white';
+            this.recordingContext.font = 'bold 12px Arial';
+            this.recordingContext.fillText('REC', 35, 25);
+            
+        } catch (error) {
+            console.warn('Canvas recording error:', error);
+        }
+    }
+    
+    drawPianoKeyboardToCanvas(x, y, width, height) {
+        const ctx = this.recordingContext;
+        const config = this.pianoConfigs[this.settings.pianoRange];
+        const startNote = config.startNote;
+        const endNote = config.endNote;
+        
+        // Debug: Log piano drawing info (throttled)
+        const pressedKeysCount = this.activeKeys.size;
+        if (pressedKeysCount > 0 && !this.lastPianoLog || Date.now() - this.lastPianoLog > 1000) {
+            console.log(`🎹 Drawing piano with ${pressedKeysCount} pressed keys`);
+            this.lastPianoLog = Date.now();
+        }
+        
+        // Calculate key dimensions
+        const whiteKeyCount = this.countWhiteKeys(startNote, endNote);
+        const whiteKeyWidth = width / whiteKeyCount;
+        const whiteKeyHeight = height - 20; // Leave some margin
+        const blackKeyWidth = whiteKeyWidth * 0.6;
+        const blackKeyHeight = whiteKeyHeight * 0.6;
+        
+        // Draw background
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(x, y, width, height);
+        
+        // Draw white keys first
+        let whiteKeyIndex = 0;
+        for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
+            const noteIndex = midiNote % 12;
+            const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(noteIndex);
+            
+            if (isWhiteKey) {
+                const keyX = x + whiteKeyIndex * whiteKeyWidth;
+                const isPressed = this.activeKeys.has(midiNote);
+                
+                // Key background
+                ctx.fillStyle = isPressed ? '#4f46e5' : '#ffffff';
+                ctx.fillRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
+                
+                // Key border
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
+                
+                // Key pressed effect
+                if (isPressed) {
+                    ctx.fillStyle = 'rgba(79, 70, 229, 0.3)';
+                    ctx.fillRect(keyX + 2, y + 10, whiteKeyWidth - 4, whiteKeyHeight);
+                }
+                
+                whiteKeyIndex++;
+            }
+        }
+        
+        // Draw black keys on top
+        whiteKeyIndex = 0;
+        for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
+            const noteIndex = midiNote % 12;
+            const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(noteIndex);
+            const isBlackKey = [1, 3, 6, 8, 10].includes(noteIndex);
+            
+            if (isWhiteKey) {
+                whiteKeyIndex++;
+            } else if (isBlackKey) {
+                const prevWhiteKeyX = x + (whiteKeyIndex - 1) * whiteKeyWidth;
+                const keyX = prevWhiteKeyX + whiteKeyWidth - (blackKeyWidth / 2);
+                const isPressed = this.activeKeys.has(midiNote);
+                
+                // Key background
+                ctx.fillStyle = isPressed ? '#8b5cf6' : '#1a1a1a';
+                ctx.fillRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
+                
+                // Key border
+                ctx.strokeStyle = '#666666';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
+                
+                // Key pressed effect
+                if (isPressed) {
+                    ctx.fillStyle = 'rgba(139, 92, 246, 0.5)';
+                    ctx.fillRect(keyX, y + 10, blackKeyWidth, blackKeyHeight);
+                }
+            }
+        }
+        
+        // Add piano label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Piano Keyboard', x + width / 2, y + height - 5);
+    }
+    
+    async startRecording() {
+        try {
+            // Check if screen recording is enabled
+            if (!this.screenRecordingEnabled) {
+                alert('❌ 画面録画が無効になっています。\nチェックボックスをONにしてから録画してください。');
+                return;
+            }
+            
+            console.log('🎬 Starting canvas-only recording with audio...');
+            
+            // Check if Three.js canvas is available
+            if (!this.renderer || !this.renderer.domElement) {
+                alert('❌ Three.jsキャンバスが見つかりません。しばらく待ってから再試行してください。');
+                return;
+            }
+            
+            // Get the Three.js canvas
+            const sourceCanvas = this.renderer.domElement;
+            
+            console.log(`📐 Source canvas: ${sourceCanvas.width}x${sourceCanvas.height}`);
+            console.log(`📐 Source canvas client: ${sourceCanvas.clientWidth}x${sourceCanvas.clientHeight}`);
+            
+            // Always create composite canvas with piano keyboard for recording
+            console.log('🎹 Creating composite canvas with piano keyboard for recording...');
+            
+            // YouTube recommended sizes: 1920x1080 (Full HD)
+            const YOUTUBE_WIDTH = 1920;
+            const YOUTUBE_HEIGHT = 1080;
+            const PIANO_HEIGHT = 160; // Increase piano height for better visibility
+            const VISUALIZATION_HEIGHT = YOUTUBE_HEIGHT - PIANO_HEIGHT;
+            
+            this.recordingCanvas = document.createElement('canvas');
+            this.recordingCanvas.width = YOUTUBE_WIDTH;
+            this.recordingCanvas.height = YOUTUBE_HEIGHT;
+            this.recordingContext = this.recordingCanvas.getContext('2d');
+            
+            // Store layout info for consistent scaling
+            this.recordingLayout = {
+                width: YOUTUBE_WIDTH,
+                height: YOUTUBE_HEIGHT,
+                visualizationHeight: VISUALIZATION_HEIGHT,
+                pianoHeight: PIANO_HEIGHT
+            };
+            
+            console.log(`📐 Recording canvas: ${YOUTUBE_WIDTH}x${YOUTUBE_HEIGHT} (YouTube Full HD)`);
+            console.log(`📐 Layout: Visualization ${VISUALIZATION_HEIGHT}px + Piano ${PIANO_HEIGHT}px`);
+            
+            // Get video stream from composite canvas with higher framerate for better sync
+            const videoStream = this.recordingCanvas.captureStream(60); // 60 FPS for better sync
+            console.log('✅ Composite canvas capture setup complete (60 FPS)');
+            
+            // Get audio stream from our audio destination
+            let combinedStream;
+            if (this.audioDestination && this.audioDestination.stream) {
+                // Combine video and audio streams
+                combinedStream = new MediaStream([
+                    ...videoStream.getVideoTracks(),
+                    ...this.audioDestination.stream.getAudioTracks()
+                ]);
+                console.log('✅ Combined video and audio streams');
+            } else {
+                // Video only if audio destination not available
+                combinedStream = videoStream;
+                console.log('⚠️ Audio destination not available, using video only');
+            }
+            
+            // Try iPhone-compatible codecs first (H.264 MP4)
+            const codecOptions = [
+                { mimeType: 'video/mp4;codecs=avc1.42E01E', name: 'H.264 Baseline (iPhone最適)' },
+                { mimeType: 'video/mp4;codecs=avc1.4D401E', name: 'H.264 Main (iPhone対応)' },
+                { mimeType: 'video/mp4;codecs=h264', name: 'H.264 汎用' },
+                { mimeType: 'video/mp4', name: 'MP4コンテナ' },
+                { mimeType: 'video/webm;codecs=vp9', name: 'WebM VP9 (フォールバック)' },
+                { mimeType: 'video/webm;codecs=vp8', name: 'WebM VP8 (フォールバック)' },
+                { mimeType: 'video/webm', name: 'WebM (フォールバック)' }
+            ];
+            
+            let options = null;
+            for (const codec of codecOptions) {
+                if (MediaRecorder.isTypeSupported(codec.mimeType)) {
+                    options = { 
+                        mimeType: codec.mimeType,
+                        videoBitsPerSecond: 8000000, // 8 Mbps for high quality 1080p
+                        audioBitsPerSecond: 128000   // 128 kbps for good audio quality
+                    };
+                    console.log(`✅ Selected codec: ${codec.name} (${codec.mimeType})`);
+                    console.log(`📊 Quality: Video 8Mbps, Audio 128kbps`);
+                    break;
+                }
+            }
+            
+            if (!options) {
+                console.warn('⚠️ No supported video codecs found, using default');
+                options = {};
+            }
+            
+            // Add low-latency recording options
+            if (!options.audioBitsPerSecond) {
+                options.audioBitsPerSecond = 192000; // Higher audio bitrate for better quality with low latency
+            }
+            
+            // Optimize for real-time recording
+            options.recordingChunkMs = 100; // Smaller chunks for lower latency if supported
+            
+            this.mediaRecorder = new MediaRecorder(combinedStream, options);
+            this.combinedStream = combinedStream;
+            this.recordedChunks = [];
+            
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.recordedChunks.push(event.data);
+                    console.log(`📹 Recorded chunk: ${event.data.size} bytes`);
+                }
+            };
+            
+            this.mediaRecorder.onstop = () => {
+                console.log('🛑 Recording stopped');
+                document.getElementById('download-recording').disabled = false;
+                
+                // Clean up streams
+                if (this.combinedStream) {
+                    this.combinedStream.getTracks().forEach(track => track.stop());
+                }
+                
+                // Clean up recording canvas
+                this.recordingCanvas = null;
+                this.recordingContext = null;
+                this.combinedStream = null;
+            };
+            
+            // Start the canvas copying process only if using fallback
+            if (this.recordingCanvas) {
+                this.startCanvasCopyLoop();
+            }
+            
+            // Start recording with low-latency chunks (100ms intervals)
+            this.mediaRecorder.start(100);
+            this.isRecording = true;
+            
+            document.getElementById('start-recording').disabled = true;
+            document.getElementById('stop-recording').disabled = false;
+            
+            console.log('🔴 Canvas recording started successfully');
+            
+        } catch (error) {
+            console.error('Failed to start recording:', error);
+            alert('録画を開始できませんでした: ' + error.message);
+        }
+    }
+    
+    startCanvasCopyLoop() {
+        // This function is now deprecated - canvas copying happens in main animation loop
+        console.log('Canvas copying is now handled in the main animation loop');
+    }
+    
+    stopRecording() {
+        if (this.mediaRecorder && this.isRecording) {
+            console.log('🛑 Stopping canvas recording...');
+            this.mediaRecorder.stop();
+            this.isRecording = false;
+            
+            document.getElementById('start-recording').disabled = false;
+            document.getElementById('stop-recording').disabled = true;
+            
+            console.log('📹 Canvas recording stopped, audio synthesis reverted to normal mode');
+        }
+    }
+    
+    downloadRecording() {
+        if (this.recordedChunks.length === 0) return;
+        
+        // Determine the appropriate MIME type and extension based on what was recorded
+        let mimeType = 'video/mp4';
+        let extension = 'mp4';
+        
+        // Check if the recorded data is MP4 compatible
+        if (this.mediaRecorder && this.mediaRecorder.mimeType) {
+            const recordedMimeType = this.mediaRecorder.mimeType;
+            console.log(`📹 Recorded with MIME type: ${recordedMimeType}`);
+            
+            if (recordedMimeType.includes('mp4')) {
+                mimeType = 'video/mp4';
+                extension = 'mp4';
+            } else if (recordedMimeType.includes('webm')) {
+                mimeType = 'video/webm';
+                extension = 'webm';
+            }
+        }
+        
+        const blob = new Blob(this.recordedChunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `piano-recording-${timestamp}.${extension}`;
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(url);
+        document.getElementById('download-recording').disabled = true;
+        
+        console.log(`💾 Downloaded: ${filename} (${mimeType})`);
+        
+        // Show user-friendly message
+        if (extension === 'mp4') {
+            alert(`📱 MP4動画をダウンロードしました！\niPhoneのカメラロールでも再生できます。\nファイル名: ${filename}`);
+        } else {
+            alert(`📹 ${extension.toUpperCase()}動画をダウンロードしました。\nファイル名: ${filename}`);
+        }
     }
     
     updateMidiStatus() {
@@ -3317,6 +3636,110 @@ class PianoVisualizer {
         }
     }
     
+    async setupScreenRecording() {
+        const enableCheckbox = document.getElementById('screen-recording-enabled');
+        
+        // Set checkbox state based on saved settings
+        enableCheckbox.checked = this.screenRecordingEnabled;
+        
+        // Setup checkbox event listener
+        enableCheckbox.addEventListener('change', (e) => {
+            this.screenRecordingEnabled = e.target.checked;
+            console.log(`🎬 Screen recording ${this.screenRecordingEnabled ? 'enabled' : 'disabled'}`);
+            
+            if (!this.screenRecordingEnabled && this.screenRecordingStream) {
+                // Stop existing stream if disabled
+                this.screenRecordingStream.getTracks().forEach(track => track.stop());
+                this.screenRecordingStream = null;
+                console.log('🛑 Screen recording stream stopped');
+            }
+            
+            // Save settings when user changes checkbox
+            this.saveSettings();
+        });
+        
+        // Setup reset button
+        const resetButton = document.getElementById('reset-recording-settings');
+        resetButton.addEventListener('click', () => {
+            this.resetRecordingSettings();
+        });
+        
+        // Show permission dialog only if enabled and not previously asked
+        if (this.screenRecordingEnabled && !this.screenRecordingPermissionAsked) {
+            setTimeout(() => {
+                this.requestScreenRecordingPermission();
+            }, 1000); // Wait 1 second after load
+        } else if (this.screenRecordingPermissionAsked) {
+            console.log('📁 Screen recording permission previously configured, skipping dialog');
+        }
+    }
+    
+    async requestScreenRecordingPermission() {
+        if (!this.screenRecordingEnabled) return;
+        
+        const userConfirmed = confirm(
+            '🎬 画面録画機能を使用しますか？\n\n' +
+            '「OK」を選択すると：\n' +
+            '• ピアノ演奏を音付きでMP4録画できます\n' +
+            '• iPhoneでも再生可能な形式で保存されます\n' +
+            '• 録画時の権限確認をスキップできます\n' +
+            '• この設定は記憶され、次回以降は聞かれません\n\n' +
+            '「キャンセル」を選択すると：\n' +
+            '• 録画機能は無効になります\n' +
+            '• 後でチェックボックスから有効にできます\n' +
+            '• この設定も記憶されます'
+        );
+        
+        // Mark that permission has been asked
+        this.screenRecordingPermissionAsked = true;
+        
+        if (userConfirmed) {
+            try {
+                console.log('🎬 Requesting screen recording permission...');
+                
+                // Request permission and keep the stream for later use
+                this.screenRecordingStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        mediaSource: 'screen',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        sampleRate: 44100
+                    }
+                });
+                
+                console.log('✅ Screen recording permission granted');
+                alert('✅ 画面録画の許可を取得しました！\n録画ボタンを押すとすぐに録画を開始できます。\n\n※この設定は記憶され、次回以降は自動で有効になります。');
+                
+                // Stop the stream for now - we'll create a new one when recording starts
+                this.screenRecordingStream.getTracks().forEach(track => track.stop());
+                this.screenRecordingStream = null;
+                
+                // Keep recording enabled
+                this.screenRecordingEnabled = true;
+                document.getElementById('screen-recording-enabled').checked = true;
+                
+            } catch (error) {
+                console.log('❌ Screen recording permission denied:', error);
+                this.screenRecordingEnabled = false;
+                document.getElementById('screen-recording-enabled').checked = false;
+                alert('❌ 画面録画の許可が拒否されました。\n録画機能を無効にしました。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
+            }
+        } else {
+            this.screenRecordingEnabled = false;
+            document.getElementById('screen-recording-enabled').checked = false;
+            console.log('👤 User declined screen recording permission');
+            alert('📝 録画機能を無効にしました。\n後でチェックボックスから有効にできます。\n\n※この設定は記憶され、次回以降はダイアログは表示されません。');
+        }
+        
+        // Save the settings after user decision
+        this.saveSettings();
+    }
+    
     setupSNSShareButtons() {
         const twitterBtn = document.querySelector('.twitter-btn');
         const facebookBtn = document.querySelector('.facebook-btn');
@@ -3329,14 +3752,14 @@ class PianoVisualizer {
         }
         
         const shareData = {
-            title: 'Klavion - MIDIピアノビジュアライザー',
-            text: '🎹 Klavionは、MIDIキーボードの演奏をリアルタイムに可視化できるWebアプリです。ピアノの練習や発表、趣味の記録にも。ブラウザだけですぐ使えます。',
+            title: 'Piano Visualizer - Interactive 3D Piano with MIDI Support',
+            text: '🎹 美しい3Dビジュアライゼーション付きピアノ演奏ツール！MIDIサポート、ColorHunt Retroパレット、Full HD録画機能搭載。',
             url: window.location.href
         };
         
         // Twitter share
         twitterBtn.addEventListener('click', () => {
-            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=Klavion,ピアノ練習ツール,MIDIビジュアライザー`;
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareData.text)}&url=${encodeURIComponent(shareData.url)}&hashtags=PianoVisualizer,MIDI,3D,音楽,ピアノ`;
             window.open(twitterUrl, '_blank', 'width=550,height=420');
         });
         
@@ -3434,22 +3857,11 @@ class PianoVisualizer {
     }
     
     drawWaveformLine() {
-        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) {
-            console.warn('🌊 Waveform drawing skipped - missing components');
-            return;
-        }
+        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
         const bufferLength = this.analyserNode.fftSize;
         const dataArray = new Uint8Array(bufferLength);
         this.analyserNode.getByteTimeDomainData(dataArray);
-        
-        // デバッグ: データの存在確認
-        const hasData = dataArray.some(value => Math.abs(value - 128) > 1);
-        if (!hasData && Math.random() < 0.01) { // 1%の確率でログ出力
-            console.warn('🌊 No waveform data detected');
-        } else if (hasData && Math.random() < 0.01) {
-            console.log('🌊 Waveform data detected, range:', Math.min(...dataArray), '-', Math.max(...dataArray));
-        }
         
         const width = this.spectrumCanvas.width;
         const height = this.spectrumCanvas.height;
@@ -3494,22 +3906,11 @@ class PianoVisualizer {
     }
     
     drawSpectrumBars() {
-        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) {
-            console.warn('🎵 Spectrum drawing skipped - missing components');
-            return;
-        }
+        if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
         const bufferLength = this.analyserNode.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
         this.analyserNode.getByteFrequencyData(dataArray);
-        
-        // デバッグ: データの存在確認
-        const hasData = dataArray.some(value => value > 0);
-        if (!hasData && Math.random() < 0.01) { // 1%の確率でログ出力
-            console.warn('🎵 No spectrum data detected');
-        } else if (hasData && Math.random() < 0.01) {
-            console.log('🎵 Spectrum data detected, max:', Math.max(...dataArray));
-        }
         
         const width = this.spectrumCanvas.width;
         const height = this.spectrumCanvas.height;
@@ -3547,110 +3948,9 @@ class PianoVisualizer {
     }
 }
 
-// カスタムモーダル機能
-class CustomModal {
-    constructor() {
-        this.modal = document.getElementById('custom-modal');
-        this.overlay = this.modal.querySelector('.modal-overlay');
-        this.closeBtn = document.getElementById('modal-close');
-        this.okBtn = document.getElementById('modal-ok');
-        this.titleElement = document.getElementById('modal-title');
-        this.messageElement = document.getElementById('modal-message');
-        this.iconElement = document.getElementById('modal-icon');
-        
-        this.setupEventListeners();
-    }
-    
-    setupEventListeners() {
-        // 閉じるボタンのクリック
-        this.closeBtn.addEventListener('click', () => this.hide());
-        
-        // OKボタンのクリック
-        this.okBtn.addEventListener('click', () => this.hide());
-        
-        // オーバーレイのクリック
-        this.overlay.addEventListener('click', () => this.hide());
-        
-        // ESCキーで閉じる
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.modal.style.display !== 'none') {
-                this.hide();
-            }
-        });
-    }
-    
-    show(message, options = {}) {
-        const {
-            title = '通知',
-            icon = 'ℹ️',
-            type = 'info'
-        } = options;
-        
-        // アイコンとタイトルを設定
-        this.iconElement.textContent = this.getIcon(type, icon);
-        this.titleElement.textContent = title;
-        this.messageElement.textContent = message;
-        
-        // モーダルを表示
-        this.modal.style.display = 'flex';
-        this.modal.classList.remove('closing');
-        
-        // フォーカスをOKボタンに移動
-        setTimeout(() => {
-            this.okBtn.focus();
-        }, 100);
-    }
-    
-    hide() {
-        this.modal.classList.add('closing');
-        
-        setTimeout(() => {
-            this.modal.style.display = 'none';
-            this.modal.classList.remove('closing');
-        }, 200);
-    }
-    
-    getIcon(type, customIcon) {
-        if (customIcon && customIcon !== 'ℹ️') {
-            return customIcon;
-        }
-        
-        switch (type) {
-            case 'success':
-                return '✅';
-            case 'error':
-                return '❌';
-            case 'warning':
-                return '⚠️';
-            case 'download':
-                return '📱';
-            case 'recording':
-                return '🎬';
-            case 'permission':
-                return '🔐';
-            default:
-                return 'ℹ️';
-        }
-    }
-}
-
-// グローバルモーダルインスタンス
-let customModal;
-
-// alert() の代替関数
-function showModal(message, options = {}) {
-    if (!customModal) {
-        customModal = new CustomModal();
-    }
-    customModal.show(message, options);
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
-    
-    // カスタムモーダルの初期化
-    customModal = new CustomModal();
 });
