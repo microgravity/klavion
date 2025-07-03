@@ -67,10 +67,7 @@ class PianoVisualizer {
         this.sustainedNotes = new Set(); // Track sustained notes
         this.activeAudioNodes = new Map(); // Track active audio nodes for sustain
         
-        // Screen recording settings
-        this.screenRecordingEnabled = true;
-        this.screenRecordingStream = null;
-        this.screenRecordingPermissionAsked = false;
+        // Screen recording settings removed
         
         this.noteNames = {
             japanese: ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'],
@@ -184,25 +181,10 @@ class PianoVisualizer {
     
     loadSettings() {
         try {
-            // Load screen recording settings from localStorage
-            const savedEnabled = localStorage.getItem('screenRecordingEnabled');
-            const savedAsked = localStorage.getItem('screenRecordingPermissionAsked');
-            
-            if (savedEnabled !== null) {
-                this.screenRecordingEnabled = JSON.parse(savedEnabled);
-                console.log(`📁 Loaded screen recording setting: ${this.screenRecordingEnabled ? 'enabled' : 'disabled'}`);
-            }
-            
-            if (savedAsked !== null) {
-                this.screenRecordingPermissionAsked = JSON.parse(savedAsked);
-                console.log(`📁 Permission previously asked: ${this.screenRecordingPermissionAsked}`);
-            }
+            // Screen recording settings removed
             
         } catch (error) {
             console.warn('⚠️ Failed to load settings from localStorage:', error);
-            // Use defaults if loading fails
-            this.screenRecordingEnabled = true;
-            this.screenRecordingPermissionAsked = false;
         }
     }
     
@@ -1925,9 +1907,7 @@ class PianoVisualizer {
             }
         });
         
-        document.getElementById('start-recording').addEventListener('click', () => this.startRecording());
-        document.getElementById('stop-recording').addEventListener('click', () => this.stopRecording());
-        document.getElementById('download-recording').addEventListener('click', () => this.downloadRecording());
+        // Recording functionality removed
     }
     
     setupMidiControls() {
