@@ -442,12 +442,6 @@ class PianoVisualizer {
             this.midiInputs.clear();
             
             for (let input of this.midiAccess.inputs.values()) {
-                    id: input.id,
-                    manufacturer: input.manufacturer,
-                    name: input.name,
-                    state: input.state,
-                    type: input.type
-                });
                 this.midiDevices.push(input.name);
                 this.midiInputs.set(input.id, input);
                 hasInputs = true;
@@ -515,17 +509,8 @@ class PianoVisualizer {
     }
     
     handleMIDIMessage(message) {
-        // Debug: Always log raw MIDI input to console
         const [command, note, velocity] = message.data;
         const timestamp = message.timeStamp || performance.now();
-            command: command,
-            commandHex: `0x${command.toString(16).toUpperCase()}`,
-            note: note,
-            velocity: velocity,
-            timestamp: timestamp,
-            selectedDevice: this.selectedInputDevice,
-            rawData: Array.from(message.data)
-        });
         
         // Check if MIDI input is selected (not computer keyboard)
         if (this.selectedInputDevice === 'keyboard') {
@@ -3029,12 +3014,6 @@ class PianoVisualizer {
             const selectedValue = e.target.value;
             this.selectedInputDevice = selectedValue;
             
-            // Debug device selection
-                selectedValue: selectedValue,
-                isKeyboard: selectedValue === 'keyboard',
-                availableDevices: Array.from(this.midiInputs.keys()),
-                deviceNames: Array.from(this.midiInputs.values()).map(d => d.name)
-            });
             
             // Setup MIDI message handlers based on selection
             this.setupMidiInputHandlers();
