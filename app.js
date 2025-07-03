@@ -575,8 +575,12 @@ class PianoVisualizer {
         
         // Check if MIDI input is selected (not computer keyboard)
         if (this.selectedInputDevice === 'keyboard') {
-            console.log(`⚠️ MIDI input ignored - Computer keyboard selected`);
-            return; // Ignore MIDI messages when keyboard is selected
+            // コンピューターキーボード選択時もペダル操作は処理する
+            if (type === 'controlchange' && note === 64) {
+                console.log(`🦶 Sustain pedal processed even with keyboard selected`);
+                this.handleSustainPedal(velocity >= 64);
+            }
+            return; // ペダル以外のMIDI入力は無視
         }
         
         // Check if message is from selected device (only if we have multiple devices)
@@ -677,12 +681,18 @@ class PianoVisualizer {
             
             keyElement.addEventListener('mouseup', () => {
                 this.stopNote(midiNote);
-                keyElement.classList.remove('pressed');
+                // ペダルが押されていない場合のみ視覚的にキーを離す
+                if (!this.sustainPedalPressed) {
+                    keyElement.classList.remove('pressed');
+                }
             });
             
             keyElement.addEventListener('mouseleave', () => {
                 this.stopNote(midiNote);
-                keyElement.classList.remove('pressed');
+                // ペダルが押されていない場合のみ視覚的にキーを離す
+                if (!this.sustainPedalPressed) {
+                    keyElement.classList.remove('pressed');
+                }
             });
             
             this.pianoKeyboard.appendChild(keyElement);
@@ -819,6 +829,9 @@ class PianoVisualizer {
                 this.stopSustainedNote(midiNote);
             });
             this.sustainedNotes.clear();
+            
+            // ペダルが離されたときに全ての鍵盤の視覚的状態を更新
+            this.updateAllKeyVisuals();
         }
     }
     
@@ -842,6 +855,21 @@ class PianoVisualizer {
         
         // Remove piano key highlight
         this.highlightPianoKey(midiNote, false);
+    }
+    
+    updateAllKeyVisuals() {
+        // 全ての鍵盤の視覚的状態を現在の状態に合わせて更新
+        document.querySelectorAll('.piano-key').forEach(keyElement => {
+            const midiNote = parseInt(keyElement.dataset.note);
+            const isActive = this.activeKeys.has(midiNote);
+            const isSustained = this.sustainedNotes.has(midiNote);
+            
+            if (isActive || (isSustained && this.sustainPedalPressed)) {
+                keyElement.classList.add('pressed');
+            } else {
+                keyElement.classList.remove('pressed');
+            }
+        });
     }
     
     synthesizeNote(frequency, velocity, midiNote = null, enableVisualization = true) {
