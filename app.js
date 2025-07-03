@@ -2050,6 +2050,9 @@ class PianoVisualizer {
             const pressedKeys = this.pianoKeyboard.querySelectorAll('.piano-key.pressed');
             pressedKeys.forEach(key => key.classList.remove('pressed'));
             
+            // Reset sustain pedal state when seeking
+            this.handleSustainPedal(false);
+            
             // 再生を再開
             this.startMidiPlayback();
         }
@@ -2208,6 +2211,12 @@ class PianoVisualizer {
                     event.velocity = readUInt8();
                     event.type = (status & 0xF0) === 0x90 && event.velocity > 0 ? 'noteOn' : 'noteOff';
                     event.channel = status & 0x0F;
+                } else if ((status & 0xF0) === 0xB0) {
+                    // Control Change (including sustain pedal CC64)
+                    event.controller = readUInt8();
+                    event.value = readUInt8();
+                    event.type = 'controlChange';
+                    event.channel = status & 0x0F;
                 } else if (status === 0xFF) {
                     const metaType = readUInt8();
                     const length = readVariableLength();
@@ -2312,6 +2321,9 @@ class PianoVisualizer {
         const pressedKeys = this.pianoKeyboard.querySelectorAll('.piano-key.pressed');
         pressedKeys.forEach(key => key.classList.remove('pressed'));
         
+        // Reset sustain pedal state
+        this.handleSustainPedal(false);
+        
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
@@ -2360,7 +2372,7 @@ class PianoVisualizer {
             
             if (event.type === 'setTempo') {
                 currentTempo = event.microsecondsPerBeat;
-            } else if (event.type === 'noteOn' || event.type === 'noteOff') {
+            } else if (event.type === 'noteOn' || event.type === 'noteOff' || event.type === 'controlChange') {
                 allEvents.push({
                     ...event,
                     timeInSeconds: currentRealTime
@@ -2414,6 +2426,14 @@ class PianoVisualizer {
                     console.log(`[MIDI] Note OFF: ${event.note} at ${elapsed.toFixed(3)}s (event time: ${event.timeInSeconds.toFixed(3)}s)`);
                     this.stopNote(event.note, performance.now());
                     this.highlightPianoKey(event.note, false);
+                } else if (event.type === 'controlChange') {
+                    console.log(`[MIDI] Control Change: CC${event.controller} = ${event.value} at ${elapsed.toFixed(3)}s`);
+                    
+                    // Handle sustain pedal (CC 64)
+                    if (event.controller === 64) {
+                        this.handleSustainPedal(event.value >= 64);
+                        console.log(`[MIDI] Sustain pedal ${event.value >= 64 ? 'ON' : 'OFF'} (CC64=${event.value})`);
+                    }
                 }
                 
                 eventIndex++;
