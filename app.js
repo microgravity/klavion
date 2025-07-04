@@ -1938,7 +1938,7 @@ class PianoVisualizer {
             
             const timeInSeconds = (currentTime / ticksPerBeat) * (microsecondsPerBeat / 1000000);
             maxTime = Math.max(maxTime, timeInSeconds);
-        });
+        }
         
         return maxTime;
     }
@@ -2054,7 +2054,7 @@ class PianoVisualizer {
                     timeInSeconds: currentRealTime
                 });
             }
-        });
+        }
         
         // シーク位置に応じてeventIndexを調整
         let eventIndex = 0;
