@@ -224,6 +224,9 @@ class PianoVisualizer {
     }
     
     async init() {
+        // Initialize DOM cache first
+        this.initializeDOM();
+        
         await this.initAudio();
         await this.initMIDI();
         this.initThreeJS();
@@ -243,6 +246,38 @@ class PianoVisualizer {
         this.startVisualization();
         
         window.addEventListener('resize', () => this.onWindowResize());
+    }
+    
+    initializeDOM() {
+        // DOM要素キャッシュを初期化（高頻度使用要素のみ）
+        this.domCache = {
+            // 再生制御系（高頻度使用）
+            playMidi: document.getElementById('play-midi'),
+            pauseMidi: document.getElementById('pause-midi'),
+            stopMidi: document.getElementById('stop-midi'),
+            
+            // 進捗表示系（高頻度使用）
+            progressFill: document.getElementById('progress-fill'),
+            
+            // 情報表示系（高頻度使用）
+            midiInfo: document.getElementById('midi-info'),
+            
+            // 設定系（高頻度使用）
+            midiInputSelect: document.getElementById('midi-input-select'),
+            pianoRange: document.getElementById('piano-range')
+        };
+        
+        // キャッシュが正常に初期化されたかチェック
+        const missingElements = [];
+        for (const [key, element] of Object.entries(this.domCache)) {
+            if (!element) {
+                missingElements.push(key);
+            }
+        }
+        
+        if (missingElements.length > 0) {
+            console.warn('DOM要素キャッシュ初期化で一部の要素が見つかりません:', missingElements);
+        }
     }
     
     initThreeJS() {
@@ -434,7 +469,7 @@ class PianoVisualizer {
                 this.hasMidiInput = true;
                 // Auto-enable 88-key mode when MIDI detected
                 this.settings.pianoRange = '88-key';
-                document.getElementById('piano-range').value = '88-key';
+                this.domCache.pianoRange.value = '88-key';
                 this.recreatePianoKeyboard();
             }
             
@@ -447,7 +482,7 @@ class PianoVisualizer {
                             this.hasMidiInput = true;
                             // Auto-enable 88-key mode
                             this.settings.pianoRange = '88-key';
-                            document.getElementById('piano-range').value = '88-key';
+                            this.domCache.pianoRange.value = '88-key';
                             this.recreatePianoKeyboard();
                         }
                         
@@ -1400,7 +1435,7 @@ class PianoVisualizer {
         
         
         // Piano range selector
-        const rangeSelector = document.getElementById('piano-range');
+        const rangeSelector = this.domCache.pianoRange;
         rangeSelector.addEventListener('change', (e) => {
             this.settings.pianoRange = e.target.value;
             this.recreatePianoKeyboard();
@@ -1564,8 +1599,8 @@ class PianoVisualizer {
                 // ファイルが選択されていない場合は再生位置コントロールを非表示
                 this.midiData = null;
                 this.hidePlaybackControls();
-                document.getElementById('play-midi').disabled = true;
-                document.getElementById('midi-info').textContent = '';
+                this.domCache.playMidi.disabled = true;
+                this.domCache.midiInfo.textContent = '';
             }
         });
         
@@ -1609,7 +1644,7 @@ class PianoVisualizer {
             const progress = Math.max(0, Math.min(100, (x / rect.width) * 100));
             
             // UIを即座に更新
-            document.getElementById('progress-fill').style.width = `${progress}%`;
+            this.domCache.progressFill.style.width = `${progress}%`;
             
             // 時間表示を更新
             const newTime = (progress / 100) * this.totalTime;
@@ -1682,7 +1717,7 @@ class PianoVisualizer {
         
         // UIを更新
         const progress = this.totalTime > 0 ? (this.currentTime / this.totalTime) * 100 : 0;
-        document.getElementById('progress-fill').style.width = `${progress}%`;
+        this.domCache.progressFill.style.width = `${progress}%`;
         this.updateTimeDisplay(this.currentTime, this.totalTime);
         this.updatePositionInfo(this.currentTime);
     }
@@ -1728,8 +1763,8 @@ class PianoVisualizer {
             const arrayBuffer = await file.arrayBuffer();
             this.midiData = this.parseMidi(arrayBuffer);
             
-            document.getElementById('play-midi').disabled = false;
-            document.getElementById('midi-info').textContent = `Loaded: ${file.name}`;
+            this.domCache.playMidi.disabled = false;
+            this.domCache.midiInfo.textContent = `Loaded: ${file.name}`;
             
             this.totalTime = this.calculateTotalTime();
             this.currentTime = 0;
@@ -1740,9 +1775,9 @@ class PianoVisualizer {
             this.updatePositionInfo(0);
             
         } catch (error) {
-            document.getElementById('midi-info').textContent = 'Error loading file';
+            this.domCache.midiInfo.textContent = 'Error loading file';
             this.hidePlaybackControls();
-            document.getElementById('play-midi').disabled = true;
+            this.domCache.playMidi.disabled = true;
         }
     }
     
@@ -1899,17 +1934,17 @@ class PianoVisualizer {
         
         this.isPlaying = true;
         
-        document.getElementById('play-midi').disabled = true;
-        document.getElementById('pause-midi').disabled = false;
-        document.getElementById('stop-midi').disabled = false;
+        this.domCache.playMidi.disabled = true;
+        this.domCache.pauseMidi.disabled = false;
+        this.domCache.stopMidi.disabled = false;
         
         this.startMidiPlayback();
     }
     
     pauseMidi() {
         this.isPlaying = false;
-        document.getElementById('play-midi').disabled = false;
-        document.getElementById('pause-midi').disabled = true;
+        this.domCache.playMidi.disabled = false;
+        this.domCache.pauseMidi.disabled = true;
         
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
@@ -1924,10 +1959,10 @@ class PianoVisualizer {
         this.isPlaying = false;
         this.currentTime = 0; // stopは完全に停止して最初に戻る
         
-        document.getElementById('play-midi').disabled = false;
-        document.getElementById('pause-midi').disabled = true;
-        document.getElementById('stop-midi').disabled = true;
-        document.getElementById('progress-fill').style.width = '0%';
+        this.domCache.playMidi.disabled = false;
+        this.domCache.pauseMidi.disabled = true;
+        this.domCache.stopMidi.disabled = true;
+        this.domCache.progressFill.style.width = '0%';
         
         // 時間・位置表示を初期化
         this.updateTimeDisplay(0, this.totalTime);
@@ -2050,7 +2085,7 @@ class PianoVisualizer {
             }
             
             const progress = this.totalTime > 0 ? (elapsed / this.totalTime) * 100 : 0;
-            document.getElementById('progress-fill').style.width = `${Math.min(progress, 100)}%`;
+            this.domCache.progressFill.style.width = `${Math.min(progress, 100)}%`;
             
             // 新しい時間・位置表示を更新
             this.updateTimeDisplay(elapsed, this.totalTime);
@@ -2639,7 +2674,7 @@ class PianoVisualizer {
     }
     
     updateMidiDeviceList() {
-        const selectElement = document.getElementById('midi-input-select');
+        const selectElement = this.domCache.midiInputSelect;
         
         // Clear existing options except computer keyboard
         while (selectElement.children.length > 1) {
@@ -2656,7 +2691,7 @@ class PianoVisualizer {
     }
     
     setupMidiDeviceSelection() {
-        const selectElement = document.getElementById('midi-input-select');
+        const selectElement = this.domCache.midiInputSelect;
         
         selectElement.addEventListener('change', (e) => {
             const selectedValue = e.target.value;
@@ -2791,7 +2826,7 @@ class PianoVisualizer {
         if (bestDevice && highestScore >= 1) {
             const oldDevice = this.selectedInputDevice;
             this.selectedInputDevice = bestDevice.id;
-            document.getElementById('midi-input-select').value = bestDevice.id;
+            this.domCache.midiInputSelect.value = bestDevice.id;
             
             this.logMidiActivity(`Auto-selected: ${bestDevice.input.name}`);
             
@@ -2801,7 +2836,7 @@ class PianoVisualizer {
             const firstDevice = this.midiInputs.entries().next().value;
             const oldDevice = this.selectedInputDevice;
             this.selectedInputDevice = firstDevice[0];
-            document.getElementById('midi-input-select').value = firstDevice[0];
+            this.domCache.midiInputSelect.value = firstDevice[0];
             
             this.logMidiActivity(`Auto-selected: ${firstDevice[1].name}`);
             
