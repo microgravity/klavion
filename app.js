@@ -1,7 +1,7 @@
 class PianoVisualizer {
     constructor() {
         this.container = document.getElementById('three-container');
-        this.pianoKeyboard = document.getElementById('piano-keyboard');
+        this.pianoKeyboard = document.getElementById('pk');
         
         // Three.js setup
         this.scene = null;
@@ -195,18 +195,18 @@ class PianoVisualizer {
     }
     
     showMobileWarning() {
-        const warningElement = document.getElementById('mobile-warning');
-        const continueBtn = document.getElementById('mobile-continue-btn');
+        const warningElement = document.getElementById('mw');
+        const continueBtn = document.getElementById('mcb');
         
         if (warningElement && continueBtn) {
             // Show the warning screen
             warningElement.style.display = 'flex';
-            document.body.classList.add('mobile-warning-shown');
+            document.body.classList.add('mws');
             
             // Set up continue button event
             continueBtn.addEventListener('click', () => {
                 warningElement.style.display = 'none';
-                document.body.classList.remove('mobile-warning-shown');
+                document.body.classList.remove('mws');
                 
                 // Store preference in localStorage
                 localStorage.setItem('mobileWarningDismissed', 'true');
@@ -836,42 +836,8 @@ class PianoVisualizer {
         // Adjust duration for sustain pedal
         const actualDuration = this.sustainPedalPressed ? duration * 2 : duration;
         
-        let gainNode;
-        switch (timbre) {
-            case 'acoustic-piano':
-                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'electric-piano':
-                gainNode = this.createElectricPiano(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'harpsichord':
-                gainNode = this.createHarpsichord(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'organ':
-                gainNode = this.createOrgan(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'strings':
-                gainNode = this.createStrings(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'vibraphone':
-                gainNode = this.createVibraphone(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'music-box':
-                gainNode = this.createMusicBox(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'synthesizer':
-                gainNode = this.createSynthesizer(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'bell':
-                gainNode = this.createBell(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            case 'flute':
-                gainNode = this.createFlute(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-            default:
-                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
-        }
+        // Use unified timbre creation system
+        const gainNode = this.createUnifiedTimbre(frequency, volume, startTime, actualDuration, timbre, enableVisualization);
         
         // Track active audio nodes for sustain pedal
         if (midiNote && gainNode) {
@@ -1041,311 +1007,145 @@ class PianoVisualizer {
         return durations[timbre] || 2.0;
     }
     
-    createAcousticPiano(frequency, volume, currentTime, duration, enableVisualization = true) {
-        // Acoustic piano with multiple harmonics
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
+    // Unified timbre configuration
+    getTimbreConfig(timbre) {
+        const configs = {
+            'acoustic-piano': {
+                oscillators: [
+                    { type: 'sine', frequency: 1, gain: 0.6 },
+                    { type: 'sine', frequency: 2, gain: 0.3 },
+                    { type: 'sine', frequency: 3, gain: 0.1 }
+                ],
+                filter: { type: 'lowpass', frequency: 2000, Q: 1 },
+                envelope: { attack: 0.05, decay: null, sustain: null, release: true }
+            },
+            'electric-piano': {
+                oscillators: [
+                    { type: 'sine', frequency: 1, gain: 0.7 },
+                    { type: 'triangle', frequency: 2, gain: 0.3 }
+                ],
+                filter: { type: 'bandpass', frequency: 1500, Q: 5 },
+                envelope: { attack: 0.02, decay: null, sustain: null, release: true }
+            },
+            'harpsichord': {
+                oscillators: [{ type: 'sawtooth', frequency: 1, gain: 1.0 }],
+                filter: { type: 'highpass', frequency: 800, Q: 2 },
+                envelope: { attack: 0, decay: null, sustain: null, release: true }
+            },
+            'organ': {
+                oscillators: [
+                    { type: 'sine', frequency: 1, gain: 0.5 },
+                    { type: 'sine', frequency: 2, gain: 0.3 },
+                    { type: 'sine', frequency: 4, gain: 0.2 }
+                ],
+                filter: { type: 'lowpass', frequency: 3000, Q: 1 },
+                envelope: { attack: 0.1, decay: null, sustain: true, release: 0.1 }
+            },
+            'strings': {
+                oscillators: [
+                    { type: 'sawtooth', frequency: 1, gain: 0.6 },
+                    { type: 'sawtooth', frequency: 2, gain: 0.4 }
+                ],
+                filter: { type: 'lowpass', frequency: 1200, Q: 3 },
+                envelope: { attack: 0.3, decay: null, sustain: null, release: true }
+            },
+            'vibraphone': {
+                oscillators: [
+                    { type: 'sine', frequency: 1, gain: 0.7 },
+                    { type: 'sine', frequency: 3.14, gain: 0.3 }
+                ],
+                filter: { type: 'lowpass', frequency: 2500, Q: 2 },
+                envelope: { attack: 0.02, decay: null, sustain: null, release: true }
+            },
+            'music-box': {
+                oscillators: [{ type: 'sine', frequency: 1, gain: 1.0 }],
+                filter: { type: 'lowpass', frequency: 1500, Q: 3 },
+                envelope: { attack: 0.01, decay: null, sustain: null, release: true }
+            },
+            'synthesizer': {
+                oscillators: [
+                    { type: 'square', frequency: 1, gain: 0.6 },
+                    { type: 'sawtooth', frequency: 1.5, gain: 0.4 }
+                ],
+                filter: { type: 'lowpass', frequency: 1800, Q: 4 },
+                envelope: { attack: 0.1, decay: null, sustain: null, release: true }
+            },
+            'bell': {
+                oscillators: [
+                    { type: 'sine', frequency: 1, gain: 0.5 },
+                    { type: 'sine', frequency: 2.76, gain: 0.3 },
+                    { type: 'sine', frequency: 5.12, gain: 0.2 }
+                ],
+                filter: { type: 'lowpass', frequency: 4000, Q: 1 },
+                envelope: { attack: 0.01, decay: null, sustain: null, release: true }
+            },
+            'flute': {
+                oscillators: [
+                    { type: 'sine', frequency: 1, gain: 0.8 },
+                    { type: 'sine', frequency: 2, gain: 0.2 }
+                ],
+                filter: { type: 'lowpass', frequency: 2200, Q: 2 },
+                envelope: { attack: 0.1, decay: null, sustain: true, release: 0.2 }
+            }
+        };
+        return configs[timbre] || configs['acoustic-piano'];
+    }
+    
+    // Unified timbre creation function
+    createUnifiedTimbre(frequency, volume, currentTime, duration, timbre, enableVisualization = true) {
+        const config = this.getTimbreConfig(timbre);
+        const oscillators = [];
         const gainNode = this.audioContext.createGain();
         const filter = this.audioContext.createBiquadFilter();
         
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency * 3, currentTime);
+        // Create oscillators
+        config.oscillators.forEach(oscConfig => {
+            const osc = this.audioContext.createOscillator();
+            const oscGain = this.audioContext.createGain();
+            
+            osc.type = oscConfig.type;
+            osc.frequency.setValueAtTime(frequency * oscConfig.frequency, currentTime);
+            oscGain.gain.setValueAtTime(volume * oscConfig.gain, currentTime);
+            
+            osc.connect(oscGain);
+            oscGain.connect(gainNode);
+            oscillators.push(osc);
+        });
         
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2000, currentTime);
-        filter.Q.setValueAtTime(1, currentTime);
+        // Configure filter
+        filter.type = config.filter.type;
+        filter.frequency.setValueAtTime(config.filter.frequency, currentTime);
+        filter.Q.setValueAtTime(config.filter.Q, currentTime);
         
+        // Configure envelope
         gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        if (config.envelope.attack > 0) {
+            gainNode.gain.linearRampToValueAtTime(volume, currentTime + config.envelope.attack);
+        } else {
+            gainNode.gain.setValueAtTime(volume, currentTime);
+        }
         
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
+        if (config.envelope.sustain) {
+            if (config.envelope.release) {
+                gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration - config.envelope.release);
+            }
+        } else {
+            gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
+        }
+        
+        // Connect audio chain
         gainNode.connect(filter);
         this.connectAudioOutput(filter, enableVisualization);
         
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
+        // Start and stop oscillators
+        oscillators.forEach(osc => {
+            osc.start(currentTime);
+            osc.stop(currentTime + duration);
+        });
         
         return gainNode;
     }
-    
-    createElectricPiano(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'triangle';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(1500, currentTime);
-        filter.Q.setValueAtTime(5, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        gainNode.connect(filter);
-        this.connectAudioOutput(filter, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createHarpsichord(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(frequency, currentTime);
-        
-        filter.type = 'highpass';
-        filter.frequency.setValueAtTime(800, currentTime);
-        filter.Q.setValueAtTime(2, currentTime);
-        
-        gainNode.gain.setValueAtTime(volume, currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc.connect(filter);
-        filter.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc.start(currentTime);
-        osc.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createOrgan(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency / 2, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.1);
-        gainNode.gain.linearRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createStrings(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(frequency, currentTime);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1200, currentTime);
-        filter.Q.setValueAtTime(1, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.3);
-        gainNode.gain.linearRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc.connect(filter);
-        filter.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc.start(currentTime);
-        osc.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createVibraphone(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const lfo = this.audioContext.createOscillator();
-        const lfoGain = this.audioContext.createGain();
-        const gainNode = this.audioContext.createGain();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 4, currentTime);
-        
-        lfo.type = 'sine';
-        lfo.frequency.setValueAtTime(5, currentTime);
-        lfoGain.gain.setValueAtTime(0.1, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        lfo.connect(lfoGain);
-        lfoGain.connect(gainNode.gain);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        lfo.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        lfo.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createMusicBox(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(frequency * 2, currentTime);
-        
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(3000, currentTime);
-        filter.Q.setValueAtTime(10, currentTime);
-        
-        gainNode.gain.setValueAtTime(volume, currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc.connect(filter);
-        filter.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc.start(currentTime);
-        osc.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createSynthesizer(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'square';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sawtooth';
-        osc2.frequency.setValueAtTime(frequency + 2, currentTime);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(800, currentTime);
-        filter.Q.setValueAtTime(5, currentTime);
-        
-        gainNode.gain.setValueAtTime(volume, currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        gainNode.connect(filter);
-        this.connectAudioOutput(filter, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createBell(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2.4, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency * 3.8, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createFlute(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(frequency, currentTime);
-        
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(1000, currentTime);
-        filter.Q.setValueAtTime(2, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.2);
-        gainNode.gain.linearRampToValueAtTime(volume * 0.8, currentTime + duration * 0.7);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc.connect(filter);
-        filter.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc.start(currentTime);
-        osc.stop(currentTime + duration);
-        
-        return gainNode;
-    }
+
     
     visualizeNoteThreeJS(noteName, midiNote, velocity, timestamp) {
         // Fallback to DOM if THREE.js not available
@@ -1911,13 +1711,13 @@ class PianoVisualizer {
     }
     // 再生位置コントロールの表示/非表示
     showPlaybackControls() {
-        const playbackControls = document.getElementById('playback-controls');
+        const playbackControls = document.getElementById('pbc');
         if (playbackControls) {
             playbackControls.style.display = 'block';
         }
     }
     hidePlaybackControls() {
-        const playbackControls = document.getElementById('playback-controls');
+        const playbackControls = document.getElementById('pbc');
         if (playbackControls) {
             playbackControls.style.display = 'none';
         }
@@ -2276,7 +2076,7 @@ class PianoVisualizer {
         const defaultCollapsed = ['keyboard', 'recording'];
         
         // Initialize max-height for all collapsible content
-        document.querySelectorAll('.collapsible-content').forEach(content => {
+        document.querySelectorAll('.cc').forEach(content => {
             const sectionName = content.getAttribute('data-section');
             if (defaultCollapsed.includes(sectionName)) {
                 // Start collapsed
@@ -2296,8 +2096,8 @@ class PianoVisualizer {
         document.querySelectorAll('h3[data-section]').forEach(header => {
             header.addEventListener('click', (e) => {
                 const sectionName = header.getAttribute('data-section');
-                const content = document.querySelector(`.collapsible-content[data-section="${sectionName}"]`);
-                const icon = header.querySelector('.toggle-icon');
+                const content = document.querySelector(`.cc[data-section="${sectionName}"]`);
+                const icon = header.querySelector('.ti');
                 
                 if (content.classList.contains('collapsed')) {
                     // Expand
@@ -2558,7 +2358,7 @@ class PianoVisualizer {
         
         // Update all note displays in keyboard help
         keyMappings.forEach(mapping => {
-            const noteElement = document.querySelector(`.mapping-row .key:contains('${mapping.key}')`);
+            const noteElement = document.querySelector(`.mr .key:contains('${mapping.key}')`);
             if (noteElement && noteElement.nextElementSibling) {
                 const noteName = this.midiNoteToNoteName(mapping.midiNote);
                 noteElement.nextElementSibling.textContent = noteName;
@@ -2566,7 +2366,7 @@ class PianoVisualizer {
         });
         
         // Alternative approach: find by text content
-        document.querySelectorAll('.mapping-row').forEach(row => {
+        document.querySelectorAll('.mr').forEach(row => {
             const keySpan = row.querySelector('.key');
             const noteSpan = row.querySelector('.note');
             if (keySpan && noteSpan) {
@@ -2638,7 +2438,7 @@ class PianoVisualizer {
     
     visualizeNoteFallback(noteName, midiNote, velocity) {
         const noteElement = document.createElement('div');
-        noteElement.className = 'note-display';
+        noteElement.className = 'nd';
         noteElement.textContent = noteName;
         
         const size = this.getNoteSizeClass(velocity);
@@ -3012,8 +2812,8 @@ class PianoVisualizer {
     
     
     setupSNSShareButtons() {
-        const twitterBtn = document.querySelector('.twitter-btn');
-        const facebookBtn = document.querySelector('.facebook-btn');
+        const twitterBtn = document.querySelector('.tb');
+        const facebookBtn = document.querySelector('.fb');
         const lineBtn = document.querySelector('.line-btn');
         const copyBtn = document.querySelector('.copy-btn');
         
@@ -3072,7 +2872,7 @@ class PianoVisualizer {
     
     setupWaveformDisplay() {
         
-        this.spectrumCanvas = document.getElementById('spectrum-canvas');
+        this.spectrumCanvas = document.getElementById('sc');
         if (!this.spectrumCanvas) {
             return;
         }

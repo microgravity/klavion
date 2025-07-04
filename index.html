@@ -34,12 +34,12 @@
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#0f0f23,#1a1a2e,#16213e);color:#e5e7eb;overflow:hidden;font-weight:400}
-        .app-container{display:flex;height:100vh}
+        .ac{display:flex;height:100vh}
         .sidebar{width:320px;background:rgba(15,15,35,0.95);padding:24px}
-        .main-content{flex:1;display:flex;flex-direction:column;position:relative}
+        .mc{flex:1;display:flex;flex-direction:column;position:relative}
         #three-container{width:100%;height:calc(100vh - 180px);background:linear-gradient(45deg,#0f0f23,#1a1a2e,#16213e);position:relative;overflow:hidden;z-index:2}
-        .mobile-warning{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0f0f23,#1a1a2e,#16213e);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
-        .mobile-warning-shown .app-container{display:none}
+        .mw{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0f0f23,#1a1a2e,#16213e);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+        .mws .ac{display:none}
     </style>
     <link rel="stylesheet" href="styles.css">
     <!-- Three.js preloaded for faster initialization -->
@@ -48,17 +48,17 @@
 </head>
 <body>
     <!-- Mobile Device Warning -->
-    <div id="mobile-warning" class="mobile-warning" style="display: none;">
-        <div class="mobile-warning-content">
-            <div class="mobile-warning-icon">🎹</div>
+    <div id="mw" class="mw" style="display: none;">
+        <div class="mwc">
+            <div class="mwi">🎹</div>
             <h1>Piano Visualizer</h1>
             <h2>ピアノビジュアライザー</h2>
             
-            <div class="mobile-warning-message">
+            <div class="mwm">
                 <p><strong>For the best experience, please use a tablet or PC</strong></p>
                 <p><strong>最適な体験のため、タブレットまたはPCからアクセスしてください</strong></p>
                 
-                <div class="mobile-warning-details">
+                <div class="mwd">
                     <h3>Required Features / 必要な機能:</h3>
                     <ul>
                         <li>🎹 MIDI keyboard support / MIDIキーボード対応</li>
@@ -68,16 +68,16 @@
                     </ul>
                 </div>
                 
-                <div class="mobile-warning-supported">
+                <div class="mwsp">
                     <h3>Supported Devices / 対応デバイス:</h3>
-                    <div class="device-list">
-                        <div class="device-item">💻 Desktop PC</div>
-                        <div class="device-item">💻 Laptop</div>
-                        <div class="device-item">📱 Tablet (iPad, Android)</div>
+                    <div class="dl">
+                        <div class="di">💻 Desktop PC</div>
+                        <div class="di">💻 Laptop</div>
+                        <div class="di">📱 Tablet (iPad, Android)</div>
                     </div>
                 </div>
                 
-                <button id="mobile-continue-btn" class="mobile-continue-btn">
+                <button id="mcb" class="mcb">
                     Continue Anyway / それでも続行
                 </button>
             </div>
@@ -85,13 +85,13 @@
     </div>
 
     <!-- SNS Share Buttons -->
-    <div class="sns-share-buttons">
-        <button class="sns-btn twitter-btn" title="Twitterでシェア">
+    <div class="ssb">
+        <button class="sns-btn tb" title="Twitterでシェア">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
             </svg>
         </button>
-        <button class="sns-btn facebook-btn" title="Facebookでシェア">
+        <button class="sns-btn fb" title="Facebookでシェア">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
             </svg>
@@ -108,12 +108,12 @@
         </button>
     </div>
 
-    <div class="app-container">
+    <div class="ac">
         <div class="sidebar">
-            <div class="midi-status">
-                <h3 data-section="midi-input" class="collapsed">🎹 MIDI Input <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content collapsed" data-section="midi-input">
-                <div class="control-group">
+            <div class="ms">
+                <h3 data-section="midi-input" class="collapsed">🎹 MIDI Input <span class="ti">▼</span></h3>
+                <div class="cc collapsed" data-section="midi-input">
+                <div class="cg">
                     <label for="midi-input-select">Input Device</label>
                     <select id="midi-input-select">
                         <option value="keyboard" selected>Computer Keyboard</option>
@@ -123,37 +123,37 @@
                 <div id="midi-activity"></div>
                 </div>
             </div>
-            <div class="midi-controls">
-                <h3 data-section="midi-playback" class="collapsed">🎵 MIDI Playback <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content collapsed" data-section="midi-playback">
+            <div class="mdc">
+                <h3 data-section="midi-playback" class="collapsed">🎵 MIDI Playback <span class="ti">▼</span></h3>
+                <div class="cc collapsed" data-section="midi-playback">
                 <input type="file" id="midi-file-input" accept=".mid,.midi" style="display: none;">
                 <button id="load-midi">Load MIDI File</button>
                 <button id="play-midi" disabled>Play</button>
                 <button id="pause-midi" disabled>Pause</button>
                 <button id="stop-midi" disabled>Stop</button>
-                <div class="tempo-control">
+                <div class="tc">
                     <label for="tempo-slider">Tempo (1% precision)</label>
                     <input type="range" id="tempo-slider" min="25" max="200" step="1" value="100">
                     <span id="tempo-value">100%</span>
                 </div>
                 <!-- 再生位置コントロール（MIDI再生時のみ表示） -->
-                <div id="playback-controls" class="playback-controls" style="display: none;">
-                    <div class="time-display">
+                <div id="pbc" class="pbc" style="display: none;">
+                    <div class="td">
                         <span id="current-time">00:00</span>
-                        <span class="time-separator">/</span>
+                        <span class="tsep">/</span>
                         <span id="total-time">00:00</span>
                     </div>
                     
-                    <div class="progress-container">
-                        <div class="progress-bar" id="seekable-progress">
+                    <div class="pct">
+                        <div class="pb" id="seekable-progress">
                             <div id="progress-fill"></div>
                             <div id="progress-handle"></div>
                         </div>
                     </div>
                     
-                    <div class="position-info">
+                    <div class="posi">
                         <span id="current-measure">小節: 1</span>
-                        <span class="position-separator">|</span>
+                        <span class="psep">|</span>
                         <span id="current-beat">拍: 1</span>
                     </div>
                 </div>
@@ -161,53 +161,53 @@
                 <div id="midi-info"></div>
                 </div>
             </div>
-            <div class="keyboard-help">
-                <h3 data-section="keyboard" class="collapsed">⌨️ Keyboard Controls <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content collapsed" data-section="keyboard">
-                <div class="key-mapping">
-                    <div class="mapping-row">
+            <div class="kh">
+                <h3 data-section="keyboard" class="collapsed">⌨️ Keyboard Controls <span class="ti">▼</span></h3>
+                <div class="cc collapsed" data-section="keyboard">
+                <div class="km">
+                    <div class="mr">
                         <span class="key">A</span><span class="note">ド4</span>
                         <span class="key">W</span><span class="note">ド#4</span>
                         <span class="key">S</span><span class="note">レ4</span>
                         <span class="key">E</span><span class="note">レ#4</span>
                     </div>
-                    <div class="mapping-row">
+                    <div class="mr">
                         <span class="key">D</span><span class="note">ミ4</span>
                         <span class="key">F</span><span class="note">ファ4</span>
                         <span class="key">T</span><span class="note">ファ#4</span>
                         <span class="key">G</span><span class="note">ソ4</span>
                     </div>
-                    <div class="mapping-row">
+                    <div class="mr">
                         <span class="key">Y</span><span class="note">ソ#4</span>
                         <span class="key">H</span><span class="note">ラ4</span>
                         <span class="key">U</span><span class="note">ラ#4</span>
                         <span class="key">J</span><span class="note">シ4</span>
                     </div>
-                    <div class="mapping-row">
+                    <div class="mr">
                         <span class="key">K</span><span class="note">ド5</span>
                         <span class="key">O</span><span class="note">ド#5</span>
                         <span class="key">L</span><span class="note">レ5</span>
                         <span class="key">P</span><span class="note">レ#5</span>
                     </div>
-                    <div class="mapping-row">
+                    <div class="mr">
                         <span class="key">;</span><span class="note">ミ5</span>
                         <span class="key">'</span><span class="note">ファ5</span>
                         <span class="key">]</span><span class="note">ファ#5</span>
                         <span class="key">\</span><span class="note">ソ5</span>
                     </div>
                 </div>
-                <div class="pedal-controls">
+                <div class="pc">
                     <h4>🦶 ペダル操作</h4>
-                    <div class="mapping-row">
+                    <div class="mr">
                         <span class="key">Shift</span><span class="note">サスティンペダル</span>
                         <span class="key">Space</span><span class="note">MIDI再生/停止</span>
                     </div>
                 </div>
                 </div>
             </div>
-            <h3 data-section="effects" class="collapsed">✨ Effects <span class="toggle-icon">▼</span></h3>
-            <div class="collapsible-content collapsed" data-section="effects">
-                <div class="control-group">
+            <h3 data-section="effects" class="collapsed">✨ Effects <span class="ti">▼</span></h3>
+            <div class="cc collapsed" data-section="effects">
+                <div class="cg">
                     <label for="color-scale">Color Scale</label>
                     <select id="color-scale">
                         <optgroup label="音楽スケール">
@@ -238,21 +238,21 @@
                         </optgroup>
                     </select>
                 </div>
-                <div class="control-group" id="color-customization">
+                <div class="cg" id="color-customization">
                     <label for="base-color-picker">ベース色 (Color Wheel)</label>
                     <input type="color" id="base-color-picker" value="#ffffff">
                     <label for="color-code-input">色コード入力</label>
                     <input type="text" id="color-code-input" placeholder="#ffffff" pattern="^#[0-9A-Fa-f]{6}$">
                     <button id="apply-color-code" type=\"button\">適用</button>
                 </div>
-                <div class="control-group">
-                    <label class="checkbox-label">
+                <div class="cg">
+                    <label class="cbl">
                         <input type="checkbox" id="show-velocity-numbers" checked>
                         <span class="checkmark"></span>
                         ベロシティ数を表示
                     </label>
                 </div>
-                <div class="control-group">
+                <div class="cg">
                     <label for="display-mode">表示モード</label>
                     <select id="display-mode">
                         <option value="waveform" selected>波形表示</option>
@@ -260,14 +260,14 @@
                         <option value="none">非表示</option>
                     </select>
                 </div>
-                <div class="control-group">
+                <div class="cg">
                     <label for="note-name-style">音名表記</label>
                     <select id="note-name-style">
                         <option value="japanese" selected>日本語 (ドレミファソラシド)</option>
                         <option value="western">英語 (CDEFGAB)</option>
                     </select>
                 </div>
-                <div class="control-group">
+                <div class="cg">
                     <label for="piano-range">Piano Range</label>
                     <select id="piano-range">
                         <option value="3-octave" selected>3 Octaves (C3-B5)</option>
@@ -276,10 +276,10 @@
                     </select>
                 </div>
             </div>
-            <div class="audio-controls">
-                <h3 data-section="audio" class="collapsed">🔊 Audio <span class="toggle-icon">▼</span></h3>
-                <div class="collapsible-content collapsed" data-section="audio">
-                <div class="control-group">
+            <div class="audc">
+                <h3 data-section="audio" class="collapsed">🔊 Audio <span class="ti">▼</span></h3>
+                <div class="cc collapsed" data-section="audio">
+                <div class="cg">
                     <label for="audio-timbre">音色 (Timbre)</label>
                     <select id="audio-timbre">
                         <option value="acoustic-piano" selected>🎹 アコースティックピアノ</option>
@@ -294,36 +294,36 @@
                         <option value="flute">🎶 フルート</option>
                     </select>
                 </div>
-                <div class="control-group">
+                <div class="cg">
                     <label for="volume-control">Volume</label>
                     <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.75">
                     <span id="volume-value">0.75</span>
                 </div>
-                <div class="control-group">
+                <div class="cg">
                     <button id="mute-button" class="mute-btn">🔊 Unmuted</button>
                 </div>
                 </div>
             </div>
         </div>
         
-        <div class="main-content">
+        <div class="mc">
             <div id="audio-context-notice" style="display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(96, 165, 250, 0.9); color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000; font-size: 14px; backdrop-filter: blur(10px);">
                 🎵 音声を有効にするには、どこかをクリックするか、キーを押してください
             </div>
             <div id="three-container">
-                <canvas id="spectrum-canvas" class="spectrum-canvas"></canvas>
+                <canvas id="sc" class="sc"></canvas>
             </div>
-            <div class="piano-container">
-                <div class="piano-keyboard" id="piano-keyboard">
+            <div class="pic">
+                <div class="pk" id="pk">
                     <!-- Piano keys will be generated dynamically -->
                 </div>
                 
                 <!-- MIDIペダル状態表示 -->
-                <div class="midi-pedal-status">
-                    <div class="pedal-indicator" id="sustain-pedal">
-                        <div class="pedal-icon">🦶</div>
-                        <div class="pedal-label">Sustain</div>
-                        <div class="pedal-status" id="sustain-status">OFF</div>
+                <div class="mps">
+                    <div class="pin" id="sustain-pedal">
+                        <div class="pi">🦶</div>
+                        <div class="pl">Sustain</div>
+                        <div class="ps" id="sustain-status">OFF</div>
                     </div>
                 </div>
             </div>
@@ -331,19 +331,19 @@
     </div>
     
     <!-- Custom Modal -->
-    <div id="custom-modal" class="custom-modal" style="display: none;">
-        <div class="modal-overlay"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-icon" id="modal-icon">ℹ️</div>
-                <h3 class="modal-title" id="modal-title">通知</h3>
-                <button class="modal-close" id="modal-close">&times;</button>
+    <div id="cm" class="cm" style="display: none;">
+        <div class="mo"></div>
+        <div class="mct">
+            <div class="mh">
+                <div class="mi" id="mi">ℹ️</div>
+                <h3 class="mt" id="mt">通知</h3>
+                <button class="mcl" id="mcl">&times;</button>
             </div>
-            <div class="modal-body">
-                <p class="modal-message" id="modal-message"></p>
+            <div class="mb">
+                <p class="mm" id="mm"></p>
             </div>
-            <div class="modal-footer">
-                <button class="modal-btn modal-btn-primary" id="modal-ok">OK</button>
+            <div class="mf">
+                <button class="modal-btn mbp" id="modal-ok">OK</button>
             </div>
         </div>
     </div>

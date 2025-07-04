@@ -33,7 +33,7 @@ body {
     contain: layout style;
 }
 
-.app-container {
+.ac {
     display: flex;
     height: 100vh;
     contain: layout style;
@@ -79,35 +79,35 @@ body {
     color: #6ee7b7;
 }
 
-.sidebar h3 .toggle-icon {
+.sidebar h3 .ti {
     font-size: 0.875rem;
     color: var(--text-muted);
     transition: transform 0.2s ease;
 }
 
-.toggle-icon {
+.ti {
     transition: transform 0.3s ease;
     display: inline-block;
 }
 
-.sidebar h3.collapsed .toggle-icon {
+.sidebar h3.collapsed .ti {
     transform: rotate(-90deg);
 }
 
-.collapsible-content {
+.cc {
     overflow: hidden;
     transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.collapsible-content.collapsed {
+.cc.collapsed {
     max-height: 0;
 }
 
-.control-group {
+.cg {
     margin-bottom: 20px;
 }
 
-.control-group label {
+.cg label {
     display: block;
     margin-bottom: 8px;
     font-size: 0.875rem;
@@ -115,19 +115,19 @@ body {
     font-weight: 500;
 }
 
-.control-group input[type="range"] {
+.cg input[type="range"] {
     width: 100%;
     margin-bottom: 8px;
     accent-color: var(--primary);
 }
 
-.control-group span {
+.cg span {
     font-size: 0.75rem;
     color: #fbbf24;
     font-weight: 600;
 }
 
-.control-group select {
+.cg select {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid rgba(156, 163, 175, 0.3);
@@ -139,20 +139,20 @@ body {
     transition: all 0.2s ease;
 }
 
-.control-group select:focus {
+.cg select:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
 }
 
-.control-group select option {
+.cg select option {
     background: #1f2937;
     color: var(--text);
     padding: 8px;
 }
 
 
-.checkbox-label {
+.cbl {
     display: flex;
     align-items: center;
     cursor: pointer;
@@ -162,7 +162,7 @@ body {
     margin-bottom: 8px;
 }
 
-.checkbox-label input[type="checkbox"] {
+.cbl input[type="checkbox"] {
     margin-right: 8px;
     width: 16px;
     height: 16px;
@@ -170,20 +170,20 @@ body {
     cursor: pointer;
 }
 
-.checkbox-label:hover {
+.cbl:hover {
     color: var(--text);
 }
 
-.midi-controls {
+.mdc {
     margin: 20px 0;
 }
 
-.midi-controls h3 {
+.mdc h3 {
     margin-bottom: 10px;
     color: #E91E63;
 }
 
-.midi-controls button {
+.mdc button {
     width: 100%;
     padding: 8px;
     margin: 3px 0;
@@ -196,38 +196,38 @@ body {
     transition: background 0.3s;
 }
 
-.midi-controls button:hover:not(:disabled) {
+.mdc button:hover:not(:disabled) {
     background: #C2185B;
 }
 
-.midi-controls button:disabled {
+.mdc button:disabled {
     background: #555;
     cursor: not-allowed;
 }
 
-.tempo-control {
+.tc {
     margin: 10px 0;
 }
 
-.tempo-control label {
+.tc label {
     display: block;
     margin-bottom: 5px;
     font-size: 12px;
     color: #E0E0E0;
 }
 
-.tempo-control input[type="range"] {
+.tc input[type="range"] {
     width: 100%;
     margin-bottom: 5px;
 }
 
-.tempo-control span {
+.tc span {
     font-size: 12px;
     color: #FFB74D;
 }
 
 /* 再生位置コントロールのスタイル */
-.playback-controls {
+.pbc {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 16px;
@@ -237,12 +237,12 @@ body {
     transition: all 0.3s ease;
 }
 
-.playback-controls:hover {
+.pbc:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.2);
 }
 
-.time-display {
+.td {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -252,17 +252,17 @@ body {
     color: var(--text);
 }
 
-.time-separator {
+.tsep {
     margin: 0 8px;
     color: var(--text-muted);
 }
 
-.progress-container {
+.pct {
     margin: 12px 0;
     position: relative;
 }
 
-.progress-bar {
+.pb {
     width: 100%;
     height: 8px;
     background: rgba(255, 255, 255, 0.1);
@@ -274,7 +274,7 @@ body {
     transition: all 0.2s ease;
 }
 
-.progress-bar:hover {
+.pb:hover {
     height: 10px;
     background: rgba(255, 255, 255, 0.15);
 }
@@ -303,7 +303,7 @@ body {
     opacity: 0;
 }
 
-.progress-bar:hover #progress-handle {
+.pb:hover #progress-handle {
     opacity: 1;
 }
 
@@ -312,7 +312,7 @@ body {
     transform: translateY(-50%) scale(1.2);
 }
 
-.position-info {
+.posi {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -321,7 +321,7 @@ body {
     color: var(--text-muted);
 }
 
-.position-separator {
+.psep {
     margin: 0 12px;
     color: #6b7280;
 }
@@ -332,11 +332,11 @@ body {
     margin-top: 5px;
 }
 
-.midi-status {
+.ms {
     margin: 20px 0;
 }
 
-.midi-status h3 {
+.ms h3 {
     margin-bottom: 10px;
     color: #00E676;
 }
@@ -359,7 +359,7 @@ body {
 }
 
 /* MIDIペダル状態表示 - 鍵盤下エリア中央配置 */
-.midi-pedal-status {
+.mps {
     position: absolute;
     bottom: 8px;
     left: 50%;
@@ -373,7 +373,7 @@ body {
     z-index: 110;
 }
 
-.pedal-indicator {
+.pin {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -385,30 +385,30 @@ body {
     justify-content: center;
 }
 
-.pedal-indicator.active {
+.pin.active {
     background: rgba(34, 197, 94, 0.2);
     border: 1px solid rgba(34, 197, 94, 0.4);
     box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
 }
 
-.pedal-icon {
+.pi {
     font-size: 16px;
     transition: all 0.3s ease;
 }
 
-.pedal-indicator.active .pedal-icon {
+.pin.active .pi {
     transform: scale(1.2);
     filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.8));
 }
 
-.pedal-label {
+.pl {
     font-size: 11px;
     color: var(--text-light);
     font-weight: 500;
     flex: 1;
 }
 
-.pedal-status {
+.ps {
     font-size: 10px;
     font-weight: bold;
     padding: 2px 6px;
@@ -418,20 +418,20 @@ body {
     color: var(--text-muted);
 }
 
-.pedal-indicator.active .pedal-status {
+.pin.active .ps {
     background: rgba(34, 197, 94, 0.3);
     color: #22c55e;
     text-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
 }
 
 /* ペダルコントロール説明 */
-.pedal-controls {
+.pc {
     margin-top: 16px;
     padding-top: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.pedal-controls h4 {
+.pc h4 {
     margin-bottom: 8px;
     color: var(--success);
     font-size: 12px;
@@ -504,7 +504,7 @@ body {
 }
 
 /* カスタムモーダル */
-.custom-modal {
+.cm {
     position: fixed;
     top: 0;
     left: 0;
@@ -517,7 +517,7 @@ body {
     animation: modalFadeIn 0.3s ease-out;
 }
 
-.modal-overlay {
+.mo {
     position: absolute;
     top: 0;
     left: 0;
@@ -527,7 +527,7 @@ body {
     backdrop-filter: blur(8px);
 }
 
-.modal-content {
+.mct {
     position: relative;
     background: linear-gradient(135deg, rgba(15, 15, 35, 0.98), rgba(26, 26, 46, 0.95));
     border-radius: 16px;
@@ -541,20 +541,20 @@ body {
     animation: modalSlideIn 0.3s ease-out;
 }
 
-.modal-header {
+.mh {
     display: flex;
     align-items: center;
     padding: 20px 24px 16px;
     border-bottom: 1px solid rgba(156, 163, 175, 0.1);
 }
 
-.modal-icon {
+.mi {
     font-size: 24px;
     margin-right: 12px;
     flex-shrink: 0;
 }
 
-.modal-title {
+.mt {
     flex: 1;
     margin: 0;
     color: var(--primary);
@@ -563,7 +563,7 @@ body {
     font-family: var(--font-family);
 }
 
-.modal-close {
+.mcl {
     background: none;
     border: none;
     color: var(--text-muted);
@@ -575,16 +575,16 @@ body {
     border-radius: 4px;
 }
 
-.modal-close:hover {
+.mcl:hover {
     color: var(--text);
     background: rgba(255, 255, 255, 0.1);
 }
 
-.modal-body {
+.mb {
     padding: 20px 24px;
 }
 
-.modal-message {
+.mm {
     color: var(--text);
     font-size: 1rem;
     line-height: 1.6;
@@ -593,7 +593,7 @@ body {
     font-family: var(--font-family);
 }
 
-.modal-footer {
+.mf {
     padding: 16px 24px 24px;
     display: flex;
     justify-content: flex-end;
@@ -611,19 +611,19 @@ body {
     font-family: var(--font-family);
 }
 
-.modal-btn-primary {
+.mbp {
     background: linear-gradient(135deg, var(--blue), #1d4ed8);
     color: white;
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.modal-btn-primary:hover {
+.mbp:hover {
     background: linear-gradient(135deg, #2563eb, #1e40af);
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
-.modal-btn-primary:active {
+.mbp:active {
     transform: translateY(0);
 }
 
@@ -649,11 +649,11 @@ body {
 }
 
 /* モーダル閉じるアニメーション */
-.custom-modal.closing {
+.cm.closing {
     animation: modalFadeOut 0.2s ease-in forwards;
 }
 
-.custom-modal.closing .modal-content {
+.cm.closing .mct {
     animation: modalSlideOut 0.2s ease-in forwards;
 }
 
@@ -672,66 +672,66 @@ body {
 
 /* レスポンシブ調整 */
 @media (max-width: 768px) {
-    .modal-content {
+    .mct {
         width: 95%;
         margin: 20px;
     }
     
-    .modal-header {
+    .mh {
         padding: 16px 20px 12px;
     }
     
-    .modal-title {
+    .mt {
         font-size: 1.125rem;
     }
     
-    .modal-body {
+    .mb {
         padding: 16px 20px;
     }
     
-    .modal-footer {
+    .mf {
         padding: 12px 20px 20px;
     }
     
-    .modal-message {
+    .mm {
         font-size: 0.875rem;
     }
     
     /* ペダル表示のモバイル調整 */
-    .piano-container {
+    .pic {
         left: 0;
     }
     
-    .midi-pedal-status {
+    .mps {
         bottom: 4px;
         padding: 6px 10px;
     }
     
-    .pedal-indicator {
+    .pin {
         gap: 6px;
         padding: 3px 6px;
         min-width: 100px;
     }
     
-    .pedal-icon {
+    .pi {
         font-size: 14px;
     }
     
-    .pedal-label {
+    .pl {
         font-size: 10px;
     }
     
-    .pedal-status {
+    .ps {
         font-size: 9px;
         padding: 1px 4px;
     }
 }
 
-.audio-controls {
+.audc {
     margin: 20px 0;
 }
 
-.audio-controls h3 {
+.audc h3 {
     margin-bottom: 10px;
     color: #FF9800;
 }
@@ -761,26 +761,26 @@ body {
     background: #da190b;
 }
 
-.keyboard-help {
+.kh {
     margin: 20px 0;
 }
 
-.keyboard-help h3 {
+.kh h3 {
     margin-bottom: 10px;
     color: #FFB74D;
 }
 
-.key-mapping {
+.km {
     font-size: 12px;
 }
 
-.mapping-row {
+.mr {
     display: flex;
     margin-bottom: 5px;
     gap: 5px;
 }
 
-.mapping-row .key {
+.mr .key {
     background: rgba(255, 255, 255, 0.1);
     padding: 2px 6px;
     border-radius: 3px;
@@ -790,7 +790,7 @@ body {
     color: #4FC3F7;
 }
 
-.mapping-row .note {
+.mr .note {
     background: rgba(129, 199, 132, 0.2);
     padding: 2px 6px;
     border-radius: 3px;
@@ -800,7 +800,7 @@ body {
     margin-right: 10px;
 }
 
-.main-content {
+.mc {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -826,7 +826,7 @@ body {
 }
 
 /* Spectrum Analyzer Canvas */
-.spectrum-canvas {
+.sc {
     position: absolute;
     top: 0;
     left: 0;
@@ -838,7 +838,7 @@ body {
     mix-blend-mode: screen;
 }
 
-.piano-container {
+.pic {
     position: fixed;
     bottom: 0;
     left: 320px;
@@ -855,7 +855,7 @@ body {
     padding: 10px 20px;
 }
 
-.piano-keyboard {
+.pk {
     display: flex;
     height: 160px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
@@ -865,20 +865,20 @@ body {
     border-radius: 12px;
 }
 
-.piano-keyboard::-webkit-scrollbar {
+.pk::-webkit-scrollbar {
     height: 8px;
 }
 
-.piano-keyboard::-webkit-scrollbar-track {
+.pk::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
 }
 
-.piano-keyboard::-webkit-scrollbar-thumb {
+.pk::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 4px;
 }
 
-.piano-keyboard::-webkit-scrollbar-thumb:hover {
+.pk::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
 }
 
@@ -926,7 +926,7 @@ body {
     box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(52, 211, 153, 0.5);
 }
 
-.note-display {
+.nd {
     position: fixed;
     font-weight: 600;
     text-shadow: 0 0 24px rgba(96, 165, 250, 0.8), 
@@ -982,20 +982,20 @@ body {
     }
 }
 
-.note-display.large {
+.nd.large {
     font-size: 2.5em;
 }
 
-.note-display.medium {
+.nd.medium {
     font-size: 2em;
 }
 
-.note-display.small {
+.nd.small {
     font-size: 1.5em;
 }
 
 /* Mobile Warning Styles */
-.mobile-warning {
+.mw {
     position: fixed;
     top: 0;
     left: 0;
@@ -1010,7 +1010,7 @@ body {
     overflow-y: auto;
 }
 
-.mobile-warning-content {
+.mwc {
     max-width: 500px;
     background: rgba(15, 15, 35, 0.95);
     border-radius: 20px;
@@ -1021,7 +1021,7 @@ body {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
-.mobile-warning-icon {
+.mwi {
     font-size: 4rem;
     margin-bottom: 20px;
     animation: pulse 2s infinite;
@@ -1032,7 +1032,7 @@ body {
     50% { transform: scale(1.1); }
 }
 
-.mobile-warning h1 {
+.mw h1 {
     color: var(--primary);
     font-size: 2rem;
     font-weight: 600;
@@ -1040,7 +1040,7 @@ body {
     font-family: var(--font-family);
 }
 
-.mobile-warning h2 {
+.mw h2 {
     color: var(--success);
     font-size: 1.2rem;
     font-weight: 500;
@@ -1048,15 +1048,15 @@ body {
     font-family: var(--font-family);
 }
 
-.mobile-warning-message p {
+.mwm p {
     color: var(--text);
     font-size: 1.1rem;
     margin-bottom: 15px;
     line-height: 1.6;
 }
 
-.mobile-warning-details,
-.mobile-warning-supported {
+.mwd,
+.mwsp {
     margin: 25px 0;
     padding: 20px;
     background: rgba(0, 0, 0, 0.2);
@@ -1064,34 +1064,34 @@ body {
     border: 1px solid rgba(156, 163, 175, 0.1);
 }
 
-.mobile-warning-details h3,
-.mobile-warning-supported h3 {
+.mwd h3,
+.mwsp h3 {
     color: #fbbf24;
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 15px;
 }
 
-.mobile-warning-details ul {
+.mwd ul {
     text-align: left;
     color: var(--text-light);
     font-size: 0.95rem;
     line-height: 1.8;
 }
 
-.mobile-warning-details li {
+.mwd li {
     margin-bottom: 8px;
     padding-left: 10px;
 }
 
-.device-list {
+.dl {
     display: grid;
     grid-template-columns: 1fr;
     gap: 10px;
     margin-top: 15px;
 }
 
-.device-item {
+.di {
     background: rgba(34, 197, 94, 0.1);
     color: var(--success);
     padding: 12px;
@@ -1100,7 +1100,7 @@ body {
     border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
-.mobile-continue-btn {
+.mcb {
     background: linear-gradient(135deg, var(--blue), #1d4ed8);
     color: white;
     border: none;
@@ -1114,23 +1114,23 @@ body {
     text-transform: none;
 }
 
-.mobile-continue-btn:hover {
+.mcb:hover {
     background: linear-gradient(135deg, #2563eb, #1e40af);
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
 }
 
-.mobile-continue-btn:active {
+.mcb:active {
     transform: translateY(0);
 }
 
 /* Hide app content when mobile warning is shown */
-.mobile-warning-shown .app-container {
+.mws .ac {
     display: none;
 }
 
 /* SNS Share Buttons */
-.sns-share-buttons {
+.ssb {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -1142,7 +1142,7 @@ body {
     transition: opacity 0.3s ease;
 }
 
-.sns-share-buttons:hover {
+.ssb:hover {
     opacity: 1;
 }
 
@@ -1170,21 +1170,21 @@ body {
     transform: scale(0.95);
 }
 
-.twitter-btn {
+.tb {
     background: linear-gradient(135deg, #1da1f2, #0d8bd9);
     color: white;
 }
 
-.twitter-btn:hover {
+.tb:hover {
     background: linear-gradient(135deg, #0d8bd9, #0a7bc4);
 }
 
-.facebook-btn {
+.fb {
     background: linear-gradient(135deg, #1877f2, #166fe5);
     color: white;
 }
 
-.facebook-btn:hover {
+.fb:hover {
     background: linear-gradient(135deg, #166fe5, #1462d1);
 }
 
@@ -1212,7 +1212,7 @@ body {
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
-    .sns-share-buttons {
+    .ssb {
         top: 10px;
         right: 10px;
         gap: 6px;
