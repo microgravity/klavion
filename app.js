@@ -664,10 +664,11 @@ class PianoVisualizer {
     }
     
     countWhiteKeys(startNote, endNote) {
+        // Optimized white key counting with pre-calculated lookup
+        const whiteKeySet = new Set([0, 2, 4, 5, 7, 9, 11]); // White keys lookup
         let count = 0;
         for (let note = startNote; note <= endNote; note++) {
-            const noteIndex = note % 12;
-            if ([0, 2, 4, 5, 7, 9, 11].includes(noteIndex)) { // White keys
+            if (whiteKeySet.has(note % 12)) {
                 count++;
             }
         }
@@ -723,10 +724,10 @@ class PianoVisualizer {
         if (midiNote !== null) {
             this.pendingVisualUpdates.add(midiNote);
         } else {
-            // Schedule all keys for visual update
-            this.pianoKeyElements.forEach((_, note) => {
+            // Schedule all keys for visual update (optimized for loop)
+            for (const note of this.pianoKeyElements.keys()) {
                 this.pendingVisualUpdates.add(note);
-            });
+            }
         }
         this.scheduleRender();
     }
@@ -1712,8 +1713,11 @@ class PianoVisualizer {
             }
             
             // 現在鳴っている音を停止
+            // Optimized DOM query with cached elements and for loop
             const pressedKeys = this.pianoKeyboard.querySelectorAll('.piano-key.pressed');
-            pressedKeys.forEach(key => key.classList.remove('pressed'));
+            for (let i = 0; i < pressedKeys.length; i++) {
+                pressedKeys[i].classList.remove('pressed');
+            }
             
             // Reset sustain pedal state when seeking
             this.handleSustainPedal(false);
@@ -1920,14 +1924,17 @@ class PianoVisualizer {
         const ticksPerBeat = this.midiData.division;
         let microsecondsPerBeat = 500000;
         
-        this.midiData.tracks.forEach(track => {
+        // Optimized for loop instead of forEach for better performance
+        for (let i = 0; i < this.midiData.tracks.length; i++) {
+            const track = this.midiData.tracks[i];
             let currentTime = 0;
-            track.forEach(event => {
+            for (let j = 0; j < track.length; j++) {
+                const event = track[j];
                 if (event.type === 'setTempo') {
                     microsecondsPerBeat = event.microsecondsPerBeat;
                 }
                 currentTime = event.time;
-            });
+            }
             
             const timeInSeconds = (currentTime / ticksPerBeat) * (microsecondsPerBeat / 1000000);
             maxTime = Math.max(maxTime, timeInSeconds);
@@ -1976,8 +1983,11 @@ class PianoVisualizer {
         this.updatePositionInfo(0);
         
         // Clear all piano key highlights
+        // Optimized DOM query batch processing
         const pressedKeys = this.pianoKeyboard.querySelectorAll('.piano-key.pressed');
-        pressedKeys.forEach(key => key.classList.remove('pressed'));
+        for (let i = 0; i < pressedKeys.length; i++) {
+            pressedKeys[i].classList.remove('pressed');
+        }
         
         // Reset sustain pedal state
         this.handleSustainPedal(false);
@@ -2002,15 +2012,21 @@ class PianoVisualizer {
         
         // まずすべてのイベントを収集（テンポ変更も含む）
         const allRawEvents = [];
-        this.midiData.tracks.forEach((track, trackIndex) => {
-            track.forEach(event => {
+        // Optimized nested loops with early continue optimization
+        for (let trackIndex = 0; trackIndex < this.midiData.tracks.length; trackIndex++) {
+            const track = this.midiData.tracks[trackIndex];
+            for (let i = 0; i < track.length; i++) {
+                const event = track[i];
+                // Skip non-essential events early
+                if (!event.type || event.type === 'meta') continue;
+                
                 allRawEvents.push({
                     ...event,
                     trackIndex,
                     tickTime: event.time
                 });
-            });
-        });
+            }
+        }
         
         // tick時間順にソート
         allRawEvents.sort((a, b) => a.tickTime - b.tickTime);
@@ -2021,7 +2037,9 @@ class PianoVisualizer {
         let currentTickTime = 0;
         let currentRealTime = 0;
         
-        allRawEvents.forEach(event => {
+        // Optimized for loop with cached length
+        for (let i = 0; i < allRawEvents.length; i++) {
+            const event = allRawEvents[i];
             // 経過tick時間を実時間に変換
             const tickDelta = event.tickTime - currentTickTime;
             const timeDelta = (tickDelta / ticksPerBeat) * (currentTempo / 1000000);
@@ -2116,7 +2134,10 @@ class PianoVisualizer {
         const defaultCollapsed = ['keyboard', 'recording'];
         
         // Initialize max-height for all collapsible content
-        document.querySelectorAll('.cc').forEach(content => {
+        // Optimized DOM query with cached elements
+        const sectionContents = document.querySelectorAll('.cc');
+        for (let i = 0; i < sectionContents.length; i++) {
+            const content = sectionContents[i];
             const sectionName = content.getAttribute('data-section');
             if (defaultCollapsed.includes(sectionName)) {
                 // Start collapsed
@@ -2130,10 +2151,13 @@ class PianoVisualizer {
                 // Start expanded
                 content.style.maxHeight = content.scrollHeight + 'px';
             }
-        });
+        }
         
         // Add click listeners to section headers
-        document.querySelectorAll('h3[data-section]').forEach(header => {
+        // Optimized DOM query with cached elements
+        const sectionHeaders = document.querySelectorAll('h3[data-section]');
+        for (let i = 0; i < sectionHeaders.length; i++) {
+            const header = sectionHeaders[i];
             header.addEventListener('click', (e) => {
                 const sectionName = header.getAttribute('data-section');
                 const content = document.querySelector(`.cc[data-section="${sectionName}"]`);
@@ -2154,7 +2178,7 @@ class PianoVisualizer {
                     header.classList.add('collapsed');
                 }
             });
-        });
+        }
         
     }
     
@@ -2235,15 +2259,15 @@ class PianoVisualizer {
     }
     
     generateCustomColors(baseColor, count = 12) {
-        // Special handling for white color - generate rainbow colors
+        // Special handling for white color - generate rainbow colors (optimized)
         if (baseColor === '#ffffff' || baseColor.toLowerCase() === '#ffffff') {
-            const colors = [];
+            const colors = new Array(count); // Pre-allocate array
+            const hueStep = 1 / count; // Calculate once
+            const saturation = 0.8; // High saturation for vibrant colors
+            const lightness = 0.6; // Medium lightness for good visibility
+            
             for (let i = 0; i < count; i++) {
-                const hue = i / count; // Evenly distributed hues
-                const saturation = 0.8; // High saturation for vibrant colors
-                const lightness = 0.6; // Medium lightness for good visibility
-                
-                colors.push(this.hslToHex(hue, saturation, lightness));
+                colors[i] = this.hslToHex(i * hueStep, saturation, lightness);
             }
             return colors;
         }
@@ -2269,14 +2293,17 @@ class PianoVisualizer {
             h /= 6;
         }
         
-        // Generate colors with different hues and lightness
-        const colors = [];
+        // Generate colors with different hues and lightness (optimized)
+        const colors = new Array(count); // Pre-allocate array
+        const hueStep = 1 / count; // Calculate once
+        const lightnessStep = 0.4 / count; // Calculate once
+        const saturation = Math.max(0.6, s); // Calculate once
+        
         for (let i = 0; i < count; i++) {
-            const hue = (h + (i / count)) % 1;
-            const lightness = 0.4 + (i / count) * 0.4; // Vary lightness from 0.4 to 0.8
-            const saturation = Math.max(0.6, s); // Maintain good saturation
+            const hue = (h + i * hueStep) % 1;
+            const lightness = 0.4 + i * lightnessStep; // Vary lightness from 0.4 to 0.8
             
-            colors.push(this.hslToHex(hue, saturation, lightness));
+            colors[i] = this.hslToHex(hue, saturation, lightness);
         }
         
         return colors;
@@ -2404,17 +2431,27 @@ class PianoVisualizer {
         });
         
         // Alternative approach: find by text content
-        document.querySelectorAll('.mr').forEach(row => {
+        // Optimized DOM query and search with cached elements
+        const mappingRows = document.querySelectorAll('.mr');
+        for (let i = 0; i < mappingRows.length; i++) {
+            const row = mappingRows[i];
             const keySpan = row.querySelector('.key');
             const noteSpan = row.querySelector('.note');
             if (keySpan && noteSpan) {
                 const keyText = keySpan.textContent.trim();
-                const mapping = keyMappings.find(m => m.key === keyText);
+                // Optimized find with early break
+                let mapping = null;
+                for (let j = 0; j < keyMappings.length; j++) {
+                    if (keyMappings[j].key === keyText) {
+                        mapping = keyMappings[j];
+                        break;
+                    }
+                }
                 if (mapping) {
                     noteSpan.textContent = this.midiNoteToNoteName(mapping.midiNote);
                 }
             }
-        });
+        }
     }
     
     setupKeyboardListeners() {
@@ -3017,28 +3054,33 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
-        // Create main gradient for spectrum bars (same colors as waveform)
-        const mainGradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
-        mainGradient.addColorStop(0, '#ff6b6b');
-        mainGradient.addColorStop(0.25, '#4ecdc4');
-        mainGradient.addColorStop(0.5, '#45b7d1');
-        mainGradient.addColorStop(0.75, '#96ceb4');
-        mainGradient.addColorStop(1, '#feca57');
+        // Cache gradient creation (only create once)
+        if (!this.cachedSpectrumGradient) {
+            this.cachedSpectrumGradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
+            this.cachedSpectrumGradient.addColorStop(0, '#ff6b6b');
+            this.cachedSpectrumGradient.addColorStop(0.25, '#4ecdc4');
+            this.cachedSpectrumGradient.addColorStop(0.5, '#45b7d1');
+            this.cachedSpectrumGradient.addColorStop(0.75, '#96ceb4');
+            this.cachedSpectrumGradient.addColorStop(1, '#feca57');
+        }
         
-        // Set glow effect
+        // Set glow effect once
         this.spectrumContext.shadowBlur = 10;
         this.spectrumContext.shadowColor = '#4ecdc4';
+        this.spectrumContext.fillStyle = this.cachedSpectrumGradient;
         
-        // Draw spectrum bars
+        // Optimized drawing with cached calculations
         const barWidth = width / bufferLength;
+        const heightMultiplier = height * 0.8;
         
         for (let i = 0; i < bufferLength; i++) {
-            const barHeight = (dataArray[i] / 255) * height * 0.8;
+            const barHeight = (dataArray[i] / 255) * heightMultiplier;
+            // Skip drawing very small bars for performance
+            if (barHeight < 2) continue;
+            
             const x = i * barWidth;
             const y = height - barHeight;
             
-            // Use the main gradient for all bars
-            this.spectrumContext.fillStyle = mainGradient;
             this.spectrumContext.fillRect(x, y, barWidth - 1, barHeight);
         }
         
