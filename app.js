@@ -165,33 +165,37 @@ class PianoVisualizer {
         // Check for mobile device and show warning if needed
         this.checkMobileDevice();
         
-        this.loadSettings();
         this.init();
     }
     
-    loadSettings() {
-        try {
-                
-        } catch (error) {
+    checkMobileDevice() {
+        const deviceInfo = this.detectDeviceType();
+        
+        // Show warning for phones only (not tablets)
+        if (deviceInfo.isMobile && !deviceInfo.isTablet) {
+            this.showMobileWarning();
         }
     }
     
-    
-    checkMobileDevice() {
-        // Enhanced mobile detection
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                         (navigator.maxTouchPoints > 0 && window.matchMedia("(max-width: 768px)").matches) ||
-                         window.screen.width <= 768;
+    detectDeviceType() {
+        const userAgent = navigator.userAgent;
+        const hasTouchPoints = navigator.maxTouchPoints > 0;
+        const screenWidth = window.screen.width;
         
-        const isTablet = /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) ||
-                        (navigator.maxTouchPoints > 0 && window.screen.width > 768 && window.screen.width <= 1024);
+        // Check for mobile devices via user agent
+        const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
         
-        // Show warning for phones only (not tablets)
-        if (isMobile && !isTablet) {
-            this.showMobileWarning();
-        } else if (isTablet) {
-        } else {
-        }
+        // Check for tablet devices
+        const isTabletUA = /iPad|Android(?!.*Mobile)/i.test(userAgent);
+        const isTabletSize = hasTouchPoints && screenWidth > 768 && screenWidth <= 1024;
+        
+        // Check for mobile via touch and screen size
+        const isMobileSize = (hasTouchPoints && window.matchMedia("(max-width: 768px)").matches) || screenWidth <= 768;
+        
+        return {
+            isMobile: isMobileUA || isMobileSize,
+            isTablet: isTabletUA || isTabletSize
+        };
     }
     
     showMobileWarning() {
@@ -470,7 +474,7 @@ class PianoVisualizer {
                 // Auto-enable 88-key mode when MIDI detected
                 this.settings.pianoRange = '88-key';
                 this.domCache.pianoRange.value = '88-key';
-                this.recreatePianoKeyboard();
+                this.createPianoKeyboard();
             }
             
             this.midiAccess.onstatechange = (event) => {
@@ -483,7 +487,7 @@ class PianoVisualizer {
                             // Auto-enable 88-key mode
                             this.settings.pianoRange = '88-key';
                             this.domCache.pianoRange.value = '88-key';
-                            this.recreatePianoKeyboard();
+                            this.createPianoKeyboard();
                         }
                         
                         // Update device list
@@ -546,20 +550,23 @@ class PianoVisualizer {
         // Log MIDI activity
         this.logMidiActivity(`CMD:${command} Note:${note} Vel:${velocity}`);
         
-        // Handle with minimal latency
-        if (command === 144 && velocity > 0) {
+        // Handle with minimal latency using optimized dispatch
+        const isNoteOn = command === 144 && velocity > 0;
+        const isNoteOff = command === 128 || (command === 144 && velocity === 0);
+        const isControlChange = (command & 0xF0) === 0xB0;
+        const isProgramChange = (command & 0xF0) === 0xC0;
+        
+        if (isNoteOn) {
             // Note On
             const noteName = this.midiNoteToNoteName(note, velocity);
             this.logMidiActivity(`▶ ${noteName} (${note}) vel:${velocity}`);
             this.playNote(note, velocity, timestamp);
-            this.highlightPianoKey(note, true); // Highlight the key
-        } else if (command === 128 || (command === 144 && velocity === 0)) {
+        } else if (isNoteOff) {
             // Note Off
             const noteName = this.midiNoteToNoteName(note);
             this.logMidiActivity(`⏹ ${noteName} (${note})`);
             this.stopNote(note, timestamp);
-            this.highlightPianoKey(note, false); // Remove highlight
-        } else if ((command & 0xF0) === 0xB0) {
+        } else if (isControlChange) {
             // Control Change
             this.logMidiActivity(`CC:${note} Val:${velocity}`);
             
@@ -567,7 +574,7 @@ class PianoVisualizer {
             if (note === 64) {
                 this.handleSustainPedal(velocity >= 64);
             }
-        } else if ((command & 0xF0) === 0xC0) {
+        } else if (isProgramChange) {
             // Program Change
             this.logMidiActivity(`PC:${note}`);
         } else {
@@ -590,13 +597,11 @@ class PianoVisualizer {
         const totalKeys = endNote - startNote + 1;
         const whiteKeyCount = this.countWhiteKeys(startNote, endNote);
         const containerWidth = this.pianoKeyboard.parentElement.clientWidth - 40; // Account for padding
-        let keyWidth;
+        const is88KeyMode = this.settings.pianoRange === '88-key';
         
-        if (this.settings.pianoRange === '88-key') {
-            keyWidth = Math.max(8, containerWidth / 52); // 52 white keys in 88-key piano
-        } else {
-            keyWidth = Math.max(20, Math.min(40, containerWidth / whiteKeyCount));
-        }
+        const keyWidth = is88KeyMode 
+            ? Math.max(8, containerWidth / 52) // 52 white keys in 88-key piano
+            : Math.max(20, Math.min(40, containerWidth / whiteKeyCount));
         
         for (let midiNote = startNote; midiNote <= endNote; midiNote++) {
             const noteIndex = midiNote % 12;
@@ -669,9 +674,6 @@ class PianoVisualizer {
         return count;
     }
     
-    recreatePianoKeyboard() {
-        this.createPianoKeyboard();
-    }
     
     playNote(midiNote, velocity, timestamp = performance.now(), enableVisualization = true) {
         const frequency = this.midiNoteToFrequency(midiNote);
@@ -706,7 +708,7 @@ class PianoVisualizer {
         if (this.sustainPedalPressed) {
             this.sustainedNotes.add(midiNote);
             // Update visual state to show sustained note if needed
-            this.scheduleAllKeyVisualUpdates();
+            this.scheduleKeyVisualUpdate();
             return;
         }
         
@@ -716,9 +718,16 @@ class PianoVisualizer {
     }
     
     
-    // Schedule a visual update for batching
-    scheduleKeyVisualUpdate(midiNote) {
-        this.pendingVisualUpdates.add(midiNote);
+    // Schedule a visual update for batching (supports single note or all keys)
+    scheduleKeyVisualUpdate(midiNote = null) {
+        if (midiNote !== null) {
+            this.pendingVisualUpdates.add(midiNote);
+        } else {
+            // Schedule all keys for visual update
+            this.pianoKeyElements.forEach((_, note) => {
+                this.pendingVisualUpdates.add(note);
+            });
+        }
         this.scheduleRender();
     }
     
@@ -784,7 +793,7 @@ class PianoVisualizer {
             this.sustainedNotes.clear();
             
             // ペダルが離されたときに全ての鍵盤の視覚的状態を更新
-            this.scheduleAllKeyVisualUpdates();
+            this.scheduleKeyVisualUpdate();
         }
     }
     
@@ -823,18 +832,12 @@ class PianoVisualizer {
             }, 350);
         }
         
-        // Remove piano key highlight
-        this.highlightPianoKey(midiNote, false);
+        // Update key state
+        this.activeKeys.delete(midiNote);
+        this.scheduleKeyVisualUpdate(midiNote);
     }
     
     
-    // Schedule all keys for visual update using batched rendering
-    scheduleAllKeyVisualUpdates() {
-        this.pianoKeyElements.forEach((_, midiNote) => {
-            this.pendingVisualUpdates.add(midiNote);
-        });
-        this.scheduleRender();
-    }
     
     synthesizeNote(frequency, velocity, midiNote = null, enableVisualization = true) {
         if (!this.audioContext) {
@@ -891,23 +894,48 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    // Helper function to connect audio nodes to both speakers and recording destination
+    // Helper function to connect audio nodes
     connectAudioOutput(node, enableVisualization = true) {
-        if (enableVisualization) {
-            // Connect to master gain node (which is permanently connected to analyzer and destination)
-            if (this.masterGainNode) {
-                node.connect(this.masterGainNode);
-            } else {
-                // Fallback: direct connection if master gain not available
-                node.connect(this.audioContext.destination);
-                if (this.analyserNode) {
-                    node.connect(this.analyserNode);
-                }
-            }
-        } else {
-            // MIDI再生時: 波形表示を無効化し、直接destinationに接続
-            node.connect(this.audioContext.destination);
+        // Connect to master gain node (includes analyzer) or direct connection
+        const target = enableVisualization && this.masterGainNode ? this.masterGainNode : this.audioContext.destination;
+        node.connect(target);
+    }
+    
+    // Helper function to convert hex color to rgba
+    hexToRgba(hex, alpha = 1) {
+        const h = hex.replace('#', '');
+        if (h.length === 6) {
+            const r = parseInt(h.substr(0, 2), 16);
+            const g = parseInt(h.substr(2, 2), 16);
+            const b = parseInt(h.substr(4, 2), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
+        return `rgba(255, 255, 255, ${alpha})`;
+    }
+    
+    // Helper function to convert hex to normalized RGB values
+    hexToRgbNormalized(hex) {
+        const h = hex.replace('#', '');
+        if (h.length === 6) {
+            return {
+                r: parseInt(h.substr(0, 2), 16) / 255,
+                g: parseInt(h.substr(2, 2), 16) / 255,
+                b: parseInt(h.substr(4, 2), 16) / 255
+            };
+        }
+        return { r: 1, g: 1, b: 1 };
+    }
+    
+    // Helper function to set canvas size with scaling
+    setCanvasSize(canvas, size = 1.0) {
+        const scaleFactor = Math.max(1.0, size * 1.5);
+        canvas.width = Math.min(1024, 768 * scaleFactor);
+        canvas.height = Math.min(768, 576 * scaleFactor);
+    }
+    
+    // Helper function to calculate velocity factor
+    getVelocityFactor(velocity) {
+        return Math.max(0.6, velocity / 127);
     }
     
     // Canvas pool management for performance
@@ -915,17 +943,13 @@ class PianoVisualizer {
         if (this.canvasPool.length > 0) {
             const canvas = this.canvasPool.pop();
             // Dynamically adjust canvas size based on expected text size
-            const scaleFactor = Math.max(1.0, size * 1.5); // Ensure adequate space for large text
-            canvas.width = Math.min(1024, 768 * scaleFactor);
-            canvas.height = Math.min(768, 576 * scaleFactor);
+            this.setCanvasSize(canvas, size);
             return canvas;
         }
         
         // Create new canvas if pool is empty
         const canvas = document.createElement('canvas');
-        const scaleFactor = Math.max(1.0, size * 1.5);
-        canvas.width = Math.min(1024, 768 * scaleFactor);
-        canvas.height = Math.min(768, 576 * scaleFactor);
+        this.setCanvasSize(canvas, size);
         return canvas;
     }
     
@@ -970,16 +994,7 @@ class PianoVisualizer {
         let mainText = noteNamesArray[noteIndex];
         
         // Convert hex to rgba for canvas
-        let textColor = 'rgba(255, 255, 255, 1)';
-        if (color) {
-            const hex = color.replace('#', '');
-            if (hex.length === 6) {
-                const r = parseInt(hex.substr(0, 2), 16);
-                const g = parseInt(hex.substr(2, 2), 16);
-                const b = parseInt(hex.substr(4, 2), 16);
-                textColor = `rgba(${r}, ${g}, ${b}, 1)`;
-            }
-        }
+        const textColor = this.hexToRgba(color || '#ffffff', 1);
         
         context.fillStyle = textColor;
         context.textAlign = 'center';
@@ -1331,13 +1346,12 @@ class PianoVisualizer {
         const colorIndex = (midiNote - 21) % modernColors.length;
         const baseColor = modernColors[colorIndex];
         
-        const velocityFactor = Math.max(0.6, velocity / 127);
-        const intensityFactor = 1.0;
+        const velocityFactor = this.getVelocityFactor(velocity);
         
         return {
-            r: Math.min(1.0, baseColor.r * velocityFactor * intensityFactor),
-            g: Math.min(1.0, baseColor.g * velocityFactor * intensityFactor),
-            b: Math.min(1.0, baseColor.b * velocityFactor * intensityFactor)
+            r: Math.min(1.0, baseColor.r * velocityFactor),
+            g: Math.min(1.0, baseColor.g * velocityFactor),
+            b: Math.min(1.0, baseColor.b * velocityFactor)
         };
     }
     
@@ -1366,54 +1380,50 @@ class PianoVisualizer {
         return Math.max(scaledSize, 16);
     }
     
-    getNoteColor(midiNote, velocity) {
-        // Special handling for retro palettes - use random color selection
-        if (this.settings.colorScale.startsWith('retro-')) {
-            const retroColor = this.getRandomRetroColor();
-            return retroColor;
-        }
-        
-        const noteIndex = midiNote % 12;
-        const scale = this.scales[this.settings.colorScale] || this.scales.chromatic;
-        let palette = this.colorPalettes[this.settings.colorScale];
+    resolvePalette(colorScale) {
+        let palette = this.colorPalettes[colorScale];
         
         // If custom scale is selected and palette is empty, generate custom colors
-        if (this.settings.colorScale === 'custom' && (!palette || palette.length === 0)) {
+        if (colorScale === 'custom' && (!palette || palette.length === 0)) {
             this.updateCustomColors();
             palette = this.colorPalettes.custom;
         }
         
         // Fallback to chromatic palette if current palette is undefined
-        if (!palette) {
-            palette = this.colorPalettes.chromatic || ['#ff0000', '#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#0000ff', '#8000ff', '#ff00ff', '#ff0080'];
+        return palette || this.colorPalettes.chromatic || ['#ff0000', '#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#0000ff', '#8000ff', '#ff00ff', '#ff0080'];
+    }
+    
+    getNoteColor(midiNote, velocity) {
+        // Early return for retro palettes
+        if (this.settings.colorScale.startsWith('retro-')) {
+            return this.getRandomRetroColor();
         }
         
+        const noteIndex = midiNote % 12;
+        const scale = this.scales[this.settings.colorScale] || this.scales.chromatic;
+        const palette = this.resolvePalette(this.settings.colorScale);
+        
         // Find note position in scale
-        let scalePosition = scale.indexOf(noteIndex);
-        if (scalePosition === -1) {
-            // If note not in scale, use closest note
-            scalePosition = this.findClosestNoteInScale(noteIndex, scale);
-        }
+        const scalePosition = scale.indexOf(noteIndex) !== -1 
+            ? scale.indexOf(noteIndex)
+            : this.findClosestNoteInScale(noteIndex, scale);
         
         const baseColor = palette[scalePosition] || '#ffffff';
         
-        // Parse hex color
+        // Parse hex color using helper function
         const hex = baseColor.replace('#', '');
-        let r = parseInt(hex.substr(0, 2), 16);
-        let g = parseInt(hex.substr(2, 2), 16);
-        let b = parseInt(hex.substr(4, 2), 16);
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
         
         // Apply velocity and intensity
-        const velocityFactor = Math.max(0.6, velocity / 127);
-        const intensityFactor = 1.0;
-        
-        r = Math.round(r * velocityFactor * intensityFactor);
-        g = Math.round(g * velocityFactor * intensityFactor);
-        b = Math.round(b * velocityFactor * intensityFactor);
-        
+        const velocityFactor = this.getVelocityFactor(velocity);
+        const finalR = Math.round(r * velocityFactor);
+        const finalG = Math.round(g * velocityFactor);
+        const finalB = Math.round(b * velocityFactor);
         const alpha = 0.8 + (velocity / 127) * 0.2;
         
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        return `rgba(${finalR}, ${finalG}, ${finalB}, ${alpha})`;
     }
     
     findClosestNoteInScale(noteIndex, scale) {
@@ -1438,7 +1448,7 @@ class PianoVisualizer {
         const rangeSelector = this.domCache.pianoRange;
         rangeSelector.addEventListener('change', (e) => {
             this.settings.pianoRange = e.target.value;
-            this.recreatePianoKeyboard();
+            this.createPianoKeyboard();
         });
         
         // Color scale selector
@@ -1475,19 +1485,16 @@ class PianoVisualizer {
                 
                 // Handle display mode changes
                 if (this.spectrumCanvas) {
-                    switch (e.target.value) {
-                        case 'waveform':
-                            this.spectrumCanvas.style.display = 'block';
-                            this.settings.showSpectrumAnalyzer = false;
-                            break;
-                        case 'spectrum':
-                            this.spectrumCanvas.style.display = 'block';
-                            this.settings.showSpectrumAnalyzer = true;
-                            break;
-                        case 'none':
-                            this.spectrumCanvas.style.display = 'none';
-                            this.settings.showSpectrumAnalyzer = false;
-                            break;
+                    const displayModeConfigs = {
+                        'waveform': { display: 'block', showAnalyzer: false },
+                        'spectrum': { display: 'block', showAnalyzer: true },
+                        'none': { display: 'none', showAnalyzer: false }
+                    };
+                    
+                    const config = displayModeConfigs[e.target.value];
+                    if (config) {
+                        this.spectrumCanvas.style.display = config.display;
+                        this.settings.showSpectrumAnalyzer = config.showAnalyzer;
                     }
                 }
                 
@@ -1899,11 +1906,11 @@ class PianoVisualizer {
     
     getMidiEventLength(status) {
         const type = status & 0xF0;
-        switch (type) {
-            case 0x80: case 0x90: case 0xA0: case 0xB0: case 0xE0: return 2;
-            case 0xC0: case 0xD0: return 1;
-            default: return 0;
-        }
+        const midiEventLengths = {
+            0x80: 2, 0x90: 2, 0xA0: 2, 0xB0: 2, 0xE0: 2,
+            0xC0: 1, 0xD0: 1
+        };
+        return midiEventLengths[type] || 0;
     }
     
     calculateTotalTime() {
@@ -2065,10 +2072,8 @@ class PianoVisualizer {
                 if (event.type === 'noteOn') {
                     // MIDI再生時は波形表示を無効化
                     this.playNote(event.note, event.velocity, performance.now(), false);
-                    this.highlightPianoKey(event.note, true);
                 } else if (event.type === 'noteOff') {
                     this.stopNote(event.note, performance.now(), false);
-                    this.highlightPianoKey(event.note, false);
                 } else if (event.type === 'controlChange') {
                     
                     // Handle sustain pedal (CC 64)
@@ -2243,11 +2248,8 @@ class PianoVisualizer {
             return colors;
         }
         
-        // Convert hex to HSL
-        const hex = baseColor.replace('#', '');
-        const r = parseInt(hex.substr(0, 2), 16) / 255;
-        const g = parseInt(hex.substr(2, 2), 16) / 255;
-        const b = parseInt(hex.substr(4, 2), 16) / 255;
+        // Convert hex to HSL using helper function
+        const { r, g, b } = this.hexToRgbNormalized(baseColor);
         
         const max = Math.max(r, g, b);
         const min = Math.min(r, g, b);
@@ -2258,11 +2260,12 @@ class PianoVisualizer {
         } else {
             const d = max - min;
             s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            switch (max) {
-                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                case g: h = (b - r) / d + 2; break;
-                case b: h = (r - g) / d + 4; break;
-            }
+            const hueCalculators = {
+                [r]: () => (g - b) / d + (g < b ? 6 : 0),
+                [g]: () => (b - r) / d + 2,
+                [b]: () => (r - g) / d + 4
+            };
+            h = hueCalculators[max] ? hueCalculators[max]() : 0;
             h /= 6;
         }
         
@@ -2439,7 +2442,6 @@ class PianoVisualizer {
                 e.preventDefault();
                 this.activeKeys.add(e.code);
                 this.playNote(midiNote, 60, performance.now());
-                this.highlightPianoKey(midiNote, true);
                 this.logMidiActivity(`▶ ${this.midiNoteToNoteName(midiNote, 60)} (${midiNote}) vel:60`);
             }
         });
@@ -2453,22 +2455,19 @@ class PianoVisualizer {
                 e.preventDefault();
                 this.activeKeys.delete(e.code);
                 this.stopNote(midiNote);
-                this.highlightPianoKey(midiNote, false);
                 this.logMidiActivity(`⏹ ${this.midiNoteToNoteName(midiNote)} (${midiNote})`);
             }
         });
     }
     
     highlightPianoKey(midiNote, pressed) {
-        // Use cached element and schedule update for better performance
-        const keyElement = this.pianoKeyElements.get(midiNote);
-        if (keyElement) {
-            if (pressed) {
-                keyElement.classList.add('pressed');
-            } else {
-                keyElement.classList.remove('pressed');
-            }
+        // Update key state and schedule batch update for better performance
+        if (pressed) {
+            this.activeKeys.add(midiNote);
+        } else {
+            this.activeKeys.delete(midiNote);
         }
+        this.scheduleKeyVisualUpdate(midiNote);
     }
     
     visualizeNoteFallback(noteName, midiNote, velocity) {
