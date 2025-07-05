@@ -1,0 +1,1292 @@
+// ================================
+// SCSS Variables
+// ================================
+$primary: #60a5fa;
+$success: #34d399;
+$text: #e5e7eb;
+$text-muted: #9ca3af;
+$text-light: #d1d5db;
+$bg-primary: #0f0f23;
+$bg-secondary: #1a1a2e;
+$bg-accent: #16213e;
+$blue: #3b82f6;
+$blue-dark: #2563eb;
+$pink: #E91E63;
+$border: rgba(156, 163, 175, 0.2);
+$blur: blur(20px);
+$shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+$transition: all 0.2s ease;
+$font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+$radius: 8px;
+
+// ================================
+// SCSS Mixins
+// ================================
+@mixin flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@mixin glass-effect {
+    background: rgba(15, 15, 35, 0.95);
+    backdrop-filter: $blur;
+    border: 1px solid $border;
+    box-shadow: $shadow;
+}
+
+@mixin button-base {
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.3s;
+    
+    &:hover:not(:disabled) {
+        filter: brightness(1.1);
+    }
+    
+    &:disabled {
+        background: #555;
+        cursor: not-allowed;
+    }
+}
+
+@mixin input-base {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+    border-radius: $radius;
+    background: rgba(31, 41, 55, 0.8);
+    color: $text;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: $transition;
+    
+    &:focus {
+        outline: none;
+        border-color: $primary;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+    }
+}
+
+@mixin note-animation($duration: 3s) {
+    animation: noteAnimation $duration ease-out forwards;
+    
+    @keyframes noteAnimation {
+        0% {
+            opacity: 0;
+            transform: scale(0.1) translateY(50px) translateZ(-200px);
+            filter: blur(8px);
+        }
+        15% {
+            opacity: 0.3;
+            transform: scale(0.4) translateY(0px) translateZ(-150px);
+            filter: blur(5px);
+        }
+        35% {
+            opacity: 0.8;
+            transform: scale(0.8) translateY(-50px) translateZ(-50px);
+            filter: blur(2px);
+        }
+        50% {
+            opacity: 1;
+            transform: scale(1.2) translateY(-150px) translateZ(0px);
+            filter: blur(0px);
+        }
+        75% {
+            opacity: 0.9;
+            transform: scale(1.1) translateY(-300px) translateZ(20px);
+            filter: blur(0px);
+        }
+        100% {
+            opacity: 0;
+            transform: scale(0.6) translateY(-500px) translateZ(50px);
+            filter: blur(4px);
+        }
+    }
+}
+
+@mixin modal-animation {
+    &.modal-fade-in {
+        animation: modalFadeIn 0.3s ease-out;
+    }
+    
+    &.modal-slide-in .modal-content {
+        animation: modalSlideIn 0.3s ease-out;
+    }
+    
+    &.closing {
+        animation: modalFadeOut 0.2s ease-in forwards;
+        
+        .modal-content {
+            animation: modalSlideOut 0.2s ease-in forwards;
+        }
+    }
+}
+
+@mixin piano-key($type: 'white') {
+    position: relative;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    user-select: none;
+    
+    @if $type == 'white' {
+        background: linear-gradient(180deg, #f9fafb, #ffffff);
+        border: 1px solid $text-light;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        
+        &.pressed {
+            background: linear-gradient(180deg, $primary, $blue);
+            color: white;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(96, 165, 250, 0.5);
+        }
+    } @else if $type == 'black' {
+        background: linear-gradient(180deg, #374151, #1f2937);
+        border: 1px solid #111827;
+        border-radius: 0 0 6px 6px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        
+        &.pressed {
+            background: linear-gradient(180deg, $success, #10b981);
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(52, 211, 153, 0.5);
+        }
+    }
+    
+    &:hover {
+        transform: translateY(2px);
+        transition: all 0.1s ease;
+    }
+    
+    &.pressed {
+        transform: translateY(4px);
+    }
+}
+
+// ================================
+// Global Styles
+// ================================
+:root {
+    --primary: #{$primary};
+    --success: #{$success};
+    --text: #{$text};
+    --text-muted: #{$text-muted};
+    --text-light: #{$text-light};
+    --bg-primary: #{$bg-primary};
+    --bg-secondary: #{$bg-secondary};
+    --bg-accent: #{$bg-accent};
+    --blue: #{$blue};
+    --blue-dark: #{$blue-dark};
+    --pink: #{$pink};
+    --border: #{$border};
+    --blur: #{$blur};
+    --shadow: #{$shadow};
+    --transition: #{$transition};
+    --font-family: #{$font-family};
+    --radius: #{$radius};
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: $font-family;
+    background: linear-gradient(135deg, $bg-primary, $bg-secondary, $bg-accent);
+    color: $text;
+    overflow: hidden;
+    font-weight: 400;
+    contain: layout style;
+}
+
+// ================================
+// Layout Components
+// ================================
+.app-container {
+    display: flex;
+    height: 100vh;
+    contain: layout style;
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.sidebar {
+    width: 320px;
+    @include glass-effect;
+    padding: 24px;
+    border-right: 1px solid $border;
+    overflow-y: auto;
+    max-height: 100vh;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    
+    h2 {
+        margin-bottom: 24px;
+        color: $primary;
+        font-weight: 600;
+        font-size: 1.5rem;
+        letter-spacing: -0.025em;
+    }
+    
+    h3 {
+        margin: 24px 0 12px 0;
+        color: $success;
+        font-weight: 500;
+        font-size: 1.125rem;
+        letter-spacing: -0.025em;
+        @include flex-center;
+        justify-content: space-between;
+        cursor: pointer;
+        transition: color 0.2s ease;
+        
+        &::first-letter {
+            margin-right: 10px;
+        }
+        
+        &:hover {
+            color: #6ee7b7;
+        }
+        
+        &.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        
+        .toggle-icon {
+            font-size: 0.875rem;
+            color: $text-muted;
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+    }
+}
+
+// ================================
+// Collapsible Content
+// ================================
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    &.collapsed {
+        max-height: 0;
+    }
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+// ================================
+// Form Controls
+// ================================
+.control-group {
+    margin-bottom: 20px;
+    
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+        color: $text-light;
+        font-weight: 500;
+    }
+    
+    input[type="range"] {
+        width: 100%;
+        margin-bottom: 8px;
+        accent-color: $primary;
+    }
+    
+    span {
+        font-size: 0.75rem;
+        color: #fbbf24;
+        font-weight: 600;
+    }
+    
+    select {
+        @include input-base;
+        
+        option {
+            background: #1f2937;
+            color: $text;
+            padding: 8px;
+        }
+    }
+}
+
+.checkbox-label {
+    @include flex-center;
+    justify-content: flex-start;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: $text-light;
+    font-weight: 500;
+    margin-bottom: 8px;
+    
+    input[type="checkbox"] {
+        margin-right: 8px;
+        width: 16px;
+        height: 16px;
+        accent-color: $primary;
+        cursor: pointer;
+    }
+    
+    &:hover {
+        color: $text;
+    }
+}
+
+// ================================
+// MIDI Controls
+// ================================
+.midi-controls {
+    margin: 20px 0;
+    
+    h3 {
+        margin-bottom: 10px;
+        color: $pink;
+    }
+    
+    button {
+        @include button-base;
+        width: 100%;
+        padding: 8px;
+        margin: 3px 0;
+        background: $pink;
+        color: white;
+        
+        &:hover:not(:disabled) {
+            background: #C2185B;
+        }
+    }
+}
+
+.tempo-control {
+    margin: 10px 0;
+    
+    label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 12px;
+        color: #E0E0E0;
+    }
+    
+    input[type="range"] {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    span {
+        font-size: 12px;
+        color: #FFB74D;
+    }
+}
+
+// ================================
+// Playback Controls
+// ================================
+.playback-controls {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    
+    &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .time-display {
+        @include flex-center;
+        margin-bottom: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        color: $text;
+        
+        .time-separator {
+            margin: 0 8px;
+            color: $text-muted;
+        }
+    }
+    
+    .progress-container {
+        margin: 12px 0;
+        position: relative;
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: visible;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            
+            &:hover {
+                height: 10px;
+                background: rgba(255, 255, 255, 0.15);
+                
+                #progress-handle {
+                    opacity: 1;
+                }
+            }
+            
+            #progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, $pink, #FF6B6B);
+                width: 0%;
+                transition: width 0.1s ease;
+                border-radius: 4px;
+                position: relative;
+            }
+            
+            #progress-handle {
+                position: absolute;
+                top: 50%;
+                right: -6px;
+                width: 12px;
+                height: 12px;
+                background: #fff;
+                border-radius: 50%;
+                transform: translateY(-50%);
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+                cursor: grab;
+                transition: all 0.2s ease;
+                opacity: 0;
+                
+                &:active {
+                    cursor: grabbing;
+                    transform: translateY(-50%) scale(1.2);
+                }
+            }
+        }
+    }
+    
+    .position-info {
+        @include flex-center;
+        margin-top: 8px;
+        font-size: 12px;
+        color: $text-muted;
+        
+        .position-separator {
+            margin: 0 12px;
+            color: #6b7280;
+        }
+    }
+}
+
+#midi-info {
+    font-size: 11px;
+    color: #B0B0B0;
+    margin-top: 5px;
+}
+
+// ================================
+// MIDI Status
+// ================================
+.midi-status {
+    margin: 20px 0;
+    
+    h3 {
+        margin-bottom: 10px;
+        color: #00E676;
+    }
+    
+    #midi-devices {
+        font-size: 11px;
+        color: #B0B0B0;
+        margin-bottom: 10px;
+    }
+    
+    #midi-activity {
+        font-size: 10px;
+        color: #4FC3F7;
+        height: 40px;
+        overflow-y: auto;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 5px;
+        border-radius: 3px;
+        font-family: monospace;
+    }
+}
+
+// ================================
+// MIDI Pedal Status
+// ================================
+.midi-pedal-status {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    @include glass-effect;
+    border-radius: $radius;
+    z-index: 110;
+    
+    .pedal-indicator {
+        @include flex-center;
+        gap: 8px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.08);
+        min-width: 120px;
+        
+        &.active {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+            
+            .pedal-icon {
+                transform: scale(1.2);
+                filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.8));
+            }
+            
+            .pedal-status {
+                background: rgba(34, 197, 94, 0.3);
+                color: #22c55e;
+                text-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+            }
+        }
+        
+        .pedal-icon {
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .pedal-label {
+            font-size: 11px;
+            color: $text-light;
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .pedal-status {
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            color: $text-muted;
+        }
+    }
+}
+
+// ================================
+// Pedal Controls
+// ================================
+.pedal-controls {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    
+    h4 {
+        margin-bottom: 8px;
+        color: $success;
+        font-size: 12px;
+        font-weight: 500;
+    }
+}
+
+// ================================
+// Custom Color Selection
+// ================================
+#color-customization {
+    display: none;
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    
+    &.visible {
+        display: block;
+    }
+    
+    #base-color-picker {
+        width: 100%;
+        height: 40px;
+        border: 1px solid rgba(156, 163, 175, 0.3);
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+        margin-bottom: 12px;
+    }
+    
+    #color-code-input {
+        @include input-base;
+        font-family: monospace;
+        margin-bottom: 8px;
+    }
+    
+    #apply-color-code {
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 6px;
+        background: $primary;
+        color: white;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        
+        &:hover {
+            background: $blue;
+        }
+        
+        &:active {
+            background: $blue-dark;
+            transform: translateY(1px);
+        }
+    }
+}
+
+// ================================
+// Modal Components
+// ================================
+.custom-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    @include flex-center;
+    @include modal-animation;
+    
+    .modal-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(8px);
+    }
+    
+    .modal-content {
+        position: relative;
+        background: linear-gradient(135deg, rgba(15, 15, 35, 0.98), rgba(26, 26, 46, 0.95));
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        border: 1px solid $border;
+        backdrop-filter: $blur;
+        max-width: 480px;
+        width: 90%;
+        max-height: 80vh;
+        overflow: hidden;
+        
+        .modal-header {
+            @include flex-center;
+            justify-content: flex-start;
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid rgba(156, 163, 175, 0.1);
+            
+            .modal-icon {
+                font-size: 24px;
+                margin-right: 12px;
+                flex-shrink: 0;
+            }
+            
+            .modal-title {
+                flex: 1;
+                margin: 0;
+                color: $primary;
+                font-size: 1.25rem;
+                font-weight: 600;
+                font-family: $font-family;
+            }
+            
+            .modal-close {
+                background: none;
+                border: none;
+                color: $text-muted;
+                font-size: 24px;
+                cursor: pointer;
+                padding: 4px;
+                line-height: 1;
+                transition: all 0.2s ease;
+                border-radius: 4px;
+                
+                &:hover {
+                    color: $text;
+                    background: rgba(255, 255, 255, 0.1);
+                }
+            }
+        }
+        
+        .modal-body {
+            padding: 20px 24px;
+            
+            .modal-message {
+                color: $text;
+                font-size: 1rem;
+                line-height: 1.6;
+                margin: 0;
+                white-space: pre-line;
+                font-family: $font-family;
+            }
+        }
+        
+        .modal-footer {
+            padding: 16px 24px 24px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            
+            .modal-btn {
+                padding: 10px 20px;
+                border: none;
+                border-radius: $radius;
+                font-size: 0.875rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-family: $font-family;
+                
+                &.modal-btn-primary {
+                    background: linear-gradient(135deg, $blue, #1d4ed8);
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                    
+                    &:hover {
+                        background: linear-gradient(135deg, $blue-dark, #1e40af);
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+                    }
+                    
+                    &:active {
+                        transform: translateY(0);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Modal animations
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes modalFadeOut {
+    to { opacity: 0; }
+}
+
+@keyframes modalSlideOut {
+    to {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+}
+
+// ================================
+// Audio Controls
+// ================================
+.audio-controls {
+    margin: 20px 0;
+    
+    h3 {
+        margin-bottom: 10px;
+        color: #FF9800;
+    }
+    
+    .mute-btn {
+        @include button-base;
+        width: 100%;
+        padding: 8px;
+        background: #4CAF50;
+        color: white;
+        font-size: 14px;
+        font-family: inherit;
+        
+        &:hover:not(:disabled) {
+            background: #45a049;
+        }
+        
+        &.muted {
+            background: #f44336;
+            
+            &:hover:not(:disabled) {
+                background: #da190b;
+            }
+        }
+    }
+}
+
+// ================================
+// Keyboard Help
+// ================================
+.keyboard-help {
+    margin: 20px 0;
+    
+    h3 {
+        margin-bottom: 10px;
+        color: #FFB74D;
+    }
+    
+    .key-mapping {
+        font-size: 12px;
+        
+        .mapping-row {
+            display: flex;
+            margin-bottom: 5px;
+            gap: 5px;
+            
+            .key {
+                background: rgba(255, 255, 255, 0.1);
+                padding: 2px 6px;
+                border-radius: 3px;
+                min-width: 20px;
+                text-align: center;
+                font-weight: bold;
+                color: #4FC3F7;
+            }
+            
+            .note {
+                background: rgba(129, 199, 132, 0.2);
+                padding: 2px 6px;
+                border-radius: 3px;
+                min-width: 25px;
+                text-align: center;
+                color: #81C784;
+                margin-right: 10px;
+            }
+        }
+    }
+}
+
+// ================================
+// Three.js Container
+// ================================
+#three-container {
+    width: 100%;
+    height: calc(100vh - 180px);
+    background: linear-gradient(45deg, $bg-primary, $bg-secondary, $bg-accent);
+    position: relative;
+    overflow: hidden;
+    z-index: 2;
+    will-change: transform;
+    contain: layout style paint;
+    transform: translateZ(0);
+    
+    canvas {
+        display: block;
+        will-change: transform;
+        transform: translateZ(0);
+    }
+}
+
+// ================================
+// Spectrum Canvas
+// ================================
+.spectrum-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    opacity: 0.7;
+    pointer-events: none;
+    mix-blend-mode: screen;
+}
+
+// ================================
+// Piano Container & Keys
+// ================================
+.piano-container {
+    position: fixed;
+    bottom: 0;
+    left: 320px;
+    right: 0;
+    height: 180px;
+    background: rgba(15, 15, 35, 0.98);
+    @include flex-center;
+    border-top: 1px solid rgba(156, 163, 175, 0.3);
+    backdrop-filter: $blur;
+    z-index: 100;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    padding: 10px 20px;
+}
+
+.piano-keyboard {
+    display: flex;
+    height: 160px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 100%;
+    border-radius: 12px;
+    
+    &::-webkit-scrollbar {
+        height: 8px;
+        
+        &-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        &-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            
+            &:hover {
+                background: rgba(255, 255, 255, 0.5);
+            }
+        }
+    }
+}
+
+.piano-key {
+    @include piano-key('white');
+    
+    &.white {
+        @include piano-key('white');
+    }
+    
+    &.black {
+        @include piano-key('black');
+    }
+}
+
+// ================================
+// Note Display
+// ================================
+.note-display {
+    position: fixed;
+    font-weight: 600;
+    text-shadow: 0 0 24px rgba(96, 165, 250, 0.8), 
+                 0 0 48px rgba(96, 165, 250, 0.4),
+                 2px 2px 12px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    z-index: 1000;
+    font-family: $font-family;
+    letter-spacing: 0.05em;
+    @include note-animation;
+    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, 
+                rgba(96, 165, 250, 0.2), 
+                rgba(52, 211, 153, 0.1));
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    transform-style: preserve-3d;
+    perspective: 1000px;
+    box-shadow: 0 8px 32px rgba(96, 165, 250, 0.2);
+    
+    &.large { font-size: 2.5em; }
+    &.medium { font-size: 2em; }
+    &.small { font-size: 1.5em; }
+}
+
+// ================================
+// Mobile Warning
+// ================================
+.mobile-warning {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, $bg-primary, $bg-secondary, $bg-accent);
+    z-index: 9999;
+    @include flex-center;
+    padding: 20px;
+    overflow-y: auto;
+    
+    &-content {
+        max-width: 500px;
+        @include glass-effect;
+        border-radius: 20px;
+        padding: 40px 30px;
+        text-align: center;
+        
+        .mobile-warning-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+            
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+            }
+        }
+        
+        h1 {
+            color: $primary;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-family: $font-family;
+        }
+        
+        h2 {
+            color: $success;
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 30px;
+            font-family: $font-family;
+        }
+        
+        .mobile-warning-message p {
+            color: $text;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        
+        .mobile-warning-details,
+        .mobile-warning-supported {
+            margin: 25px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            border: 1px solid rgba(156, 163, 175, 0.1);
+            
+            h3 {
+                color: #fbbf24;
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin-bottom: 15px;
+            }
+            
+            ul {
+                text-align: left;
+                color: $text-light;
+                font-size: 0.95rem;
+                line-height: 1.8;
+                
+                li {
+                    margin-bottom: 8px;
+                    padding-left: 10px;
+                }
+            }
+        }
+        
+        .device-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 15px;
+            
+            .device-item {
+                background: rgba(34, 197, 94, 0.1);
+                color: $success;
+                padding: 12px;
+                border-radius: 10px;
+                font-weight: 500;
+                border: 1px solid rgba(34, 197, 94, 0.2);
+            }
+        }
+        
+        .mobile-continue-btn {
+            background: linear-gradient(135deg, $blue, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 25px;
+            transition: all 0.3s ease;
+            text-transform: none;
+            
+            &:hover {
+                background: linear-gradient(135deg, $blue-dark, #1e40af);
+                transform: translateY(-2px);
+                box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+            }
+            
+            &:active {
+                transform: translateY(0);
+            }
+        }
+    }
+}
+
+// Hide app content when mobile warning is shown
+.mobile-warning-shown .app-container {
+    display: none;
+}
+
+// ================================
+// SNS Share Buttons
+// ================================
+.sns-share-buttons {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10000;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+    
+    &:hover {
+        opacity: 1;
+    }
+    
+    .sns-btn {
+        width: 44px;
+        height: 44px;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        @include flex-center;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        
+        &:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        &:active {
+            transform: scale(0.95);
+        }
+        
+        &.twitter-btn {
+            background: linear-gradient(135deg, #1da1f2, #0d8bd9);
+            color: white;
+            
+            &:hover {
+                background: linear-gradient(135deg, #0d8bd9, #0a7bc4);
+            }
+        }
+        
+        &.facebook-btn {
+            background: linear-gradient(135deg, #1877f2, #166fe5);
+            color: white;
+            
+            &:hover {
+                background: linear-gradient(135deg, #166fe5, #1462d1);
+            }
+        }
+        
+        &.line-btn {
+            background: linear-gradient(135deg, #00c300, #00b300);
+            color: white;
+            
+            &:hover {
+                background: linear-gradient(135deg, #00b300, #00a300);
+            }
+        }
+        
+        &.copy-btn {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+            
+            &:hover {
+                background: linear-gradient(135deg, #4b5563, #374151);
+            }
+            
+            &.copied {
+                background: linear-gradient(135deg, #10b981, #059669);
+            }
+        }
+    }
+}
+
+// ================================
+// Responsive Design
+// ================================
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 20px;
+        
+        .modal-header {
+            padding: 16px 20px 12px;
+            
+            .modal-title {
+                font-size: 1.125rem;
+            }
+        }
+        
+        .modal-body {
+            padding: 16px 20px;
+            
+            .modal-message {
+                font-size: 0.875rem;
+            }
+        }
+        
+        .modal-footer {
+            padding: 12px 20px 20px;
+        }
+    }
+    
+    .piano-container {
+        left: 0;
+    }
+    
+    .midi-pedal-status {
+        bottom: 4px;
+        padding: 6px 10px;
+        
+        .pedal-indicator {
+            gap: 6px;
+            padding: 3px 6px;
+            min-width: 100px;
+            
+            .pedal-icon {
+                font-size: 14px;
+            }
+            
+            .pedal-label {
+                font-size: 10px;
+            }
+            
+            .pedal-status {
+                font-size: 9px;
+                padding: 1px 4px;
+            }
+        }
+    }
+    
+    .sns-share-buttons {
+        top: 10px;
+        right: 10px;
+        gap: 6px;
+        
+        .sns-btn {
+            width: 36px;
+            height: 36px;
+            
+            svg {
+                width: 16px;
+                height: 16px;
+            }
+        }
+    }
+}
