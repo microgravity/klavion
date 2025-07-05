@@ -2940,12 +2940,6 @@ class PianoVisualizer {
     }
     
     autoSelectMidiDevice() {
-        // If already using a MIDI device (not keyboard), don't change
-        if (this.selectedInputDevice !== 'keyboard') {
-            this.logMidiActivity(`Keeping current device: ${this.selectedInputDevice}`);
-            return;
-        }
-        
         if (this.midiInputs.size === 0) {
             this.logMidiActivity('No MIDI devices available for auto-selection');
             return;
@@ -2953,68 +2947,22 @@ class PianoVisualizer {
         
         this.logMidiActivity(`Analyzing ${this.midiInputs.size} MIDI device(s) for 88-key piano detection...`);
         
-        // Enhanced 88-key piano detection with prioritized keywords
-        const pianoKeywords = [
-            'piano', 'keyboard', 'stage', 'digital piano', 'electric piano',
-            'clavinova', 'rd-', 'fp-', 'p-', 'ca-', 'es-', 'cp-', 'ydp-',
-            'kawai', 'yamaha', 'roland', 'korg', 'casio', 'nord', 'steinway',
-            'weighted', 'hammer', 'action', 'keys', 'master', 'workstation'
-        ];
-        
-        const explicit88Keywords = [
-            '88', 'eighty-eight', 'full size', 'full-size', 'full scale',
-            'hammer action', 'weighted keys', 'graded hammer', 'weighted action'
-        ];
+        // Get current device score if any
+        let currentDeviceScore = 0;
+        if (this.selectedInputDevice !== 'keyboard') {
+            const currentDevice = this.midiInputs.get(this.selectedInputDevice);
+            if (currentDevice) {
+                currentDeviceScore = this.calculateDeviceScore(currentDevice.name);
+                this.logMidiActivity(`Current device "${currentDevice.name}" score: ${currentDeviceScore}`);
+            }
+        }
         
         let bestDevice = null;
-        let highestScore = 0;
+        let highestScore = currentDeviceScore; // Start from current device score
         
         for (const [id, input] of this.midiInputs) {
-            const deviceName = input.name.toLowerCase();
-            let score = 0;
-            
-            // Highest priority: explicit 88-key indicators
-            for (const keyword of explicit88Keywords) {
-                if (deviceName.includes(keyword)) {
-                    score += 5; // Highest priority
-                }
-            }
-            
-            // High priority: piano/keyboard terms
-            if (deviceName.includes('piano')) {
-                score += 4;
-            }
-            if (deviceName.includes('keyboard')) {
-                score += 3;
-            }
-            
-            // Medium priority: brand and model indicators
-            const proBrands = ['rd-', 'fp-', 'clavinova', 'nord', 'ca-', 'mp-', 'ydp-'];
-            for (const brand of proBrands) {
-                if (deviceName.includes(brand)) {
-                    score += 3;
-                }
-            }
-            
-            // Standard piano-related keywords
-            for (const keyword of pianoKeywords) {
-                if (deviceName.includes(keyword)) {
-                    score += 1;
-                }
-            }
-            
-            // Penalty for controllers/synths that are likely not 88-key
-            const controllerKeywords = ['control', 'mini', 'micro', 'nano', 'launch', 'pad', 'mpk', 'lpk'];
-            for (const keyword of controllerKeywords) {
-                if (deviceName.includes(keyword)) {
-                    score -= 3; // Negative score for non-88-key devices
-                }
-            }
-            
-            // Boost for stage/professional terms
-            if (deviceName.includes('stage') || deviceName.includes('professional')) {
-                score += 2;
-            }
+            const score = this.calculateDeviceScore(input.name);
+            this.logMidiActivity(`Device "${input.name}" score: ${score}`);
             
             if (score > highestScore) {
                 bestDevice = { id, input };
@@ -3023,7 +2971,7 @@ class PianoVisualizer {
         }
         
         // Auto-select the best device with enhanced logic
-        if (bestDevice && highestScore >= 1) {
+        if (bestDevice && highestScore > currentDeviceScore) {
             const oldDevice = this.selectedInputDevice;
             this.selectedInputDevice = bestDevice.id;
             document.getElementById('midi-input-select').value = bestDevice.id;
@@ -3038,7 +2986,11 @@ class PianoVisualizer {
                 deviceType = 'piano-like device';
             }
             
-            this.logMidiActivity(`Auto-selected ${deviceType}: ${bestDevice.input.name} (score: ${highestScore})`);
+            const upgradeMessage = oldDevice !== 'keyboard' ? 
+                `Upgraded from "${this.midiInputs.get(oldDevice)?.name}" (score: ${currentDeviceScore})` :
+                'Switched from computer keyboard';
+            
+            this.logMidiActivity(`${upgradeMessage} to ${deviceType}: ${bestDevice.input.name} (score: ${highestScore})`);
             
             // Auto-enable 88-key mode for high-confidence piano devices
             if (highestScore >= 4 && this.settings.pianoRange !== '88-key') {
@@ -3049,19 +3001,82 @@ class PianoVisualizer {
             }
             
             // Force re-setup of MIDI handlers after auto-selection
-        } else if (this.midiInputs.size > 0) {
-            // If no piano-like device found, select the first available MIDI device
+        } else if (this.selectedInputDevice === 'keyboard' && this.midiInputs.size > 0) {
+            // If no better device found and still using keyboard, select the first available MIDI device
             const firstDevice = this.midiInputs.entries().next().value;
-            const oldDevice = this.selectedInputDevice;
-            this.selectedInputDevice = firstDevice[0];
-            document.getElementById('midi-input-select').value = firstDevice[0];
-            
-            this.logMidiActivity(`Auto-selected fallback device: ${firstDevice[1].name}`);
-            
-            // Force re-setup of MIDI handlers after auto-selection
+            const score = this.calculateDeviceScore(firstDevice[1].name);
+            if (score >= 1) {
+                this.selectedInputDevice = firstDevice[0];
+                document.getElementById('midi-input-select').value = firstDevice[0];
+                this.logMidiActivity(`Auto-selected fallback device: ${firstDevice[1].name} (score: ${score})`);
+            }
         } else {
-            this.logMidiActivity('No MIDI devices available for auto-selection');
+            this.logMidiActivity('No better MIDI device found - keeping current selection');
         }
+    }
+    
+    // Calculate device score for 88-key piano detection
+    calculateDeviceScore(deviceName) {
+        const name = deviceName.toLowerCase();
+        let score = 0;
+        
+        // Enhanced 88-key piano detection with prioritized keywords
+        const pianoKeywords = [
+            'piano', 'keyboard', 'stage', 'digital piano', 'electric piano',
+            'clavinova', 'rd-', 'fp-', 'p-', 'ca-', 'es-', 'cp-', 'ydp-',
+            'kawai', 'yamaha', 'roland', 'korg', 'casio', 'nord', 'steinway',
+            'weighted', 'hammer', 'action', 'keys', 'master', 'workstation'
+        ];
+        
+        const explicit88Keywords = [
+            '88', 'eighty-eight', 'full size', 'full-size', 'full scale',
+            'hammer action', 'weighted keys', 'graded hammer', 'weighted action'
+        ];
+        
+        // Highest priority: explicit 88-key indicators
+        for (const keyword of explicit88Keywords) {
+            if (name.includes(keyword)) {
+                score += 5; // Highest priority
+            }
+        }
+        
+        // High priority: piano/keyboard terms
+        if (name.includes('piano')) {
+            score += 4;
+        }
+        if (name.includes('keyboard')) {
+            score += 3;
+        }
+        
+        // Medium priority: brand and model indicators
+        const proBrands = ['rd-', 'fp-', 'clavinova', 'nord', 'ca-', 'mp-', 'ydp-'];
+        for (const brand of proBrands) {
+            if (name.includes(brand)) {
+                score += 3;
+            }
+        }
+        
+        // Standard piano-related keywords
+        for (const keyword of pianoKeywords) {
+            if (name.includes(keyword)) {
+                score += 1;
+            }
+        }
+        
+        // Penalty for controllers/synths that are likely not 88-key
+        const controllerKeywords = ['control', 'mini', 'micro', 'nano', 'launch', 'pad', 'mpk', 'lpk'];
+        for (const keyword of controllerKeywords) {
+            if (name.includes(keyword)) {
+                score -= 3; // Negative score for non-88-key devices
+            }
+        }
+        
+        // Boost for stage/professional terms
+        if (name.includes('stage') || name.includes('professional')) {
+            score += 2;
+        }
+        
+        return score;
     }
     
     
