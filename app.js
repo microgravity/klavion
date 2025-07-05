@@ -432,23 +432,19 @@ class PianoVisualizer {
             
             if (hasInputs) {
                 this.hasMidiInput = true;
-                // Auto-enable 88-key mode when MIDI detected
-                this.settings.pianoRange = '88-key';
-                document.getElementById('piano-range').value = '88-key';
-                this.recreatePianoKeyboard();
+                this.logMidiActivity(`${this.midiInputs.size} MIDI input device(s) detected`);
+                // Let autoSelectMidiDevice handle 88-key mode switching based on device type
             }
             
             this.midiAccess.onstatechange = (event) => {
                 const port = event.port;
                 if (port.type === 'input') {
                     if (port.state === 'connected') {
+                        this.logMidiActivity(`Device connected: ${port.name}`);
                         
                         if (!this.hasMidiInput) {
                             this.hasMidiInput = true;
-                            // Auto-enable 88-key mode
-                            this.settings.pianoRange = '88-key';
-                            document.getElementById('piano-range').value = '88-key';
-                            this.recreatePianoKeyboard();
+                            // Don't auto-enable 88-key mode here - let autoSelectMidiDevice handle it based on device type
                         }
                         
                         // Update device list
@@ -457,6 +453,8 @@ class PianoVisualizer {
                         }
                         this.midiInputs.set(port.id, port);
                         this.updateMidiDeviceList();
+                        
+                        // Auto-select with enhanced piano detection
                         this.autoSelectMidiDevice();
                         this.setupMidiInputHandlers();
                         this.updateMidiStatus();
@@ -2944,42 +2942,79 @@ class PianoVisualizer {
     autoSelectMidiDevice() {
         // If already using a MIDI device (not keyboard), don't change
         if (this.selectedInputDevice !== 'keyboard') {
+            this.logMidiActivity(`Keeping current device: ${this.selectedInputDevice}`);
             return;
         }
         
-        // Look for 88-key piano keywords in device names
+        if (this.midiInputs.size === 0) {
+            this.logMidiActivity('No MIDI devices available for auto-selection');
+            return;
+        }
+        
+        this.logMidiActivity(`Analyzing ${this.midiInputs.size} MIDI device(s) for 88-key piano detection...`);
+        
+        // Enhanced 88-key piano detection with prioritized keywords
         const pianoKeywords = [
             'piano', 'keyboard', 'stage', 'digital piano', 'electric piano',
             'clavinova', 'rd-', 'fp-', 'p-', 'ca-', 'es-', 'cp-', 'ydp-',
-            'kawai', 'yamaha', 'roland', 'korg', 'casio', 'nord',
-            '88', 'weighted', 'hammer'
+            'kawai', 'yamaha', 'roland', 'korg', 'casio', 'nord', 'steinway',
+            'weighted', 'hammer', 'action', 'keys', 'master', 'workstation'
+        ];
+        
+        const explicit88Keywords = [
+            '88', 'eighty-eight', 'full size', 'full-size', 'full scale',
+            'hammer action', 'weighted keys', 'graded hammer', 'weighted action'
         ];
         
         let bestDevice = null;
         let highestScore = 0;
         
-        
         for (const [id, input] of this.midiInputs) {
             const deviceName = input.name.toLowerCase();
             let score = 0;
             
-            // Score based on piano-related keywords
+            // Highest priority: explicit 88-key indicators
+            for (const keyword of explicit88Keywords) {
+                if (deviceName.includes(keyword)) {
+                    score += 5; // Highest priority
+                }
+            }
+            
+            // High priority: piano/keyboard terms
+            if (deviceName.includes('piano')) {
+                score += 4;
+            }
+            if (deviceName.includes('keyboard')) {
+                score += 3;
+            }
+            
+            // Medium priority: brand and model indicators
+            const proBrands = ['rd-', 'fp-', 'clavinova', 'nord', 'ca-', 'mp-', 'ydp-'];
+            for (const brand of proBrands) {
+                if (deviceName.includes(brand)) {
+                    score += 3;
+                }
+            }
+            
+            // Standard piano-related keywords
             for (const keyword of pianoKeywords) {
                 if (deviceName.includes(keyword)) {
                     score += 1;
                 }
             }
             
-            // Higher score for devices with explicit 88-key indicators
-            if (deviceName.includes('88')) {
-                score += 3;
+            // Penalty for controllers/synths that are likely not 88-key
+            const controllerKeywords = ['control', 'mini', 'micro', 'nano', 'launch', 'pad', 'mpk', 'lpk'];
+            for (const keyword of controllerKeywords) {
+                if (deviceName.includes(keyword)) {
+                    score -= 3; // Negative score for non-88-key devices
+                }
             }
             
-            // Prefer devices with "piano" or "keyboard" in name
-            if (deviceName.includes('piano') || deviceName.includes('keyboard')) {
+            // Boost for stage/professional terms
+            if (deviceName.includes('stage') || deviceName.includes('professional')) {
                 score += 2;
             }
-            
             
             if (score > highestScore) {
                 bestDevice = { id, input };
@@ -2987,13 +3022,31 @@ class PianoVisualizer {
             }
         }
         
-        // Auto-select the best device if found
+        // Auto-select the best device with enhanced logic
         if (bestDevice && highestScore >= 1) {
             const oldDevice = this.selectedInputDevice;
             this.selectedInputDevice = bestDevice.id;
             document.getElementById('midi-input-select').value = bestDevice.id;
             
-            this.logMidiActivity(`Auto-selected: ${bestDevice.input.name}`);
+            // Enhanced logging with score information
+            let deviceType = 'MIDI device';
+            if (highestScore >= 5) {
+                deviceType = '88-key piano';
+            } else if (highestScore >= 4) {
+                deviceType = 'piano/keyboard';
+            } else if (highestScore >= 2) {
+                deviceType = 'piano-like device';
+            }
+            
+            this.logMidiActivity(`Auto-selected ${deviceType}: ${bestDevice.input.name} (score: ${highestScore})`);
+            
+            // Auto-enable 88-key mode for high-confidence piano devices
+            if (highestScore >= 4 && this.settings.pianoRange !== '88-key') {
+                this.settings.pianoRange = '88-key';
+                document.getElementById('piano-range').value = '88-key';
+                this.recreatePianoKeyboard();
+                this.logMidiActivity(`Switched to 88-key mode for ${bestDevice.input.name}`);
+            }
             
             // Force re-setup of MIDI handlers after auto-selection
         } else if (this.midiInputs.size > 0) {
@@ -3003,10 +3056,11 @@ class PianoVisualizer {
             this.selectedInputDevice = firstDevice[0];
             document.getElementById('midi-input-select').value = firstDevice[0];
             
-            this.logMidiActivity(`Auto-selected: ${firstDevice[1].name}`);
+            this.logMidiActivity(`Auto-selected fallback device: ${firstDevice[1].name}`);
             
             // Force re-setup of MIDI handlers after auto-selection
         } else {
+            this.logMidiActivity('No MIDI devices available for auto-selection');
         }
     }
     
