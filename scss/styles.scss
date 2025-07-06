@@ -1413,18 +1413,102 @@ body.fullscreen-mode {
     }
 }
 
-// Smooth transition for normal mode
+// ================================
+// Fullscreen Exit Hint
+// ================================
+.fullscreen-hint {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10002;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    
+    &.show {
+        opacity: 0.7;
+        
+        &:hover {
+            opacity: 0.9;
+        }
+    }
+    
+    .hint-content {
+        @include glass-effect;
+        border-radius: 25px;
+        padding: 12px 20px;
+        @include flex-center;
+        gap: 8px;
+        backdrop-filter: blur(15px);
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        
+        .hint-key {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 240, 240, 0.8));
+            color: #1a1a1a;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            font-family: monospace;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .hint-text {
+            color: #e5e7eb;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+    }
+}
+
+// Auto-hide hint after delay
+@keyframes hintFadeOut {
+    0% { opacity: 0.7; }
+    100% { opacity: 0.2; }
+}
+
+.fullscreen-hint.auto-fade {
+    animation: hintFadeOut 0.5s ease forwards;
+}
+
+// Smooth transition for normal mode - サイドバーの位置を完全復帰
 body:not(.fullscreen-mode) {
+    .app-container {
+        display: flex; // flexboxを復帰
+    }
+    
     .sidebar {
+        position: static !important; // 元の位置に復帰
+        transform: none !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: auto !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .main-content {
+        position: relative !important;
+        width: auto !important;
+        height: auto !important;
+        top: auto !important;
+        left: auto !important;
+        margin-left: auto !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .piano-container {
+        left: 320px !important; // サイドバー分のオフセット復帰
+        width: auto !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    #three-container {
+        width: auto !important;
+        height: calc(100vh - 180px) !important;
     }
 }
 

@@ -1221,14 +1221,95 @@ body.fullscreen-mode .fullscreen-toggle .fullscreen-btn:hover {
   background: linear-gradient(135deg, #f43f5e, #ef4444);
 }
 
+.fullscreen-hint {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10002;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.fullscreen-hint.show {
+  opacity: 0.7;
+}
+.fullscreen-hint.show:hover {
+  opacity: 0.9;
+}
+.fullscreen-hint .hint-content {
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(156, 163, 175, 0.2);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  border-radius: 25px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  backdrop-filter: blur(15px);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+.fullscreen-hint .hint-content .hint-key {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 240, 240, 0.8));
+  color: #1a1a1a;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  font-family: monospace;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.fullscreen-hint .hint-content .hint-text {
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+@keyframes hintFadeOut {
+  0% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+.fullscreen-hint.auto-fade {
+  animation: hintFadeOut 0.5s ease forwards;
+}
+
+body:not(.fullscreen-mode) .app-container {
+  display: flex;
+}
 body:not(.fullscreen-mode) .sidebar {
+  position: static !important;
+  transform: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: auto !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body:not(.fullscreen-mode) .main-content {
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  top: auto !important;
+  left: auto !important;
+  margin-left: auto !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body:not(.fullscreen-mode) .piano-container {
+  left: 320px !important;
+  width: auto !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+body:not(.fullscreen-mode) #three-container {
+  width: auto !important;
+  height: calc(100vh - 180px) !important;
 }
 
 @media (max-width: 768px) {

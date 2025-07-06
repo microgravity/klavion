@@ -296,7 +296,8 @@ class PianoVisualizer {
             'sustain-status', 'sustain-pedal', 'midi-activity', 
             'midi-devices', 'midi-input-select', 'volume-control',
             'volume-value', 'mute-button', 'color-scale', 'piano-range',
-            'color-customization', 'audio-context-notice', 'fullscreen-btn'
+            'color-customization', 'audio-context-notice', 'fullscreen-btn',
+            'fullscreen-hint'
         ];
         
         commonIds.forEach(id => this.getElement(id));
@@ -2049,6 +2050,7 @@ class PianoVisualizer {
         this.isFullscreenMode = !this.isFullscreenMode;
         const body = document.body;
         const fullscreenBtn = this.getElement('fullscreen-btn');
+        const fullscreenHint = this.getElement('fullscreen-hint');
         
         if (this.isFullscreenMode) {
             // Enter fullscreen mode
@@ -2058,8 +2060,9 @@ class PianoVisualizer {
                 fullscreenBtn.title = '通常モード (F11)';
             }
             
-            // Show notification
-            this.showModal('全画面モード', '🌟 全画面モードに切り替えました！\n\nピアノ演奏により集中できます。\n通常表示に戻すには、右上の ❌ ボタンまたは F11 キーを押してください。', '🎹');
+            // Show exit hint
+            this.showFullscreenHint();
+            
         } else {
             // Exit fullscreen mode
             body.classList.remove('fullscreen-mode');
@@ -2067,12 +2070,51 @@ class PianoVisualizer {
                 fullscreenBtn.classList.remove('active');
                 fullscreenBtn.title = '全画面モード (F11)';
             }
+            
+            // Hide exit hint
+            this.hideFullscreenHint();
         }
         
         // Resize Three.js renderer and piano keyboard after layout change
         setTimeout(() => {
             this.onWindowResize();
         }, 500); // Wait for CSS transition to complete
+    }
+    
+    showFullscreenHint() {
+        const fullscreenHint = this.getElement('fullscreen-hint');
+        if (!fullscreenHint) return;
+        
+        // Show hint
+        fullscreenHint.style.display = 'block';
+        setTimeout(() => {
+            fullscreenHint.classList.add('show');
+        }, 100);
+        
+        // Auto-fade after 3 seconds
+        setTimeout(() => {
+            fullscreenHint.classList.add('auto-fade');
+        }, 3000);
+        
+        // Clear auto-fade timer on hover
+        fullscreenHint.addEventListener('mouseenter', () => {
+            fullscreenHint.classList.remove('auto-fade');
+            fullscreenHint.style.opacity = '0.9';
+        });
+        
+        fullscreenHint.addEventListener('mouseleave', () => {
+            fullscreenHint.style.opacity = '0.7';
+        });
+    }
+    
+    hideFullscreenHint() {
+        const fullscreenHint = this.getElement('fullscreen-hint');
+        if (!fullscreenHint) return;
+        
+        fullscreenHint.classList.remove('show', 'auto-fade');
+        setTimeout(() => {
+            fullscreenHint.style.display = 'none';
+        }, 500);
     }
     
     setupMidiControls() {
