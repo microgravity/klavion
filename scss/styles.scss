@@ -1296,7 +1296,7 @@ body {
 // ================================
 .fullscreen-toggle {
     position: fixed;
-    top: 180px;
+    top: 250px; // SNSボタンから十分離す
     right: 20px;
     z-index: 10001;
     opacity: 0.8;
@@ -1355,27 +1355,38 @@ body {
 // Fullscreen Mode Styles
 // ================================
 body.fullscreen-mode {
+    .app-container {
+        display: block; // Flexboxを無効にして完全制御
+    }
+    
     .sidebar {
         transform: translateX(-100%);
         opacity: 0;
         pointer-events: none;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: fixed; // Layoutから完全に除外
+        z-index: -1;
     }
     
     .main-content {
-        margin-left: 0;
-        width: 100vw;
+        margin-left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .piano-container {
-        left: 0;
-        width: 100vw;
+        left: 0 !important;
+        width: 100vw !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     #three-container {
-        height: calc(100vh - 180px);
+        width: 100vw !important;
+        height: calc(100vh - 180px) !important;
     }
     
     // Hide SNS buttons in fullscreen mode for clean look
@@ -1422,7 +1433,7 @@ body:not(.fullscreen-mode) {
 // ================================
 @media (max-width: 768px) {
     .fullscreen-toggle {
-        top: 140px;
+        top: 200px; // モバイルでもSNSボタンから離す
         right: 10px;
         
         .fullscreen-btn {

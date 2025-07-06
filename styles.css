@@ -1128,7 +1128,7 @@ body {
 }
 .fullscreen-toggle {
   position: fixed;
-  top: 180px;
+  top: 250px;
   right: 20px;
   z-index: 10001;
   opacity: 0.8;
@@ -1175,24 +1175,34 @@ body {
   transform: rotate(180deg);
 }
 
+body.fullscreen-mode .app-container {
+  display: block;
+}
 body.fullscreen-mode .sidebar {
   transform: translateX(-100%);
   opacity: 0;
   pointer-events: none;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: fixed;
+  z-index: -1;
 }
 body.fullscreen-mode .main-content {
-  margin-left: 0;
-  width: 100vw;
+  margin-left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body.fullscreen-mode .piano-container {
-  left: 0;
-  width: 100vw;
+  left: 0 !important;
+  width: 100vw !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body.fullscreen-mode #three-container {
-  height: calc(100vh - 180px);
+  width: 100vw !important;
+  height: calc(100vh - 180px) !important;
 }
 body.fullscreen-mode .sns-share-buttons {
   opacity: 0.3;
@@ -1223,7 +1233,7 @@ body:not(.fullscreen-mode) .piano-container {
 
 @media (max-width: 768px) {
   .fullscreen-toggle {
-    top: 140px;
+    top: 200px;
     right: 10px;
   }
   .fullscreen-toggle .fullscreen-btn {
