@@ -1141,7 +1141,7 @@ body {
 // ================================
 .sns-share-buttons {
     position: fixed;
-    top: 20px;
+    top: 250px; // 全画面ボタンと位置を入れ替え
     right: 20px;
     display: flex;
     flex-direction: column;
@@ -1275,7 +1275,7 @@ body {
     }
     
     .sns-share-buttons {
-        top: 10px;
+        top: 200px; // モバイルでは全画面ボタンの下に
         right: 10px;
         gap: 6px;
         
@@ -1296,7 +1296,7 @@ body {
 // ================================
 .fullscreen-toggle {
     position: fixed;
-    top: 250px; // SNSボタンから十分離す
+    top: 20px; // SNSボタンと位置を入れ替え
     right: 20px;
     z-index: 10001;
     opacity: 0.8;
@@ -1399,9 +1399,9 @@ body.fullscreen-mode {
         }
     }
     
-    // Move fullscreen button position
+    // Keep fullscreen button at top position
     .fullscreen-toggle {
-        top: 20px;
+        top: 20px; // 全画面モードでも上部に維持
         
         .fullscreen-btn {
             background: linear-gradient(135deg, rgba(244, 63, 94, 0.9), rgba(239, 68, 68, 0.8));
@@ -1477,7 +1477,8 @@ body.fullscreen-mode {
 // Smooth transition for normal mode - サイドバーの位置を完全復帰
 body:not(.fullscreen-mode) {
     .app-container {
-        display: flex; // flexboxを復帰
+        display: flex !important; // flexboxを復帰
+        height: 100vh !important;
     }
     
     .sidebar {
@@ -1488,6 +1489,7 @@ body:not(.fullscreen-mode) {
         z-index: auto !important;
         width: 320px !important; // 幅を明示的に復帰
         display: block !important; // 表示を確実に復帰
+        flex-shrink: 0 !important; // サイドバーのサイズを固定
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
@@ -1497,7 +1499,8 @@ body:not(.fullscreen-mode) {
         height: auto !important;
         top: auto !important;
         left: auto !important;
-        margin-left: auto !important;
+        margin-left: 0 !important; // flex で自動調整されるように
+        flex: 1 !important; // 残りのスペースを占有
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
@@ -1508,7 +1511,7 @@ body:not(.fullscreen-mode) {
     }
     
     #three-container {
-        width: auto !important;
+        width: 100% !important;
         height: calc(100vh - 180px) !important;
     }
 }
@@ -1518,7 +1521,7 @@ body:not(.fullscreen-mode) {
 // ================================
 @media (max-width: 768px) {
     .fullscreen-toggle {
-        top: 200px; // モバイルでもSNSボタンから離す
+        top: 10px; // モバイルで最上位に
         right: 10px;
         
         .fullscreen-btn {
@@ -1534,7 +1537,7 @@ body:not(.fullscreen-mode) {
     
     body.fullscreen-mode {
         .fullscreen-toggle {
-            top: 10px;
+            top: 10px; // モバイル全画面モードでも上部に
         }
     }
 }

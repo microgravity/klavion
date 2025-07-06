@@ -1005,7 +1005,7 @@ body {
 
 .sns-share-buttons {
   position: fixed;
-  top: 20px;
+  top: 250px;
   right: 20px;
   display: flex;
   flex-direction: column;
@@ -1113,7 +1113,7 @@ body {
     padding: 1px 4px;
   }
   .sns-share-buttons {
-    top: 10px;
+    top: 200px;
     right: 10px;
     gap: 6px;
   }
@@ -1128,7 +1128,7 @@ body {
 }
 .fullscreen-toggle {
   position: fixed;
-  top: 250px;
+  top: 20px;
   right: 20px;
   z-index: 10001;
   opacity: 0.8;
@@ -1282,7 +1282,8 @@ body.fullscreen-mode .fullscreen-toggle .fullscreen-btn:hover {
 }
 
 body:not(.fullscreen-mode) .app-container {
-  display: flex;
+  display: flex !important;
+  height: 100vh !important;
 }
 body:not(.fullscreen-mode) .sidebar {
   position: static !important;
@@ -1292,6 +1293,7 @@ body:not(.fullscreen-mode) .sidebar {
   z-index: auto !important;
   width: 320px !important;
   display: block !important;
+  flex-shrink: 0 !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body:not(.fullscreen-mode) .main-content {
@@ -1300,7 +1302,8 @@ body:not(.fullscreen-mode) .main-content {
   height: auto !important;
   top: auto !important;
   left: auto !important;
-  margin-left: auto !important;
+  margin-left: 0 !important;
+  flex: 1 !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body:not(.fullscreen-mode) .piano-container {
@@ -1309,13 +1312,13 @@ body:not(.fullscreen-mode) .piano-container {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body:not(.fullscreen-mode) #three-container {
-  width: auto !important;
+  width: 100% !important;
   height: calc(100vh - 180px) !important;
 }
 
 @media (max-width: 768px) {
   .fullscreen-toggle {
-    top: 200px;
+    top: 10px;
     right: 10px;
   }
   .fullscreen-toggle .fullscreen-btn {
