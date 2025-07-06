@@ -21,6 +21,7 @@ class PianoVisualizer {
         this.activeChordNotes = new Set(); // Track notes for chord detection
         this.chordDetectionTimeout = null; // Timeout for chord detection
         this.lastDetectedChord = null; // Last detected chord name
+        this.chordUpdateScheduled = false; // Flag for chord display update scheduling
         
         // Performance optimization: DOM element caching and batch updates
         this.pianoKeyElements = new Map(); // Cache piano key elements by MIDI note
@@ -33,6 +34,9 @@ class PianoVisualizer {
         this.spritePool = []; // Reusable sprite pool
         this.maxPoolSize = 20; // Maximum cached objects
         this.lastNoteTime = 0; // Track last note activity for performance
+        
+        // DOM element cache for performance optimization
+        this.domCache = new Map(); // Cache frequently accessed DOM elements
         
         this.settings = {
             pianoRange: '3-octave',
@@ -57,6 +61,8 @@ class PianoVisualizer {
         
         this.hasMidiInput = false;
         this.midiActivityLog = [];
+        this.midiActivityBuffer = []; // Buffer for batched MIDI activity updates
+        this.midiLogUpdateScheduled = false; // Flag for MIDI log update scheduling
         this.midiDevices = [];
         this.midiInputs = new Map(); // Store MIDI input devices
         this.selectedInputDevice = 'keyboard'; // Default to computer keyboard
@@ -248,6 +254,51 @@ class PianoVisualizer {
         this.init();
     }
     
+    // Performance optimization: DOM element caching helper
+    getElement(id) {
+        if (!this.domCache.has(id)) {
+            const element = document.getElementById(id);
+            if (element) {
+                this.domCache.set(id, element);
+            }
+        }
+        return this.domCache.get(id) || null;
+    }
+    
+    // Performance optimization: throttle function for events
+    throttle(func, delay) {
+        let timeoutId;
+        let lastExecTime = 0;
+        return (...args) => {
+            const currentTime = Date.now();
+            
+            if (currentTime - lastExecTime > delay) {
+                func.apply(this, args);
+                lastExecTime = currentTime;
+            } else {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                    lastExecTime = Date.now();
+                }, delay - (currentTime - lastExecTime));
+            }
+        };
+    }
+    
+    // Cache frequently accessed DOM elements at startup
+    cacheCommonElements() {
+        const commonIds = [
+            'custom-modal', 'modal-title', 'modal-message', 'modal-icon',
+            'modal-close', 'modal-ok', 'chord-name', 'chord-text',
+            'sustain-status', 'sustain-pedal', 'midi-activity', 
+            'midi-devices', 'midi-input-select', 'volume-control',
+            'volume-value', 'mute-button', 'color-scale', 'piano-range',
+            'color-customization', 'audio-context-notice'
+        ];
+        
+        commonIds.forEach(id => this.getElement(id));
+    }
+    
     loadSettings() {
         try {
             const savedSettings = localStorage.getItem('klavionSettings');
@@ -278,50 +329,50 @@ class PianoVisualizer {
     
     updateUIFromSettings() {
         // Piano range selector
-        const rangeSelector = document.getElementById('piano-range');
+        const rangeSelector = this.getElement('piano-range');
         if (rangeSelector) {
             rangeSelector.value = this.settings.pianoRange;
         }
         
         // Color scale selector
-        const colorScaleSelector = document.getElementById('color-scale');
+        const colorScaleSelector = this.getElement('color-scale');
         if (colorScaleSelector) {
             colorScaleSelector.value = this.settings.colorScale;
         }
         
         // Velocity numbers toggle
-        const velocityToggle = document.getElementById('show-velocity-numbers');
+        const velocityToggle = this.getElement('show-velocity-numbers');
         if (velocityToggle) {
             velocityToggle.checked = this.settings.showVelocityNumbers;
         }
         
         // Display mode selector
-        const displayModeSelector = document.getElementById('display-mode');
+        const displayModeSelector = this.getElement('display-mode');
         if (displayModeSelector) {
             displayModeSelector.value = this.settings.displayMode;
         }
         
         // Audio timbre selector
-        const timbreSelector = document.getElementById('audio-timbre');
+        const timbreSelector = this.getElement('audio-timbre');
         if (timbreSelector) {
             timbreSelector.value = this.settings.audioTimbre;
         }
         
         // Note name style selector
-        const noteNameStyleSelector = document.getElementById('note-name-style');
+        const noteNameStyleSelector = this.getElement('note-name-style');
         if (noteNameStyleSelector) {
             noteNameStyleSelector.value = this.settings.noteNameStyle;
         }
         
         // Base color picker
-        const baseColorPicker = document.getElementById('base-color-picker');
+        const baseColorPicker = this.getElement('base-color-picker');
         if (baseColorPicker) {
             baseColorPicker.value = this.settings.customBaseColor;
         }
         
         // Volume control
-        const volumeSlider = document.getElementById('volume-control');
-        const volumeValue = document.getElementById('volume-value');
+        const volumeSlider = this.getElement('volume-control');
+        const volumeValue = this.getElement('volume-value');
         if (volumeSlider) {
             volumeSlider.value = this.settings.volume;
             if (volumeValue) {
@@ -330,7 +381,7 @@ class PianoVisualizer {
         }
         
         // Mute button
-        const muteButton = document.getElementById('mute-button');
+        const muteButton = this.getElement('mute-button');
         if (muteButton) {
             if (this.settings.isMuted) {
                 muteButton.textContent = '🔇 Muted';
@@ -341,9 +392,8 @@ class PianoVisualizer {
             }
         }
         
-        
         // Show/hide custom color controls based on color scale
-        const customControls = document.getElementById('color-customization');
+        const customControls = this.getElement('color-customization');
         if (customControls) {
             if (this.settings.colorScale === 'custom') {
                 customControls.style.display = 'block';
@@ -401,6 +451,9 @@ class PianoVisualizer {
     }
     
     async init() {
+        // Cache DOM elements early for performance
+        this.cacheCommonElements();
+        
         await this.initAudio();
         await this.initMIDI();
         this.initThreeJS();
@@ -419,7 +472,8 @@ class PianoVisualizer {
         
         this.startVisualization();
         
-        window.addEventListener('resize', () => this.onWindowResize());
+        // Performance optimization: throttle resize events
+        window.addEventListener('resize', this.throttle(() => this.onWindowResize(), 100));
     }
     
     initThreeJS() {
@@ -758,33 +812,16 @@ class PianoVisualizer {
                 keyElement.style.zIndex = '2';
             }
             
-            keyElement.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                this.playNote(midiNote, 100, performance.now());
-                keyElement.classList.add('pressed');
-            });
-            
-            keyElement.addEventListener('mouseup', () => {
-                this.stopNote(midiNote);
-                // ペダルが押されていない場合のみ視覚的にキーを離す
-                if (!this.sustainPedalPressed) {
-                    keyElement.classList.remove('pressed');
-                }
-            });
-            
-            keyElement.addEventListener('mouseleave', () => {
-                this.stopNote(midiNote);
-                // ペダルが押されていない場合のみ視覚的にキーを離す
-                if (!this.sustainPedalPressed) {
-                    keyElement.classList.remove('pressed');
-                }
-            });
+            // イベントリスナーをイベントデリゲーションで置き換え（パフォーマンス最適化）
             
             this.pianoKeyboard.appendChild(keyElement);
             
             // Cache the DOM element for performance
             this.pianoKeyElements.set(midiNote, keyElement);
         }
+        
+        // Setup event delegation for all piano keys (performance optimization)
+        this.setupPianoEventDelegation();
         
         // Update keyboard container size
         if (this.settings.pianoRange === '88-key') {
@@ -795,6 +832,49 @@ class PianoVisualizer {
             this.pianoKeyboard.style.overflowX = 'visible';
             this.pianoKeyboard.style.minWidth = 'auto';
             this.pianoKeyboard.style.paddingBottom = '0';
+        }
+    }
+    
+    // Performance optimization: Event delegation for piano keys
+    setupPianoEventDelegation() {
+        // Remove existing event delegation if any
+        this.removePianoEventDelegation();
+        
+        // Single event handler for all piano keys
+        this.pianoEventHandler = (e) => {
+            const keyElement = e.target.closest('.piano-key');
+            if (!keyElement) return;
+            
+            const midiNote = parseInt(keyElement.dataset.note);
+            
+            switch (e.type) {
+                case 'mousedown':
+                    e.preventDefault();
+                    this.playNote(midiNote, 100, performance.now());
+                    keyElement.classList.add('pressed');
+                    break;
+                case 'mouseup':
+                case 'mouseleave':
+                    this.stopNote(midiNote);
+                    // ペダルが押されていない場合のみ視覚的にキーを離す
+                    if (!this.sustainPedalPressed) {
+                        keyElement.classList.remove('pressed');
+                    }
+                    break;
+            }
+        };
+        
+        // Delegated event listeners - only 3 listeners instead of 264 for 88-key piano
+        this.pianoKeyboard.addEventListener('mousedown', this.pianoEventHandler);
+        this.pianoKeyboard.addEventListener('mouseup', this.pianoEventHandler);
+        this.pianoKeyboard.addEventListener('mouseleave', this.pianoEventHandler);
+    }
+    
+    removePianoEventDelegation() {
+        if (this.pianoEventHandler) {
+            this.pianoKeyboard.removeEventListener('mousedown', this.pianoEventHandler);
+            this.pianoKeyboard.removeEventListener('mouseup', this.pianoEventHandler);
+            this.pianoKeyboard.removeEventListener('mouseleave', this.pianoEventHandler);
         }
     }
     
@@ -3020,20 +3100,49 @@ class PianoVisualizer {
     }
     
     logMidiActivity(message) {
-        const activityElement = document.getElementById('midi-activity');
         const timestamp = new Date().toLocaleTimeString();
+        const logEntry = `[${timestamp}] ${message}`;
         
-        // Add new activity log entry
-        this.midiActivityLog.unshift(`[${timestamp}] ${message}`);
+        // バッファに追加（パフォーマンス最適化）
+        if (!this.midiActivityBuffer) {
+            this.midiActivityBuffer = [];
+        }
+        this.midiActivityBuffer.push(logEntry);
         
-        // Keep only the last 10 entries
+        // バッチ処理のスケジューリング
+        if (!this.midiLogUpdateScheduled) {
+            this.midiLogUpdateScheduled = true;
+            
+            // requestAnimationFrameで60FPSに制限
+            requestAnimationFrame(() => {
+                this.processMidiActivityBuffer();
+                this.midiLogUpdateScheduled = false;
+            });
+        }
+    }
+    
+    processMidiActivityBuffer() {
+        if (!this.midiActivityBuffer || this.midiActivityBuffer.length === 0) return;
+        
+        // バッファからログを移動
+        this.midiActivityLog.unshift(...this.midiActivityBuffer);
+        this.midiActivityBuffer.length = 0;
+        
+        // サイズ制限を適用
         if (this.midiActivityLog.length > 10) {
-            this.midiActivityLog = this.midiActivityLog.slice(0, 10);
+            this.midiActivityLog.length = 10;
         }
         
-        // Update the display
-        activityElement.textContent = this.midiActivityLog.join('\n');
-        activityElement.scrollTop = 0; // Scroll to top to show newest entries
+        // DOM更新を最小化
+        const activityElement = this.getElement('midi-activity');
+        if (activityElement) {
+            activityElement.textContent = this.midiActivityLog.join('\n');
+            
+            // スクロール操作を条件付きで実行
+            if (activityElement.scrollTop !== 0) {
+                activityElement.scrollTop = 0;
+            }
+        }
     }
     
     updateMidiDeviceList() {
@@ -3545,15 +3654,33 @@ class PianoVisualizer {
     }
     
     updateChordDisplay(chordName) {
-        const chordDisplay = document.getElementById('chord-name');
-        const chordText = document.getElementById('chord-text');
+        // Performance optimization: 変更がない場合は早期リターン
+        if (chordName === this.lastDetectedChord) {
+            return;
+        }
+        
+        // バッチ処理のためのスケジューリング
+        if (this.chordUpdateScheduled) {
+            return; // 既にスケジュール済み
+        }
+        
+        this.chordUpdateScheduled = true;
+        requestAnimationFrame(() => {
+            this.performChordDisplayUpdate(chordName);
+            this.chordUpdateScheduled = false;
+        });
+    }
+    
+    performChordDisplayUpdate(chordName) {
+        const chordDisplay = this.getElement('chord-name');
+        const chordText = this.getElement('chord-text');
         
         if (chordName && chordName !== this.lastDetectedChord) {
-            chordText.textContent = chordName;
-            chordDisplay.classList.add('active');
+            if (chordText) chordText.textContent = chordName;
+            if (chordDisplay) chordDisplay.classList.add('active');
             this.lastDetectedChord = chordName;
-        } else if (!chordName) {
-            chordDisplay.classList.remove('active');
+        } else if (!chordName && this.lastDetectedChord) {
+            if (chordDisplay) chordDisplay.classList.remove('active');
             this.lastDetectedChord = null;
         }
     }
@@ -3586,10 +3713,10 @@ class PianoVisualizer {
     }
     
     showModal(title, message, icon = 'ℹ️') {
-        const modal = document.getElementById('custom-modal');
-        const titleElement = document.getElementById('modal-title');
-        const messageElement = document.getElementById('modal-message');
-        const iconElement = document.getElementById('modal-icon');
+        const modal = this.getElement('custom-modal');
+        const titleElement = this.getElement('modal-title');
+        const messageElement = this.getElement('modal-message');
+        const iconElement = this.getElement('modal-icon');
         
         if (modal && titleElement && messageElement && iconElement) {
             titleElement.textContent = title;
@@ -3607,7 +3734,7 @@ class PianoVisualizer {
     }
     
     closeModal() {
-        const modal = document.getElementById('custom-modal');
+        const modal = this.getElement('custom-modal');
         if (modal) {
             modal.classList.add('closing');
             setTimeout(() => {
