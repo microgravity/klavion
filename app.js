@@ -44,10 +44,7 @@ class PianoVisualizer {
             displayMode: 'waveform',
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
-            customBaseColor: '#ffffff',
-            isPublic: true, // デフォルトで公開設定
-            analyticsConsent: true, // 匿名使用統計の収集許可
-            performanceTracking: true // 演奏データの記録許可
+            customBaseColor: '#ffffff'
         };
         
         // Piano configuration
@@ -344,21 +341,6 @@ class PianoVisualizer {
             }
         }
         
-        // Privacy settings
-        const publicModeCheckbox = document.getElementById('public-mode');
-        if (publicModeCheckbox) {
-            publicModeCheckbox.checked = this.settings.isPublic;
-        }
-        
-        const analyticsConsentCheckbox = document.getElementById('analytics-consent');
-        if (analyticsConsentCheckbox) {
-            analyticsConsentCheckbox.checked = this.settings.analyticsConsent;
-        }
-        
-        const performanceTrackingCheckbox = document.getElementById('performance-tracking');
-        if (performanceTrackingCheckbox) {
-            performanceTrackingCheckbox.checked = this.settings.performanceTracking;
-        }
         
         // Show/hide custom color controls based on color scale
         const customControls = document.getElementById('color-customization');
@@ -1954,31 +1936,6 @@ class PianoVisualizer {
             }
         });
         
-        // Privacy settings event handlers
-        const publicModeCheckbox = document.getElementById('public-mode');
-        const analyticsConsentCheckbox = document.getElementById('analytics-consent');
-        const performanceTrackingCheckbox = document.getElementById('performance-tracking');
-        
-        if (publicModeCheckbox) {
-            publicModeCheckbox.addEventListener('change', (e) => {
-                this.settings.isPublic = e.target.checked;
-                this.saveSettings();
-            });
-        }
-        
-        if (analyticsConsentCheckbox) {
-            analyticsConsentCheckbox.addEventListener('change', (e) => {
-                this.settings.analyticsConsent = e.target.checked;
-                this.saveSettings();
-            });
-        }
-        
-        if (performanceTrackingCheckbox) {
-            performanceTrackingCheckbox.addEventListener('change', (e) => {
-                this.settings.performanceTracking = e.target.checked;
-                this.saveSettings();
-            });
-        }
         
     }
     
@@ -3190,11 +3147,12 @@ class PianoVisualizer {
             return;
         }
         
-        this.logMidiActivity(`Analyzing ${this.midiInputs.size} MIDI device(s) for 88-key piano detection...`);
+        this.logMidiActivity(`Analyzing ${this.midiInputs.size} MIDI device(s) for automatic selection...`);
         
         // Get current device score if any
         let currentDeviceScore = 0;
-        if (this.selectedInputDevice !== 'keyboard') {
+        let isCurrentlyOnKeyboard = this.selectedInputDevice === 'keyboard';
+        if (!isCurrentlyOnKeyboard) {
             const currentDevice = this.midiInputs.get(this.selectedInputDevice);
             if (currentDevice) {
                 currentDeviceScore = this.calculateDeviceScore(currentDevice.name);
@@ -3203,7 +3161,7 @@ class PianoVisualizer {
         }
         
         let bestDevice = null;
-        let highestScore = currentDeviceScore; // Start from current device score
+        let highestScore = isCurrentlyOnKeyboard ? -1 : currentDeviceScore; // Prioritize any MIDI device over keyboard
         
         for (const [id, input] of this.midiInputs) {
             const score = this.calculateDeviceScore(input.name);
@@ -3215,8 +3173,8 @@ class PianoVisualizer {
             }
         }
         
-        // Auto-select the best device with enhanced logic
-        if (bestDevice && highestScore > currentDeviceScore) {
+        // Auto-select MIDI device with priority over computer keyboard
+        if (bestDevice && (isCurrentlyOnKeyboard || highestScore > currentDeviceScore)) {
             const oldDevice = this.selectedInputDevice;
             this.selectedInputDevice = bestDevice.id;
             document.getElementById('midi-input-select').value = bestDevice.id;
@@ -3229,6 +3187,8 @@ class PianoVisualizer {
                 deviceType = 'piano/keyboard';
             } else if (highestScore >= 2) {
                 deviceType = 'piano-like device';
+            } else if (highestScore >= 1) {
+                deviceType = 'MIDI keyboard';
             }
             
             const upgradeMessage = oldDevice !== 'keyboard' ? 
@@ -3236,6 +3196,9 @@ class PianoVisualizer {
                 'Switched from computer keyboard';
             
             this.logMidiActivity(`${upgradeMessage} to ${deviceType}: ${bestDevice.input.name} (score: ${highestScore})`);
+            
+            // Show notification to user about device change
+            this.showMidiDeviceNotification(bestDevice.input.name, deviceType, isCurrentlyOnKeyboard);
             
             // Auto-enable 88-key mode for high-confidence piano devices
             if (highestScore >= 4 && this.settings.pianoRange !== '88-key') {
@@ -3251,7 +3214,7 @@ class PianoVisualizer {
             // If no better device found and still using keyboard, select the first available MIDI device
             const firstDevice = this.midiInputs.entries().next().value;
             const score = this.calculateDeviceScore(firstDevice[1].name);
-            if (score >= 1) {
+            if (score >= 0) { // Accept any MIDI device over keyboard
                 this.selectedInputDevice = firstDevice[0];
                 document.getElementById('midi-input-select').value = firstDevice[0];
                 this.logMidiActivity(`Auto-selected fallback device: ${firstDevice[1].name} (score: ${score})`);
@@ -3320,6 +3283,12 @@ class PianoVisualizer {
         // Boost for stage/professional terms
         if (name.includes('stage') || name.includes('professional')) {
             score += 2;
+        }
+        
+        // Ensure any MIDI device gets at least 1 point to prioritize over computer keyboard
+        // (unless it's explicitly a controller that got negative points)
+        if (score <= 0) {
+            score = 1; // Base score for any MIDI device
         }
         
         return score;
@@ -3601,10 +3570,78 @@ class PianoVisualizer {
             this.updateChordDisplay(detectedChord);
         }, 100); // 100ms delay to allow for chord completion
     }
+    
+    // MIDI device notification system
+    showMidiDeviceNotification(deviceName, deviceType, wasUsingKeyboard) {
+        // Only show notifications for significant device changes
+        if (!wasUsingKeyboard && deviceType === 'MIDI device') {
+            return; // Don't notify for minor MIDI device switches
+        }
+        
+        const message = wasUsingKeyboard 
+            ? `🎹 MIDIデバイスが接続されました\n${deviceName}\n\n入力デバイスを自動切替しました`
+            : `🔄 より適切なMIDIデバイスを検出\n${deviceName}\n\n入力デバイスを切り替えました`;
+        
+        this.showModal('MIDI入力デバイス変更', message, '🎹');
+    }
+    
+    showModal(title, message, icon = 'ℹ️') {
+        const modal = document.getElementById('custom-modal');
+        const titleElement = document.getElementById('modal-title');
+        const messageElement = document.getElementById('modal-message');
+        const iconElement = document.getElementById('modal-icon');
+        
+        if (modal && titleElement && messageElement && iconElement) {
+            titleElement.textContent = title;
+            messageElement.textContent = message;
+            iconElement.textContent = icon;
+            
+            modal.style.display = 'flex';
+            modal.classList.remove('closing');
+            
+            // Auto-close after 4 seconds
+            setTimeout(() => {
+                this.closeModal();
+            }, 4000);
+        }
+    }
+    
+    closeModal() {
+        const modal = document.getElementById('custom-modal');
+        if (modal) {
+            modal.classList.add('closing');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.classList.remove('closing');
+            }, 200);
+        }
+    }
 }
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
+    
+    // Setup modal event listeners
+    const modalCloseBtn = document.getElementById('modal-close');
+    const modalOkBtn = document.getElementById('modal-ok');
+    const modal = document.getElementById('custom-modal');
+    
+    if (modalCloseBtn) {
+        modalCloseBtn.addEventListener('click', () => visualizer.closeModal());
+    }
+    
+    if (modalOkBtn) {
+        modalOkBtn.addEventListener('click', () => visualizer.closeModal());
+    }
+    
+    if (modal) {
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                visualizer.closeModal();
+            }
+        });
+    }
 });
