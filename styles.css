@@ -1224,8 +1224,7 @@ body.fullscreen-mode .fullscreen-toggle .fullscreen-btn:hover {
 .fullscreen-hint {
   position: fixed;
   bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 30px;
   z-index: 10002;
   opacity: 0;
   transition: opacity 0.5s ease;
@@ -1291,6 +1290,8 @@ body:not(.fullscreen-mode) .sidebar {
   opacity: 1 !important;
   pointer-events: auto !important;
   z-index: auto !important;
+  width: 320px !important;
+  display: block !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body:not(.fullscreen-mode) .main-content {
