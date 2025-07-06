@@ -1290,3 +1290,155 @@ body {
         }
     }
 }
+
+// ================================
+// Fullscreen Mode Toggle
+// ================================
+.fullscreen-toggle {
+    position: fixed;
+    top: 180px;
+    right: 20px;
+    z-index: 10001;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+    
+    &:hover {
+        opacity: 1;
+    }
+    
+    .fullscreen-btn {
+        width: 48px;
+        height: 48px;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        @include flex-center;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        background: linear-gradient(135deg, rgba(96, 165, 250, 0.9), rgba(52, 211, 153, 0.8));
+        color: white;
+        
+        &:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(96, 165, 250, 0.4);
+            background: linear-gradient(135deg, $blue, $success);
+        }
+        
+        &:active {
+            transform: scale(0.95);
+        }
+        
+        svg {
+            width: 22px;
+            height: 22px;
+        }
+        
+        // Fullscreen mode active state
+        &.active {
+            background: linear-gradient(135deg, $success, #10b981);
+            
+            &:hover {
+                background: linear-gradient(135deg, #10b981, #059669);
+            }
+            
+            // Change icon when in fullscreen mode
+            svg {
+                transform: rotate(180deg);
+            }
+        }
+    }
+}
+
+// ================================
+// Fullscreen Mode Styles
+// ================================
+body.fullscreen-mode {
+    .sidebar {
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .main-content {
+        margin-left: 0;
+        width: 100vw;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .piano-container {
+        left: 0;
+        width: 100vw;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    #three-container {
+        height: calc(100vh - 180px);
+    }
+    
+    // Hide SNS buttons in fullscreen mode for clean look
+    .sns-share-buttons {
+        opacity: 0.3;
+        transition: opacity 0.3s ease;
+        
+        &:hover {
+            opacity: 0.8;
+        }
+    }
+    
+    // Move fullscreen button position
+    .fullscreen-toggle {
+        top: 20px;
+        
+        .fullscreen-btn {
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.9), rgba(239, 68, 68, 0.8));
+            
+            &:hover {
+                background: linear-gradient(135deg, #f43f5e, #ef4444);
+            }
+        }
+    }
+}
+
+// Smooth transition for normal mode
+body:not(.fullscreen-mode) {
+    .sidebar {
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .main-content {
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .piano-container {
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+}
+
+// ================================
+// Responsive Fullscreen Mode
+// ================================
+@media (max-width: 768px) {
+    .fullscreen-toggle {
+        top: 140px;
+        right: 10px;
+        
+        .fullscreen-btn {
+            width: 42px;
+            height: 42px;
+            
+            svg {
+                width: 20px;
+                height: 20px;
+            }
+        }
+    }
+    
+    body.fullscreen-mode {
+        .fullscreen-toggle {
+            top: 10px;
+        }
+    }
+}

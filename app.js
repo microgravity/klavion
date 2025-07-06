@@ -38,6 +38,9 @@ class PianoVisualizer {
         // DOM element cache for performance optimization
         this.domCache = new Map(); // Cache frequently accessed DOM elements
         
+        // Fullscreen mode state
+        this.isFullscreenMode = false;
+        
         this.settings = {
             pianoRange: '3-octave',
             volume: 0.75,
@@ -293,7 +296,7 @@ class PianoVisualizer {
             'sustain-status', 'sustain-pedal', 'midi-activity', 
             'midi-devices', 'midi-input-select', 'volume-control',
             'volume-value', 'mute-button', 'color-scale', 'piano-range',
-            'color-customization', 'audio-context-notice'
+            'color-customization', 'audio-context-notice', 'fullscreen-btn'
         ];
         
         commonIds.forEach(id => this.getElement(id));
@@ -2016,7 +2019,60 @@ class PianoVisualizer {
             }
         });
         
+        // Fullscreen mode toggle
+        this.setupFullscreenMode();
+    }
+    
+    // Fullscreen mode functionality
+    setupFullscreenMode() {
+        const fullscreenBtn = this.getElement('fullscreen-btn');
+        if (!fullscreenBtn) return;
         
+        // Toggle fullscreen mode on click
+        fullscreenBtn.addEventListener('click', () => {
+            this.toggleFullscreenMode();
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F11') {
+                e.preventDefault();
+                this.toggleFullscreenMode();
+            } else if (e.key === 'Escape' && this.isFullscreenMode) {
+                // Exit fullscreen mode with Escape key
+                this.toggleFullscreenMode();
+            }
+        });
+    }
+    
+    toggleFullscreenMode() {
+        this.isFullscreenMode = !this.isFullscreenMode;
+        const body = document.body;
+        const fullscreenBtn = this.getElement('fullscreen-btn');
+        
+        if (this.isFullscreenMode) {
+            // Enter fullscreen mode
+            body.classList.add('fullscreen-mode');
+            if (fullscreenBtn) {
+                fullscreenBtn.classList.add('active');
+                fullscreenBtn.title = '通常モード (F11)';
+            }
+            
+            // Show notification
+            this.showModal('全画面モード', '🌟 全画面モードに切り替えました！\n\nピアノ演奏により集中できます。\n通常表示に戻すには、右上の ❌ ボタンまたは F11 キーを押してください。', '🎹');
+        } else {
+            // Exit fullscreen mode
+            body.classList.remove('fullscreen-mode');
+            if (fullscreenBtn) {
+                fullscreenBtn.classList.remove('active');
+                fullscreenBtn.title = '全画面モード (F11)';
+            }
+        }
+        
+        // Resize Three.js renderer and piano keyboard after layout change
+        setTimeout(() => {
+            this.onWindowResize();
+        }, 500); // Wait for CSS transition to complete
     }
     
     setupMidiControls() {
