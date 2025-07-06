@@ -17,6 +17,11 @@ class PianoVisualizer {
         // Piano key visual state tracking
         this.activeKeys = new Set(); // Track which keys are currently pressed
         
+        // Chord detection
+        this.activeChordNotes = new Set(); // Track notes for chord detection
+        this.chordDetectionTimeout = null; // Timeout for chord detection
+        this.lastDetectedChord = null; // Last detected chord name
+        
         // Performance optimization: DOM element caching and batch updates
         this.pianoKeyElements = new Map(); // Cache piano key elements by MIDI note
         this.pendingVisualUpdates = new Set(); // Track keys that need visual updates
@@ -39,7 +44,10 @@ class PianoVisualizer {
             displayMode: 'waveform',
             audioTimbre: 'acoustic-piano',
             noteNameStyle: 'japanese',
-            customBaseColor: '#ffffff'
+            customBaseColor: '#ffffff',
+            isPublic: true, // デフォルトで公開設定
+            analyticsConsent: true, // 匿名使用統計の収集許可
+            performanceTracking: true // 演奏データの記録許可
         };
         
         // Piano configuration
@@ -75,7 +83,8 @@ class PianoVisualizer {
             pentatonic: [0, 2, 4, 7, 9],
             blues: [0, 3, 5, 6, 7, 10],
             dorian: [0, 2, 3, 5, 7, 9, 10],
-            mixolydian: [0, 2, 4, 5, 7, 9, 10]
+            mixolydian: [0, 2, 4, 5, 7, 9, 10],
+            'grayscale-diatonic': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] // Use chromatic scale for full coverage
         };
         
         // Modern color palettes for each scale
@@ -101,7 +110,23 @@ class PianoVisualizer {
             'retro-warm': ['#FF5722', '#FF8A50', '#FFC107', '#CDDC39'],
             'retro-cool': ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4'],
             'retro-earth': ['#8D6E63', '#A1887F', '#BCAAA4', '#D7CCC8'],
-            'retro-electric': ['#E3F2FD', '#81C784', '#FFB74D', '#F06292']
+            'retro-electric': ['#E3F2FD', '#81C784', '#FFB74D', '#F06292'],
+            
+            // Grayscale palette for diatonic notes (ドレミファソラシド → black to white gradient)
+            'grayscale-diatonic': [
+                '#000000', // C (ド) - Black
+                '#1a1a1a', // C# - Dark gray 1
+                '#333333', // D (レ) - Dark gray 2
+                '#4d4d4d', // D# - Dark gray 3
+                '#666666', // E (ミ) - Medium gray 1
+                '#808080', // F (ファ) - Medium gray 2
+                '#999999', // F# - Medium gray 3
+                '#b3b3b3', // G (ソ) - Light gray 1
+                '#cccccc', // G# - Light gray 2
+                '#e6e6e6', // A (ラ) - Light gray 3
+                '#f2f2f2', // A# - Very light gray
+                '#ffffff'  // B (シ) - White
+            ]
         };
         
         // Store available retro palettes for random selection
@@ -127,6 +152,63 @@ class PianoVisualizer {
             { note: 'A#', type: 'black' },
             { note: 'B', type: 'white' }
         ];
+        
+        // Chord definitions (intervals from root note)
+        this.chordTemplates = {
+            'major': [0, 4, 7],
+            'minor': [0, 3, 7],
+            'diminished': [0, 3, 6],
+            'augmented': [0, 4, 8],
+            'major7': [0, 4, 7, 11],
+            'minor7': [0, 3, 7, 10],
+            'dominant7': [0, 4, 7, 10],
+            'diminished7': [0, 3, 6, 9],
+            'major6': [0, 4, 7, 9],
+            'minor6': [0, 3, 7, 9],
+            'sus2': [0, 2, 7],
+            'sus4': [0, 5, 7],
+            'add9': [0, 4, 7, 14],
+            'minor9': [0, 3, 7, 10, 14],
+            'major9': [0, 4, 7, 11, 14]
+        };
+        
+        // Chord name translations
+        this.chordNames = {
+            japanese: {
+                'major': '',
+                'minor': 'm',
+                'diminished': 'dim',
+                'augmented': 'aug',
+                'major7': 'M7',
+                'minor7': 'm7',
+                'dominant7': '7',
+                'diminished7': 'dim7',
+                'major6': 'M6',
+                'minor6': 'm6',
+                'sus2': 'sus2',
+                'sus4': 'sus4',
+                'add9': 'add9',
+                'minor9': 'm9',
+                'major9': 'M9'
+            },
+            western: {
+                'major': '',
+                'minor': 'm',
+                'diminished': 'dim',
+                'augmented': 'aug',
+                'major7': 'M7',
+                'minor7': 'm7',
+                'dominant7': '7',
+                'diminished7': 'dim7',
+                'major6': 'M6',
+                'minor6': 'm6',
+                'sus2': 'sus2',
+                'sus4': 'sus4',
+                'add9': 'add9',
+                'minor9': 'm9',
+                'major9': 'M9'
+            }
+        };
         
         this.keyboardMapping = {
             'KeyA': 60,  // C4 (Middle C)
@@ -171,8 +253,121 @@ class PianoVisualizer {
     
     loadSettings() {
         try {
+            const savedSettings = localStorage.getItem('klavionSettings');
+            if (savedSettings) {
+                const parsedSettings = JSON.parse(savedSettings);
                 
+                // Merge saved settings with default settings
+                this.settings = {
+                    ...this.settings,
+                    ...parsedSettings
+                };
+                
+                // Update UI elements to reflect loaded settings
+                this.updateUIFromSettings();
+            }
         } catch (error) {
+            console.error('設定の読み込みに失敗しました:', error);
+        }
+    }
+    
+    saveSettings() {
+        try {
+            localStorage.setItem('klavionSettings', JSON.stringify(this.settings));
+        } catch (error) {
+            console.error('設定の保存に失敗しました:', error);
+        }
+    }
+    
+    updateUIFromSettings() {
+        // Piano range selector
+        const rangeSelector = document.getElementById('piano-range');
+        if (rangeSelector) {
+            rangeSelector.value = this.settings.pianoRange;
+        }
+        
+        // Color scale selector
+        const colorScaleSelector = document.getElementById('color-scale');
+        if (colorScaleSelector) {
+            colorScaleSelector.value = this.settings.colorScale;
+        }
+        
+        // Velocity numbers toggle
+        const velocityToggle = document.getElementById('show-velocity-numbers');
+        if (velocityToggle) {
+            velocityToggle.checked = this.settings.showVelocityNumbers;
+        }
+        
+        // Display mode selector
+        const displayModeSelector = document.getElementById('display-mode');
+        if (displayModeSelector) {
+            displayModeSelector.value = this.settings.displayMode;
+        }
+        
+        // Audio timbre selector
+        const timbreSelector = document.getElementById('audio-timbre');
+        if (timbreSelector) {
+            timbreSelector.value = this.settings.audioTimbre;
+        }
+        
+        // Note name style selector
+        const noteNameStyleSelector = document.getElementById('note-name-style');
+        if (noteNameStyleSelector) {
+            noteNameStyleSelector.value = this.settings.noteNameStyle;
+        }
+        
+        // Base color picker
+        const baseColorPicker = document.getElementById('base-color-picker');
+        if (baseColorPicker) {
+            baseColorPicker.value = this.settings.customBaseColor;
+        }
+        
+        // Volume control
+        const volumeSlider = document.getElementById('volume-control');
+        const volumeValue = document.getElementById('volume-value');
+        if (volumeSlider) {
+            volumeSlider.value = this.settings.volume;
+            if (volumeValue) {
+                volumeValue.textContent = this.settings.volume.toFixed(2);
+            }
+        }
+        
+        // Mute button
+        const muteButton = document.getElementById('mute-button');
+        if (muteButton) {
+            if (this.settings.isMuted) {
+                muteButton.textContent = '🔇 Muted';
+                muteButton.classList.add('muted');
+            } else {
+                muteButton.textContent = '🔊 Unmuted';
+                muteButton.classList.remove('muted');
+            }
+        }
+        
+        // Privacy settings
+        const publicModeCheckbox = document.getElementById('public-mode');
+        if (publicModeCheckbox) {
+            publicModeCheckbox.checked = this.settings.isPublic;
+        }
+        
+        const analyticsConsentCheckbox = document.getElementById('analytics-consent');
+        if (analyticsConsentCheckbox) {
+            analyticsConsentCheckbox.checked = this.settings.analyticsConsent;
+        }
+        
+        const performanceTrackingCheckbox = document.getElementById('performance-tracking');
+        if (performanceTrackingCheckbox) {
+            performanceTrackingCheckbox.checked = this.settings.performanceTracking;
+        }
+        
+        // Show/hide custom color controls based on color scale
+        const customControls = document.getElementById('color-customization');
+        if (customControls) {
+            if (this.settings.colorScale === 'custom') {
+                customControls.style.display = 'block';
+            } else {
+                customControls.style.display = 'none';
+            }
         }
     }
     
@@ -647,6 +842,10 @@ class PianoVisualizer {
         this.activeKeys.add(midiNote);
         this.scheduleKeyVisualUpdate(midiNote);
         
+        // Add note to chord detection
+        this.activeChordNotes.add(midiNote);
+        this.onChordNotesChange();
+        
     }
     
     stopNote(midiNote, timestamp = performance.now(), enableVisualization = true) {
@@ -664,6 +863,10 @@ class PianoVisualizer {
         // Update piano key visual state immediately (before pedal check)
         this.activeKeys.delete(midiNote);
         this.scheduleKeyVisualUpdate(midiNote);
+        
+        // Remove note from chord detection
+        this.activeChordNotes.delete(midiNote);
+        this.onChordNotesChange();
         
         // If sustain pedal is pressed, don't stop the audio immediately
         if (this.sustainPedalPressed) {
@@ -788,6 +991,10 @@ class PianoVisualizer {
         
         // Remove piano key highlight
         this.highlightPianoKey(midiNote, false);
+        
+        // Remove from chord detection when sustained note is stopped
+        this.activeChordNotes.delete(midiNote);
+        this.onChordNotesChange();
     }
     
     
@@ -1602,6 +1809,7 @@ class PianoVisualizer {
         rangeSelector.addEventListener('change', (e) => {
             this.settings.pianoRange = e.target.value;
             this.recreatePianoKeyboard();
+            this.saveSettings();
         });
         
         // Color scale selector
@@ -1622,12 +1830,14 @@ class PianoVisualizer {
             if (e.target.value.startsWith('retro-')) {
             } else {
             }
+            this.saveSettings();
         });
         
         // Velocity numbers toggle
         const velocityToggle = document.getElementById('show-velocity-numbers');
         velocityToggle.addEventListener('change', (e) => {
             this.settings.showVelocityNumbers = e.target.checked;
+            this.saveSettings();
         });
         
         // Display mode selector (waveform/spectrum/none)
@@ -1690,6 +1900,7 @@ class PianoVisualizer {
                         }
                     }
                 }
+                this.saveSettings();
             });
         }
         
@@ -1697,6 +1908,7 @@ class PianoVisualizer {
         const timbreSelector = document.getElementById('audio-timbre');
         timbreSelector.addEventListener('change', (e) => {
             this.settings.audioTimbre = e.target.value;
+            this.saveSettings();
         });
         
         // Note name style selector
@@ -1704,6 +1916,7 @@ class PianoVisualizer {
         noteNameStyleSelector.addEventListener('change', (e) => {
             this.settings.noteNameStyle = e.target.value;
             this.updateKeyboardHelp();
+            this.saveSettings();
         });
         
         // Base color picker
@@ -1713,6 +1926,7 @@ class PianoVisualizer {
             if (this.settings.colorScale === 'custom') {
                 this.updateCustomColors();
             }
+            this.saveSettings();
         });
         
         // Color code input
@@ -1728,6 +1942,7 @@ class PianoVisualizer {
                     this.updateCustomColors();
                 }
                 colorCodeInput.style.borderColor = '';
+                this.saveSettings();
             } else {
                 colorCodeInput.style.borderColor = '#ff4444';
             }
@@ -1738,6 +1953,32 @@ class PianoVisualizer {
                 applyColorButton.click();
             }
         });
+        
+        // Privacy settings event handlers
+        const publicModeCheckbox = document.getElementById('public-mode');
+        const analyticsConsentCheckbox = document.getElementById('analytics-consent');
+        const performanceTrackingCheckbox = document.getElementById('performance-tracking');
+        
+        if (publicModeCheckbox) {
+            publicModeCheckbox.addEventListener('change', (e) => {
+                this.settings.isPublic = e.target.checked;
+                this.saveSettings();
+            });
+        }
+        
+        if (analyticsConsentCheckbox) {
+            analyticsConsentCheckbox.addEventListener('change', (e) => {
+                this.settings.analyticsConsent = e.target.checked;
+                this.saveSettings();
+            });
+        }
+        
+        if (performanceTrackingCheckbox) {
+            performanceTrackingCheckbox.addEventListener('change', (e) => {
+                this.settings.performanceTracking = e.target.checked;
+                this.saveSettings();
+            });
+        }
         
     }
     
@@ -2271,7 +2512,7 @@ class PianoVisualizer {
     
     setupCollapsibleSections() {
         // Define which sections should be collapsed by default
-        const defaultCollapsed = ['keyboard', 'recording'];
+        const defaultCollapsed = ['keyboard', 'recording', 'privacy'];
         
         // Initialize max-height for all collapsible content
         document.querySelectorAll('.collapsible-content').forEach(content => {
@@ -2480,8 +2721,10 @@ class PianoVisualizer {
     }
     
     initializeRetroColors() {
-        // Set random retro palette as default
-        this.settings.colorScale = this.getRandomRetroPalette();
+        // Only set random retro palette if no color scale is loaded from settings
+        if (this.settings.colorScale === 'chromatic') {
+            this.settings.colorScale = this.getRandomRetroPalette();
+        }
         
         // Update HTML select box to reflect the selection
         const colorScaleSelector = document.getElementById('color-scale');
@@ -2923,6 +3166,7 @@ class PianoVisualizer {
         volumeSlider.addEventListener('input', (e) => {
             this.settings.volume = parseFloat(e.target.value);
             volumeValue.textContent = e.target.value;
+            this.saveSettings();
         });
         
         // Mute button
@@ -2936,6 +3180,7 @@ class PianoVisualizer {
                 muteButton.textContent = '🔊 Unmuted';
                 muteButton.classList.remove('muted');
             }
+            this.saveSettings();
         });
     }
     
@@ -2997,6 +3242,7 @@ class PianoVisualizer {
                 this.settings.pianoRange = '88-key';
                 document.getElementById('piano-range').value = '88-key';
                 this.recreatePianoKeyboard();
+                this.saveSettings();
                 this.logMidiActivity(`Switched to 88-key mode for ${bestDevice.input.name}`);
             }
             
@@ -3279,6 +3525,81 @@ class PianoVisualizer {
         
         // Reset shadow
         this.spectrumContext.shadowBlur = 0;
+    }
+    
+    // Chord detection methods
+    detectChord(notes) {
+        if (notes.length < 3) return null;
+        
+        // Convert MIDI notes to pitch classes (0-11)
+        const pitchClasses = [...notes].map(note => note % 12).sort((a, b) => a - b);
+        
+        // Remove duplicates
+        const uniquePitchClasses = [...new Set(pitchClasses)];
+        
+        if (uniquePitchClasses.length < 3) return null;
+        
+        // Try to find chord match by testing each note as potential root
+        for (let rootIndex = 0; rootIndex < uniquePitchClasses.length; rootIndex++) {
+            const root = uniquePitchClasses[rootIndex];
+            const intervals = uniquePitchClasses.map(pc => {
+                let interval = pc - root;
+                if (interval < 0) interval += 12;
+                return interval;
+            }).sort((a, b) => a - b);
+            
+            // Check against chord templates
+            for (const [chordType, template] of Object.entries(this.chordTemplates)) {
+                if (this.arraysEqual(intervals, template)) {
+                    return this.formatChordName(root, chordType);
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    arraysEqual(arr1, arr2) {
+        if (arr1.length !== arr2.length) return false;
+        for (let i = 0; i < arr1.length; i++) {
+            if (arr1[i] !== arr2[i]) return false;
+        }
+        return true;
+    }
+    
+    formatChordName(root, chordType) {
+        const noteNames = this.settings.noteNameStyle === 'japanese' ? 
+            this.noteNames.japanese : this.noteNames.western;
+        const chordSuffix = this.chordNames[this.settings.noteNameStyle][chordType];
+        
+        return noteNames[root] + chordSuffix;
+    }
+    
+    updateChordDisplay(chordName) {
+        const chordDisplay = document.getElementById('chord-name');
+        const chordText = document.getElementById('chord-text');
+        
+        if (chordName && chordName !== this.lastDetectedChord) {
+            chordText.textContent = chordName;
+            chordDisplay.classList.add('active');
+            this.lastDetectedChord = chordName;
+        } else if (!chordName) {
+            chordDisplay.classList.remove('active');
+            this.lastDetectedChord = null;
+        }
+    }
+    
+    onChordNotesChange() {
+        // Clear existing timeout
+        if (this.chordDetectionTimeout) {
+            clearTimeout(this.chordDetectionTimeout);
+        }
+        
+        // Set new timeout to detect chord after brief delay
+        this.chordDetectionTimeout = setTimeout(() => {
+            const detectedChord = this.detectChord(this.activeChordNotes);
+            this.updateChordDisplay(detectedChord);
+        }, 100); // 100ms delay to allow for chord completion
     }
 }
 document.addEventListener('DOMContentLoaded', () => {
