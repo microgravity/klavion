@@ -70,41 +70,42 @@ $radius: 8px;
     }
 }
 
+// キーフレームを先に定義
+@keyframes noteAnimation {
+    0% {
+        opacity: 0;
+        transform: scale(0.1) translateY(50px) translateZ(-200px);
+        filter: blur(8px);
+    }
+    15% {
+        opacity: 0.3;
+        transform: scale(0.4) translateY(0px) translateZ(-150px);
+        filter: blur(5px);
+    }
+    35% {
+        opacity: 0.8;
+        transform: scale(0.8) translateY(-50px) translateZ(-50px);
+        filter: blur(2px);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.2) translateY(-150px) translateZ(0px);
+        filter: blur(0px);
+    }
+    75% {
+        opacity: 0.9;
+        transform: scale(1.1) translateY(-300px) translateZ(20px);
+        filter: blur(0px);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.6) translateY(-500px) translateZ(50px);
+        filter: blur(4px);
+    }
+}
+
 @mixin note-animation($duration: 3s) {
     animation: noteAnimation $duration ease-out forwards;
-    
-    @keyframes noteAnimation {
-        0% {
-            opacity: 0;
-            transform: scale(0.1) translateY(50px) translateZ(-200px);
-            filter: blur(8px);
-        }
-        15% {
-            opacity: 0.3;
-            transform: scale(0.4) translateY(0px) translateZ(-150px);
-            filter: blur(5px);
-        }
-        35% {
-            opacity: 0.8;
-            transform: scale(0.8) translateY(-50px) translateZ(-50px);
-            filter: blur(2px);
-        }
-        50% {
-            opacity: 1;
-            transform: scale(1.2) translateY(-150px) translateZ(0px);
-            filter: blur(0px);
-        }
-        75% {
-            opacity: 0.9;
-            transform: scale(1.1) translateY(-300px) translateZ(20px);
-            filter: blur(0px);
-        }
-        100% {
-            opacity: 0;
-            transform: scale(0.6) translateY(-500px) translateZ(50px);
-            filter: blur(4px);
-        }
-    }
 }
 
 @mixin modal-animation {
@@ -988,7 +989,6 @@ body {
     z-index: 1000;
     font-family: $font-family;
     letter-spacing: 0.05em;
-    @include note-animation;
     backdrop-filter: blur(8px);
     border-radius: 12px;
     padding: 8px 16px;
@@ -999,6 +999,7 @@ body {
     transform-style: preserve-3d;
     perspective: 1000px;
     box-shadow: 0 8px 32px rgba(96, 165, 250, 0.2);
+    @include note-animation;
     
     &.large { font-size: 2.5em; }
     &.medium { font-size: 2em; }
