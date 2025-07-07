@@ -1,9 +1,11 @@
 # Piano Visualizer / ピアノビジュアライザー
 
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-brightgreen)](https://microgravity.github.io/piano-visualiser/)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-brightgreen)](https://kwkd.github.io/klavion/)
+[![Deploy Status](https://github.com/kwkd/klavion/actions/workflows/deploy.yml/badge.svg)](https://github.com/kwkd/klavion/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-blue.svg)](app.js)
 [![Three.js](https://img.shields.io/badge/Three.js-3D%20Graphics-orange.svg)](https://threejs.org/)
+[![SCSS](https://img.shields.io/badge/SCSS-Styling-ff69b4.svg)](scss/styles.scss)
 
 美しい3Dビジュアライゼーションと高品質オーディオ合成を備えた、リアルタイムMIDI対応のインタラクティブピアノツール
 
