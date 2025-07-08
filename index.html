@@ -333,20 +333,23 @@
                     <!-- Piano keys will be generated dynamically -->
                 </div>
                 
-                <!-- コード名表示 -->
-                <div class="chord-display">
-                    <div class="chord-name" id="chord-name">
-                        <div class="chord-icon">🎵</div>
-                        <div class="chord-text" id="chord-text">-</div>
+                <!-- ステータス表示（コード・ペダル） -->
+                <div class="status-indicators">
+                    <!-- コード名表示 -->
+                    <div class="status-item chord-display">
+                        <div class="status-indicator" id="chord-display">
+                            <div class="status-icon">🎵</div>
+                            <div class="status-label" id="chord-text">-</div>
+                        </div>
                     </div>
-                </div>
-                
-                <!-- MIDIペダル状態表示 -->
-                <div class="midi-pedal-status">
-                    <div class="pedal-indicator" id="sustain-pedal">
-                        <div class="pedal-icon">🦶</div>
-                        <div class="pedal-label">Sustain</div>
-                        <div class="pedal-status" id="sustain-status">OFF</div>
+                    
+                    <!-- MIDIペダル状態表示 -->
+                    <div class="status-item midi-pedal-status">
+                        <div class="status-indicator" id="sustain-pedal">
+                            <div class="status-icon">🦶</div>
+                            <div class="status-label">Sustain</div>
+                            <div class="status-value" id="sustain-status">OFF</div>
+                        </div>
                     </div>
                 </div>
             </div>

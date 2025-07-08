@@ -526,17 +526,25 @@ body {
 // ================================
 // MIDI Pedal Status
 // ================================
-.midi-pedal-status {
+// ================================
+// Status Indicators (Chord & Pedal)
+// ================================
+.status-indicators {
     position: absolute;
     bottom: 8px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    gap: 16px;
+    z-index: 110;
+}
+
+.status-item {
     padding: 8px 12px;
     @include glass-effect;
     border-radius: $radius;
-    z-index: 110;
     
-    .pedal-indicator {
+    .status-indicator {
         @include flex-center;
         gap: 8px;
         padding: 4px 8px;
@@ -545,36 +553,19 @@ body {
         background: rgba(255, 255, 255, 0.08);
         min-width: 120px;
         
-        &.active {
-            background: rgba(34, 197, 94, 0.2);
-            border: 1px solid rgba(34, 197, 94, 0.4);
-            box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
-            
-            .pedal-icon {
-                transform: scale(1.2);
-                filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.8));
-            }
-            
-            .pedal-status {
-                background: rgba(34, 197, 94, 0.3);
-                color: #22c55e;
-                text-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
-            }
-        }
-        
-        .pedal-icon {
+        .status-icon {
             font-size: 16px;
             transition: all 0.3s ease;
         }
         
-        .pedal-label {
+        .status-label {
             font-size: 11px;
             color: $text-light;
             font-weight: 500;
             flex: 1;
         }
         
-        .pedal-status {
+        .status-value {
             font-size: 10px;
             font-weight: bold;
             padding: 2px 6px;
@@ -583,6 +574,51 @@ body {
             background: rgba(255, 255, 255, 0.1);
             color: $text-muted;
         }
+    }
+}
+
+// Special styling for chord display (no separate status-value)
+.status-item.chord-display .status-indicator {
+    .status-label {
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+        color: $text-light;
+    }
+}
+
+// Pedal active state
+.status-item.midi-pedal-status .status-indicator.active {
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+    
+    .status-icon {
+        transform: scale(1.2);
+        filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.8));
+    }
+    
+    .status-value {
+        background: rgba(34, 197, 94, 0.3);
+        color: #22c55e;
+        text-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+    }
+}
+
+// Chord active state
+.status-item.chord-display .status-indicator.active {
+    background: rgba(96, 165, 250, 0.2);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    box-shadow: 0 0 12px rgba(96, 165, 250, 0.3);
+    
+    .status-icon {
+        transform: scale(1.2);
+        filter: drop-shadow(0 0 4px rgba(96, 165, 250, 0.8));
+    }
+    
+    .status-label {
+        color: #60a5fa;
+        text-shadow: 0 0 4px rgba(96, 165, 250, 0.5);
     }
 }
 
@@ -1207,26 +1243,30 @@ body {
         left: 0;
     }
     
-    .midi-pedal-status {
+    .status-indicators {
         bottom: 4px;
-        padding: 6px 10px;
+        gap: 12px;
         
-        .pedal-indicator {
-            gap: 6px;
-            padding: 3px 6px;
-            min-width: 100px;
+        .status-item {
+            padding: 6px 10px;
             
-            .pedal-icon {
-                font-size: 14px;
-            }
-            
-            .pedal-label {
-                font-size: 10px;
-            }
-            
-            .pedal-status {
-                font-size: 9px;
-                padding: 1px 4px;
+            .status-indicator {
+                gap: 6px;
+                padding: 3px 6px;
+                min-width: 100px;
+                
+                .status-icon {
+                    font-size: 14px;
+                }
+                
+                .status-label {
+                    font-size: 10px;
+                }
+                
+                .status-value {
+                    font-size: 9px;
+                    padding: 1px 4px;
+                }
             }
         }
     }

@@ -292,7 +292,7 @@ class PianoVisualizer {
     cacheCommonElements() {
         const commonIds = [
             'custom-modal', 'modal-title', 'modal-message', 'modal-icon',
-            'modal-close', 'modal-ok', 'chord-name', 'chord-text',
+            'modal-close', 'modal-ok', 'chord-display', 'chord-text',
             'sustain-status', 'sustain-pedal', 'midi-activity', 
             'midi-devices', 'midi-input-select', 'volume-control',
             'volume-value', 'mute-button', 'color-scale', 'piano-range',
@@ -3769,9 +3769,9 @@ class PianoVisualizer {
     }
     
     formatChordName(root, chordType) {
-        const noteNames = this.settings.noteNameStyle === 'japanese' ? 
-            this.noteNames.japanese : this.noteNames.western;
-        const chordSuffix = this.chordNames[this.settings.noteNameStyle][chordType];
+        // Always use western notation for chord names (C, D, E, etc.)
+        const noteNames = this.noteNames.western;
+        const chordSuffix = this.chordNames.western[chordType];
         
         return noteNames[root] + chordSuffix;
     }
@@ -3795,7 +3795,7 @@ class PianoVisualizer {
     }
     
     performChordDisplayUpdate(chordName) {
-        const chordDisplay = this.getElement('chord-name');
+        const chordDisplay = this.getElement('chord-display');
         const chordText = this.getElement('chord-text');
         
         if (chordName && chordName !== this.lastDetectedChord) {
@@ -3872,6 +3872,7 @@ class NewsBanner {
     constructor() {
         this.newsText = document.getElementById('news-text');
         this.newsItems = [
+            '2025/07/10 - コード表示機能を追加しました。',
             '2025/07/08 - 全画面表示機能を追加しました。',
             '2024/07/01 - 波形・スペクトラム表示モードを追加しました。',
             '2024/07/01 - ペダルのON/OFF表示を追加しました。',
