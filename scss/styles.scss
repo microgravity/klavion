@@ -1498,3 +1498,80 @@ body:not(.fullscreen-mode) {
         }
     }
 }
+
+// ================================
+// News Banner
+// ================================
+.news-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.95), rgba(139, 92, 246, 0.95));
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    
+    .news-content {
+        @include flex-center;
+        padding: 8px 16px;
+        font-size: 14px;
+        color: white;
+        font-weight: 500;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        
+        .news-label {
+            margin-right: 8px;
+            font-weight: 600;
+        }
+        
+        .news-text {
+            flex: 1;
+            text-align: center;
+            transition: opacity 0.3s ease-in-out;
+        }
+    }
+}
+
+@keyframes newsSlide {
+    0% {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+// Adjust main content to accommodate news banner
+.app-container {
+    margin-top: 36px; // Height of news banner
+}
+
+// Hide news banner in fullscreen mode
+body.fullscreen-mode .news-banner {
+    display: none;
+}
+
+body.fullscreen-mode .app-container {
+    margin-top: 0; // Remove margin when news banner is hidden
+}
+
+// Mobile adjustments for news banner
+@media (max-width: 768px) {
+    .news-banner {
+        .news-content {
+            padding: 6px 12px;
+            font-size: 12px;
+            
+            .news-label {
+                margin-right: 6px;
+            }
+        }
+    }
+    
+    .app-container {
+        margin-top: 32px; // Adjusted for mobile
+    }
+}

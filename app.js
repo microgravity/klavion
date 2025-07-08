@@ -3867,8 +3867,54 @@ class PianoVisualizer {
         }
     }
 }
+// News banner functionality
+class NewsBanner {
+    constructor() {
+        this.newsText = document.getElementById('news-text');
+        this.newsItems = [
+            '2025/07/08 - 全画面表示機能を追加しました。',
+            '2024/07/01 - 波形・スペクトラム表示モードを追加しました。',
+            '2024/07/01 - ペダルのON/OFF表示を追加しました。',
+            '2025/06/30 - 👏👏 Klavionをリリースしました。 👏👏'
+        ];
+        this.currentIndex = 0;
+        this.intervalId = null;
+        this.startRotation();
+    }
+    
+    startRotation() {
+        if (this.newsItems.length === 0) return;
+        
+        this.showCurrentNews();
+        this.intervalId = setInterval(() => {
+            this.currentIndex = (this.currentIndex + 1) % this.newsItems.length;
+            this.showCurrentNews();
+        }, 4000);
+    }
+    
+    showCurrentNews() {
+        if (this.newsItems.length > 0 && this.newsText) {
+            // Fade out
+            this.newsText.style.opacity = '0';
+            
+            setTimeout(() => {
+                // Change text and fade in
+                this.newsText.textContent = this.newsItems[this.currentIndex];
+                this.newsText.style.opacity = '1';
+            }, 300);
+        }
+    }
+    
+    destroy() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
+    const newsBanner = new NewsBanner();
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
