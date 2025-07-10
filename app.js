@@ -1797,10 +1797,10 @@ class PianoVisualizer {
         const baseSize = 20;
         if (!this.hasMidiInput) {
             // When no MIDI device is connected, use font size for velocity 60 (PC keyboard)
-            const defaultSize = baseSize + (60 / 127) * 30;
+            const defaultSize = baseSize + (60 / 127) * 37.5;
             return Math.max(defaultSize, 16);
         }
-        const scaledSize = baseSize + (velocity / 127) * 30;
+        const scaledSize = baseSize + (velocity / 127) * 37.5;
         return Math.max(scaledSize, 16);
     }
     
