@@ -19,7 +19,23 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 ## ✨ 最新の改善 / Latest Improvements
 
-### v1.4.0 の新機能 / New in v1.4.0 (Latest)
+### v1.5.0 の新機能 / New in v1.5.0 (Latest)
+
+- 🎵 **リアルタイムコード検出** - 演奏中のコード（和音）を自動検出・表示
+- 🎹 **統合ステータス表示** - コード表示とペダル状態を横並びで美しく表示
+- 🎼 **西洋式コード表記** - C、Dm、G7などの標準的なコード名で表示
+- ✨ **アクティブ状態ビジュアル** - コード検出時の美しいアニメーション効果
+- 🎨 **統一デザイン** - ペダル表示と同様のグラスモーフィズムデザイン
+
+### New in v1.5.0 (Latest)
+
+- 🎵 **Real-time Chord Detection** - Automatic detection and display of chords during performance
+- 🎹 **Integrated Status Display** - Beautiful side-by-side layout for chord and pedal status
+- 🎼 **Western Chord Notation** - Standard chord names like C, Dm, G7
+- ✨ **Active State Visuals** - Beautiful animation effects when chords are detected
+- 🎨 **Unified Design** - Glassmorphism design matching pedal display
+
+### v1.4.0 の新機能 / New in v1.4.0
 
 - 🦶 **MIDIペダル視覚表示** - サスティンペダルのON/OFF状態を視覚的に表示
 - ⌨️ **キーボードペダルシミュレーション** - Shiftキーでサスティンペダルを操作可能
@@ -27,7 +43,7 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - 🎨 **統合UI設計** - MIDI入力セクションにペダル状態インジケーター統合
 - 📖 **操作ガイド強化** - キーボードヘルプにペダル操作説明を追加
 
-### New in v1.4.0 (Latest)
+### New in v1.4.0
 
 - 🦶 **MIDI Pedal Visual Display** - Visual indication of sustain pedal ON/OFF state
 - ⌨️ **Keyboard Pedal Simulation** - Sustain pedal control using Shift key
@@ -382,7 +398,16 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## Version History / バージョン履歴
 
-### v1.4.0 (Latest / 最新) - December 2024
+### v1.5.0 (Latest / 最新) - July 2025
+
+#### 🎵 Real-time Chord Detection / リアルタイムコード検出
+- **Automatic Chord Recognition** - Detects and displays chords in real-time during performance
+- **Western Notation** - Standard chord names like C, Dm, G7, Am, F#dim
+- **Integrated Status UI** - Beautiful side-by-side display with pedal status
+- **Active State Animation** - Glowing effects and scale animations when chords are detected
+- **Glassmorphism Design** - Unified modern design language with backdrop blur effects
+
+### v1.4.0 - December 2024
 
 #### 🦶 MIDI Pedal Visualization / MIDIペダルビジュアライゼーション
 - **Visual Pedal Indicator** - Real-time sustain pedal ON/OFF state display
