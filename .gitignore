@@ -8,7 +8,7 @@ yarn-error.log*
 dist/
 build/
 *.min.js
-*.min.css
+# *.min.css  # コメントアウト: GitHub Pagesで必要
 
 # Environment variables
 .env
