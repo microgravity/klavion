@@ -1,3 +1,5 @@
+console.log('Klavion Piano Visualizer Initialized');
+
 class PianoVisualizer {
     constructor() {
         this.container = document.getElementById('three-container');
