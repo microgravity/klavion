@@ -40,6 +40,29 @@ class PianoVisualizer {
         // DOM element cache for performance optimization
         this.domCache = new Map(); // Cache frequently accessed DOM elements
         
+        // Performance monitoring
+        this.performanceMetrics = {
+            textureCreations: 0,
+            textureCacheHits: 0,
+            coordinateCalculations: 0,
+            coordinateCacheHits: 0,
+            frameTime: 0,
+            lastFrameTime: 0,
+            animationLookups: 0,
+            animationCalculations: 0
+        };
+        this.coordinateCache = new Map(); // Cache for coordinate calculations
+        
+        // Animation optimization: Pre-calculated lookup tables
+        this.animationTables = {
+            sin: new Array(3600), // 0.1° precision (3600 entries for 360°)
+            cos: new Array(3600),
+            easeOut: new Array(1000), // 0.1% precision for easing
+            easeIn: new Array(1000),
+            midiFrequencies: new Array(128) // All MIDI notes 0-127
+        };
+        this.initAnimationTables();
+        
         // Fullscreen mode state
         this.isFullscreenMode = false;
         
@@ -556,6 +579,115 @@ class PianoVisualizer {
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
+        
+        // Clear coordinate cache on resize
+        this.coordinateCache.clear();
+    }
+    
+    // Get cached coordinate for a MIDI note
+    getCachedCoordinate(midiNote) {
+        const cacheKey = `note-${midiNote}`;
+        let coordinate = this.coordinateCache.get(cacheKey);
+        
+        if (!coordinate) {
+            // Calculate coordinate
+            const keyElement = this.pianoKeyboard.querySelector(`[data-note="${midiNote}"]`);
+            if (keyElement) {
+                const keyRect = keyElement.getBoundingClientRect();
+                const containerRect = this.container.getBoundingClientRect();
+                const relativeX = (keyRect.left + keyRect.width / 2 - containerRect.left) / containerRect.width;
+                coordinate = (relativeX - 0.5) * 20; // Map to 3D space
+                
+                // Cache the result
+                this.coordinateCache.set(cacheKey, coordinate);
+                this.performanceMetrics.coordinateCalculations++;
+            } else {
+                coordinate = (Math.random() - 0.5) * 15;
+            }
+        } else {
+            this.performanceMetrics.coordinateCacheHits++;
+        }
+        
+        return coordinate;
+    }
+    
+    // Initialize animation lookup tables for performance optimization
+    initAnimationTables() {
+        // Pre-calculate sine and cosine values (0.1° precision)
+        for (let i = 0; i < 3600; i++) {
+            const angle = (i / 10) * Math.PI / 180; // Convert to radians
+            this.animationTables.sin[i] = Math.sin(angle);
+            this.animationTables.cos[i] = Math.cos(angle);
+        }
+        
+        // Pre-calculate easing functions (0.1% precision)
+        for (let i = 0; i < 1000; i++) {
+            const progress = i / 999; // 0.0 to 1.0
+            this.animationTables.easeOut[i] = 1 - Math.pow(1 - progress, 2); // Ease out
+            this.animationTables.easeIn[i] = Math.pow(progress, 1.5); // Ease in
+        }
+        
+        // Pre-calculate MIDI note frequencies
+        for (let i = 0; i < 128; i++) {
+            this.animationTables.midiFrequencies[i] = 440 * Math.pow(2, (i - 69) / 12);
+        }
+        
+        console.log('🎯 Animation lookup tables initialized:', {
+            sinCosEntries: this.animationTables.sin.length,
+            easingEntries: this.animationTables.easeOut.length,
+            midiEntries: this.animationTables.midiFrequencies.length
+        });
+    }
+    
+    // Fast sine lookup (input in degrees, 0.1° precision)
+    fastSin(degrees) {
+        this.performanceMetrics.animationLookups++;
+        const index = Math.round((degrees % 360) * 10);
+        return this.animationTables.sin[index < 0 ? index + 3600 : index];
+    }
+    
+    // Fast cosine lookup (input in degrees, 0.1° precision)
+    fastCos(degrees) {
+        const index = Math.round((degrees % 360) * 10);
+        return this.animationTables.cos[index < 0 ? index + 3600 : index];
+    }
+    
+    // Fast ease out lookup (input: 0.0 to 1.0)
+    fastEaseOut(progress) {
+        const index = Math.round(Math.max(0, Math.min(999, progress * 999)));
+        return this.animationTables.easeOut[index];
+    }
+    
+    // Fast ease in lookup (input: 0.0 to 1.0)
+    fastEaseIn(progress) {
+        const index = Math.round(Math.max(0, Math.min(999, progress * 999)));
+        return this.animationTables.easeIn[index];
+    }
+    
+    // Fast MIDI to frequency lookup
+    fastMidiToFrequency(midiNote) {
+        return this.animationTables.midiFrequencies[Math.max(0, Math.min(127, midiNote))];
+    }
+    
+    // Debug: Log performance metrics
+    logPerformanceMetrics() {
+        const metrics = this.performanceMetrics;
+        const totalTextures = metrics.textureCreations + metrics.textureCacheHits;
+        const totalCoordinates = metrics.coordinateCalculations + metrics.coordinateCacheHits;
+        
+        console.log('🚀 Performance Metrics:', {
+            textureCache: `${metrics.textureCacheHits}/${totalTextures} (${totalTextures > 0 ? Math.round(metrics.textureCacheHits/totalTextures*100) : 0}% hit rate)`,
+            coordinateCache: `${metrics.coordinateCacheHits}/${totalCoordinates} (${totalCoordinates > 0 ? Math.round(metrics.coordinateCacheHits/totalCoordinates*100) : 0}% hit rate)`,
+            animationLookups: `${metrics.animationLookups} fast lookups used`,
+            textureCacheSize: this.textureCache.size,
+            coordinateCacheSize: this.coordinateCache.size
+        });
+        
+        // Debug: Log sample cache keys
+        if (this.textureCache.size > 0) {
+            const sampleKeys = Array.from(this.textureCache.keys()).slice(0, 3);
+            console.log('📝 Sample texture cache keys:', sampleKeys);
+        }
     }
     
     async initAudio() {
@@ -900,7 +1032,7 @@ class PianoVisualizer {
     }
     
     playNote(midiNote, velocity, timestamp = performance.now(), enableVisualization = true) {
-        const frequency = this.midiNoteToFrequency(midiNote);
+        const frequency = this.fastMidiToFrequency(midiNote);
         const noteName = this.midiNoteToNoteName(midiNote, velocity);
         
         this.synthesizeNote(frequency, velocity, midiNote, enableVisualization);
@@ -1633,10 +1765,11 @@ class PianoVisualizer {
         const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
-        // Check cache first for performance optimization (temporarily disabled for debugging)
-        const cacheKey = `${noteName}-${velocity}-${this.settings.showVelocityNumbers}-${this.settings.noteNameStyle}-${color}`;
-        let texture = null; // Temporarily disable cache to fix display issue
-        // let texture = this.textureCache.get(cacheKey);
+        // Check cache first for performance optimization
+        // Use MIDI note and velocity range for more consistent caching
+        const velocityRange = Math.floor(velocity / 10) * 10; // Round to nearest 10
+        const cacheKey = `${midiNote}-${velocityRange}-${this.settings.showVelocityNumbers}-${this.settings.noteNameStyle}`;
+        let texture = this.textureCache.get(cacheKey);
         
         if (!texture) {
             // Create dedicated canvas for this texture with dynamic sizing
@@ -1654,6 +1787,12 @@ class PianoVisualizer {
             if (this.textureCache.size < 50) {
                 this.textureCache.set(cacheKey, texture);
             }
+            
+            // Performance metrics
+            this.performanceMetrics.textureCreations++;
+        } else {
+            // Performance metrics
+            this.performanceMetrics.textureCacheHits++;
         }
         
         // Try to get sprite from pool, otherwise create new
@@ -1671,18 +1810,8 @@ class PianoVisualizer {
             sprite.material.needsUpdate = true;
         }
         
-        // Position based on piano key
-        const keyElement = this.pianoKeyboard.querySelector(`[data-note="${midiNote}"]`);
-        let x = 0;
-        
-        if (keyElement) {
-            const keyRect = keyElement.getBoundingClientRect();
-            const containerRect = this.container.getBoundingClientRect();
-            const relativeX = (keyRect.left + keyRect.width / 2 - containerRect.left) / containerRect.width;
-            x = (relativeX - 0.5) * 20; // Map to 3D space
-        } else {
-            x = (Math.random() - 0.5) * 15;
-        }
+        // Position based on piano key (using cached coordinate)
+        const x = this.getCachedCoordinate(midiNote);
         
         sprite.position.set(x, -10, 0); // Start from bottom of screen
         const displaySize = size * 3;
@@ -3026,7 +3155,7 @@ class PianoVisualizer {
         noteElement.style.color = color;
         noteElement.style.fontSize = `${this.getNoteFontSize(velocity)}px`;
         
-        const pianoRect = this.pianoKeyboard.getBoundingClientRect();
+        // Use cached coordinate for fallback display
         const keyElement = this.pianoKeyboard.querySelector(`[data-note="${midiNote}"]`);
         
         let x, y;
@@ -3097,8 +3226,8 @@ class PianoVisualizer {
                         userData.sustainStartTime = currentTime;
                         sprite.position.y = 2; // Sustain position
                     } else {
-                        // Animate upward with smooth easing
-                        const easeOut = 1 - Math.pow(1 - progress, 2);
+                        // Animate upward with smooth easing (optimized with lookup table)
+                        const easeOut = this.fastEaseOut(progress);
                         sprite.position.y = userData.startY + easeOut * (2 - userData.startY); // Rise to y=2
                         
                         // Fade in
@@ -3108,21 +3237,21 @@ class PianoVisualizer {
                     // Sustained phase: gentle floating animation
                     sprite.position.y = 2; // Stay at sustain position
                     
-                    // Gentle floating effect
+                    // Gentle floating effect (optimized with lookup table)
                     const floatTime = (currentTime - userData.sustainStartTime) / 1000;
-                    const floatOffset = Math.sin(floatTime * 2) * 0.2; // Gentle up/down
+                    const floatOffset = this.fastSin(floatTime * 2 * 57.2958) * 0.2; // 57.2958 = 180/π for rad to deg
                     sprite.position.y += floatOffset;
                     
-                    // Gentle pulsing
-                    const pulseScale = 1 + Math.sin(floatTime * 1.5) * 0.05;
+                    // Gentle pulsing (optimized with lookup table)
+                    const pulseScale = 1 + this.fastSin(floatTime * 1.5 * 57.2958) * 0.05;
                     sprite.scale.set(
                         userData.displaySize * pulseScale, 
                         userData.displaySize * 0.7 * pulseScale, 
                         1
                     );
                     
-                    // Stable opacity with slight breathing effect
-                    const breathingOpacity = 0.8 + Math.sin(floatTime) * 0.1;
+                    // Stable opacity with slight breathing effect (optimized with lookup table)
+                    const breathingOpacity = 0.8 + this.fastSin(floatTime * 57.2958) * 0.1;
                     sprite.material.opacity = Math.min(1, breathingOpacity + velocityIntensity * 0.2);
                     
                     // Check if note should start falling
@@ -3139,8 +3268,8 @@ class PianoVisualizer {
                     if (progress >= 1.0) {
                         shouldRemove = true;
                     } else {
-                        // Continue moving upward while fading
-                        const easeIn = Math.pow(progress, 1.5);
+                        // Continue moving upward while fading (optimized with lookup table)
+                        const easeIn = this.fastEaseIn(progress);
                         sprite.position.y = 2 + easeIn * 8; // Move from sustain position to top
                         
                         // Fade out
@@ -3918,6 +4047,11 @@ class NewsBanner {
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
     const newsBanner = new NewsBanner();
+    
+    // Debug: Log performance metrics every 10 seconds
+    setInterval(() => {
+        visualizer.logPerformanceMetrics();
+    }, 10000);
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
