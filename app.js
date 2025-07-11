@@ -49,7 +49,11 @@ class PianoVisualizer {
             frameTime: 0,
             lastFrameTime: 0,
             animationLookups: 0,
-            animationCalculations: 0
+            animationCalculations: 0,
+            backgroundUpdates: 0,
+            backgroundSkips: 0,
+            visualizationUpdates: 0,
+            visualizationSkips: 0
         };
         this.coordinateCache = new Map(); // Cache for coordinate calculations
         
@@ -61,10 +65,30 @@ class PianoVisualizer {
             easeIn: new Array(1000),
             midiFrequencies: new Array(128) // All MIDI notes 0-127
         };
-        this.initAnimationTables();
         
         // Fullscreen mode state
         this.isFullscreenMode = false;
+        
+        // Background optimization: Control background rendering
+        this.backgroundOptimization = {
+            needsUpdate: true, // Force update on first render
+            staticBackgroundCreated: false,
+            lastUpdateTime: 0,
+            updateInterval: 100, // Update background every 100ms instead of every frame
+            skipFrames: 0,
+            maxSkipFrames: 3 // Skip 3 frames before forced update
+        };
+        
+        // Spectrum/Waveform optimization: Control visualization rendering
+        this.visualizationOptimization = {
+            lastUpdateTime: 0,
+            updateInterval: 33, // Update visualization every 33ms (~30fps instead of 60fps)
+            skipFrames: 0,
+            maxSkipFrames: 1 // Skip 1 frame before forced update
+        };
+        
+        // Initialize animation tables after optimization settings
+        this.initAnimationTables();
         
         this.settings = {
             pianoRange: '3-octave',
@@ -632,11 +656,6 @@ class PianoVisualizer {
             this.animationTables.midiFrequencies[i] = 440 * Math.pow(2, (i - 69) / 12);
         }
         
-        console.log('🎯 Animation lookup tables initialized:', {
-            sinCosEntries: this.animationTables.sin.length,
-            easingEntries: this.animationTables.easeOut.length,
-            midiEntries: this.animationTables.midiFrequencies.length
-        });
     }
     
     // Fast sine lookup (input in degrees, 0.1° precision)
@@ -669,16 +688,74 @@ class PianoVisualizer {
         return this.animationTables.midiFrequencies[Math.max(0, Math.min(127, midiNote))];
     }
     
+    // Optimized background update with frame skipping
+    shouldUpdateBackground(currentTime) {
+        // Always update on first render
+        if (!this.backgroundOptimization.staticBackgroundCreated) {
+            return true;
+        }
+        
+        // Check time-based interval
+        const timeSinceLastUpdate = currentTime - this.backgroundOptimization.lastUpdateTime;
+        if (timeSinceLastUpdate >= this.backgroundOptimization.updateInterval) {
+            return true;
+        }
+        
+        // Frame skipping logic
+        this.backgroundOptimization.skipFrames++;
+        if (this.backgroundOptimization.skipFrames >= this.backgroundOptimization.maxSkipFrames) {
+            this.backgroundOptimization.skipFrames = 0;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Optimized background drawing with conditional updates
+    drawBackgroundOptimized(currentTime) {
+        if (this.shouldUpdateBackground(currentTime)) {
+            this.drawBackgroundWithWaveform();
+            this.backgroundOptimization.lastUpdateTime = currentTime;
+            this.backgroundOptimization.staticBackgroundCreated = true;
+            this.performanceMetrics.backgroundUpdates++;
+        } else {
+            this.performanceMetrics.backgroundSkips++;
+        }
+    }
+    
+    // Optimized visualization update with frame skipping
+    shouldUpdateVisualization(currentTime) {
+        // Check time-based interval
+        const timeSinceLastUpdate = currentTime - this.visualizationOptimization.lastUpdateTime;
+        if (timeSinceLastUpdate >= this.visualizationOptimization.updateInterval) {
+            return true;
+        }
+        
+        // Frame skipping logic
+        this.visualizationOptimization.skipFrames++;
+        if (this.visualizationOptimization.skipFrames >= this.visualizationOptimization.maxSkipFrames) {
+            this.visualizationOptimization.skipFrames = 0;
+            return true;
+        }
+        
+        return false;
+    }
+    
     // Debug: Log performance metrics
     logPerformanceMetrics() {
         const metrics = this.performanceMetrics;
         const totalTextures = metrics.textureCreations + metrics.textureCacheHits;
         const totalCoordinates = metrics.coordinateCalculations + metrics.coordinateCacheHits;
         
+        const totalBackgroundFrames = metrics.backgroundUpdates + metrics.backgroundSkips;
+        const totalVisualizationFrames = metrics.visualizationUpdates + metrics.visualizationSkips;
+        
         console.log('🚀 Performance Metrics:', {
             textureCache: `${metrics.textureCacheHits}/${totalTextures} (${totalTextures > 0 ? Math.round(metrics.textureCacheHits/totalTextures*100) : 0}% hit rate)`,
             coordinateCache: `${metrics.coordinateCacheHits}/${totalCoordinates} (${totalCoordinates > 0 ? Math.round(metrics.coordinateCacheHits/totalCoordinates*100) : 0}% hit rate)`,
             animationLookups: `${metrics.animationLookups} fast lookups used`,
+            backgroundOptimization: `${metrics.backgroundSkips}/${totalBackgroundFrames} (${totalBackgroundFrames > 0 ? Math.round(metrics.backgroundSkips/totalBackgroundFrames*100) : 0}% frames skipped)`,
+            visualizationOptimization: `${metrics.visualizationSkips}/${totalVisualizationFrames} (${totalVisualizationFrames > 0 ? Math.round(metrics.visualizationSkips/totalVisualizationFrames*100) : 0}% frames skipped)`,
             textureCacheSize: this.textureCache.size,
             coordinateCacheSize: this.coordinateCache.size
         });
@@ -3300,8 +3377,8 @@ class PianoVisualizer {
                 }
             }
             
-            // Always update background (function internally checks if waveform should be drawn)
-            this.drawBackgroundWithWaveform();
+            // Optimized background update with frame skipping
+            this.drawBackgroundOptimized(currentTime);
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
@@ -3751,12 +3828,19 @@ class PianoVisualizer {
     startSpectrumAnimation() {
         if (!this.analyserNode || !this.spectrumContext) return;
         
-        const drawVisualization = () => {
+        const drawVisualization = (currentTime) => {
             if (this.analyserNode && this.spectrumContext && this.settings.displayMode !== 'none') {
-                if (this.settings.displayMode === 'spectrum') {
-                    this.drawSpectrumBars();
-                } else if (this.settings.displayMode === 'waveform') {
-                    this.drawWaveformLine();
+                // Optimized visualization with frame skipping
+                if (this.shouldUpdateVisualization(currentTime)) {
+                    if (this.settings.displayMode === 'spectrum') {
+                        this.drawSpectrumBars();
+                    } else if (this.settings.displayMode === 'waveform') {
+                        this.drawWaveformLine();
+                    }
+                    this.visualizationOptimization.lastUpdateTime = currentTime;
+                    this.performanceMetrics.visualizationUpdates++;
+                } else {
+                    this.performanceMetrics.visualizationSkips++;
                 }
             } else if (this.spectrumContext && this.spectrumCanvas) {
                 // Clear spectrum canvas when disabled
