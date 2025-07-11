@@ -1,4 +1,3 @@
-console.log('Klavion Piano Visualizer Initialized');
 
 class PianoVisualizer {
     constructor() {
@@ -129,19 +128,19 @@ class PianoVisualizer {
             mixolydian: ['#fce38a', '#f38181', '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
             custom: [], // Will be generated dynamically
             
-            // ColorHunt Retro Palettes Collection
-            'retro-sunset': ['#FF6B35', '#F7931E', '#FFD23F', '#06FFA5'],
-            'retro-neon': ['#FF0080', '#FF8C00', '#FFFF00', '#00FF80'],
-            'retro-pastel': ['#FFB3D1', '#FFD1DC', '#E6E6FA', '#B8E6B8'],
-            'retro-synthwave': ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC'],
-            'retro-miami': ['#FF1744', '#FF9100', '#FFEA00', '#00E676'],
-            'retro-vintage': ['#D2691E', '#CD853F', '#F4A460', '#FFE4B5'],
-            'retro-arcade': ['#FF4081', '#FF8A65', '#FFC107', '#4CAF50'],
-            'retro-vaporwave': ['#FF6EC7', '#FFB347', '#FFFF99', '#98FB98'],
-            'retro-warm': ['#FF5722', '#FF8A50', '#FFC107', '#CDDC39'],
-            'retro-cool': ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4'],
-            'retro-earth': ['#8D6E63', '#A1887F', '#BCAAA4', '#D7CCC8'],
-            'retro-electric': ['#E3F2FD', '#81C784', '#FFB74D', '#F06292'],
+            // Modern Color Schemes Collection
+            'mono-blue': ['#3366FF', '#3F77FF', '#4B88FF', '#5899FF', '#64AAFF', '#70BBFF', '#7CCAFF', '#88DAFF', '#94E9FF', '#A0F8FF', '#ACFFFF', '#B8FFFF'],
+            'mono-green': ['#2E8B57', '#369A62', '#40AA6C', '#4AB976', '#55C980', '#60D88B', '#6AE996', '#75F8A0', '#80FFAB', '#8AFFB6', '#95FFC0', '#A0FFCB'],
+            'mono-warm': ['#FF4500', '#FF5A1A', '#FF6F33', '#FF854C', '#FF9A66', '#FFAF80', '#FFC499', '#FFD9B3', '#FFEFCC', '#FFF4D6', '#FFF9E0', '#FFFEEC'],
+            'mono-purple': ['#4B0082', '#5D1A8A', '#6F3392', '#804B9B', '#9264A3', '#A47DAB', '#B696B4', '#C8AFBC', '#D9C8C4', '#EBD1CD', '#F3E2D5', '#FCF2DE'],
+            'mono-cyan': ['#007C91', '#0894A0', '#11ACB0', '#1AC3BF', '#23DBCE', '#2CF3DD', '#54F7E6', '#7CFAEF', '#A4FDF7', '#CCFFFE', '#E6FFFF', '#F5FFFF'],
+            'mono-olive': ['#556B2F', '#5F7A35', '#698A3B', '#739941', '#7DA947', '#87B94D', '#91C953', '#9BD859', '#A5E85F', '#AFF865', '#B9FF6B', '#C3FF71'],
+            'mono-sunset': ['#FF5E5B', '#FF735D', '#FF8860', '#FF9D62', '#FFB264', '#FFC767', '#FFDC69', '#FFF16B', '#F6F77D', '#ECFC8E', '#E2FF9F', '#D8FFB0'],
+            'mono-neutral': ['#a8a8a8', '#b2b2b2', '#bcbcbc', '#c6c6c6', '#d0d0d0', '#dadada', '#e4e4e4', '#eeeeee', '#f4f4f4', '#f8f8f8', '#fbfbfb', '#ffffff'],
+            'colorful-pastel': ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E3BAFF', '#FFBAEC', '#FFD8B3', '#C7FFBA', '#BAFFF2', '#BABDFF', '#FFBAC6'],
+            'colorful-neon': ['#FF6EC7', '#FF8E00', '#FFD300', '#32FF6A', '#18DCFF', '#7D5FFF', '#A55EEA', '#FC427B', '#FF9F1A', '#B53471', '#12CBC4', '#FDA7DF'],
+            'colorful-candy': ['#FF6B81', '#FF9F80', '#FFE66D', '#B5EAD7', '#C7CEEA', '#FFDAC1', '#FFB7B2', '#FF9AA2', '#E2F0CB', '#B5B5FF', '#DCD6F7', '#D5AAFF'],
+            'colorful-vivid': ['#F94144', '#F3722C', '#F8961E', '#F9C74F', '#90BE6D', '#43AA8B', '#577590', '#277DA1', '#9C89B8', '#F9844A', '#F6BD60', '#84A59D'],
             
             // Grayscale palette for diatonic notes (ドレミファソラシド → black to white gradient)
             'grayscale-diatonic': [
@@ -161,10 +160,10 @@ class PianoVisualizer {
         };
         
         // Store available retro palettes for random selection
-        this.retroPalettes = [
-            'retro-sunset', 'retro-neon', 'retro-pastel', 'retro-synthwave',
-            'retro-miami', 'retro-vintage', 'retro-arcade', 'retro-vaporwave',
-            'retro-warm', 'retro-cool', 'retro-earth', 'retro-electric'
+        this.modernPalettes = [
+            'mono-blue', 'mono-green', 'mono-warm', 'mono-purple',
+            'mono-cyan', 'mono-olive', 'mono-sunset', 'mono-neutral',
+            'colorful-pastel', 'colorful-neon', 'colorful-candy', 'colorful-vivid'
         ];
         
         // Note: Color scale will be initialized after DOM is ready
@@ -632,11 +631,6 @@ class PianoVisualizer {
             this.animationTables.midiFrequencies[i] = 440 * Math.pow(2, (i - 69) / 12);
         }
         
-        console.log('🎯 Animation lookup tables initialized:', {
-            sinCosEntries: this.animationTables.sin.length,
-            easingEntries: this.animationTables.easeOut.length,
-            midiEntries: this.animationTables.midiFrequencies.length
-        });
     }
     
     // Fast sine lookup (input in degrees, 0.1° precision)
@@ -675,19 +669,7 @@ class PianoVisualizer {
         const totalTextures = metrics.textureCreations + metrics.textureCacheHits;
         const totalCoordinates = metrics.coordinateCalculations + metrics.coordinateCacheHits;
         
-        console.log('🚀 Performance Metrics:', {
-            textureCache: `${metrics.textureCacheHits}/${totalTextures} (${totalTextures > 0 ? Math.round(metrics.textureCacheHits/totalTextures*100) : 0}% hit rate)`,
-            coordinateCache: `${metrics.coordinateCacheHits}/${totalCoordinates} (${totalCoordinates > 0 ? Math.round(metrics.coordinateCacheHits/totalCoordinates*100) : 0}% hit rate)`,
-            animationLookups: `${metrics.animationLookups} fast lookups used`,
-            textureCacheSize: this.textureCache.size,
-            coordinateCacheSize: this.coordinateCache.size
-        });
         
-        // Debug: Log sample cache keys
-        if (this.textureCache.size > 0) {
-            const sampleKeys = Array.from(this.textureCache.keys()).slice(0, 3);
-            console.log('📝 Sample texture cache keys:', sampleKeys);
-        }
     }
     
     async initAudio() {
@@ -1874,10 +1856,10 @@ class PianoVisualizer {
     }
     
     getNoteColorThreeJS(midiNote, velocity) {
-        // Use retro colors if retro palette is selected
-        if (this.settings.colorScale.startsWith('retro-')) {
-            const retroHex = this.getRandomRetroColor();
-            return this.hexToRgb(retroHex);
+        // Use modern colors if modern palette is selected
+        if (this.settings.colorScale.startsWith('mono-') || this.settings.colorScale.startsWith('colorful-')) {
+            const modernHex = this.getRandomModernColor();
+            return this.hexToRgb(modernHex);
         }
         
         const modernColors = [
@@ -1934,10 +1916,10 @@ class PianoVisualizer {
     }
     
     getNoteColor(midiNote, velocity) {
-        // Special handling for retro palettes - use random color selection
-        if (this.settings.colorScale.startsWith('retro-')) {
-            const retroColor = this.getRandomRetroColor();
-            return retroColor;
+        // Special handling for modern palettes - use random color selection
+        if (this.settings.colorScale.startsWith('mono-') || this.settings.colorScale.startsWith('colorful-')) {
+            const modernColor = this.getRandomModernColor();
+            return modernColor;
         }
         
         const noteIndex = midiNote % 12;
@@ -2023,8 +2005,8 @@ class PianoVisualizer {
                 customControls.style.display = 'none';
             }
             
-            // Special handling for retro palettes
-            if (e.target.value.startsWith('retro-')) {
+            // Special handling for modern palettes
+            if (e.target.value.startsWith('mono-') || e.target.value.startsWith('colorful-')) {
             } else {
             }
             this.saveSettings();
@@ -2949,16 +2931,16 @@ class PianoVisualizer {
         return colors;
     }
     
-    getRandomRetroPalette() {
-        const randomIndex = Math.floor(Math.random() * this.retroPalettes.length);
-        return this.retroPalettes[randomIndex];
+    getRandomModernPalette() {
+        const randomIndex = Math.floor(Math.random() * this.modernPalettes.length);
+        return this.modernPalettes[randomIndex];
     }
     
-    getRandomRetroColor() {
-        // Use current selected retro palette, or random if none selected
+    getRandomModernColor() {
+        // Use current selected modern palette, or random if none selected
         let selectedPalette = this.settings.colorScale;
-        if (!selectedPalette || !selectedPalette.startsWith('retro-')) {
-            selectedPalette = this.getRandomRetroPalette();
+        if (!selectedPalette || (!selectedPalette.startsWith('mono-') && !selectedPalette.startsWith('colorful-'))) {
+            selectedPalette = this.getRandomModernPalette();
         }
         
         const palette = this.colorPalettes[selectedPalette];
@@ -2989,7 +2971,7 @@ class PianoVisualizer {
     initializeRetroColors() {
         // Only set random retro palette if no color scale is loaded from settings
         if (this.settings.colorScale === 'chromatic') {
-            this.settings.colorScale = this.getRandomRetroPalette();
+            this.settings.colorScale = this.getRandomModernPalette();
         }
         
         // Update HTML select box to reflect the selection
@@ -3006,7 +2988,7 @@ class PianoVisualizer {
         }
         
         // Test color selection
-        const testColor = this.getRandomRetroColor();
+        const testColor = this.getRandomModernColor();
     }
     
     hslToHex(h, s, l) {
@@ -4048,10 +4030,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
     const newsBanner = new NewsBanner();
     
-    // Debug: Log performance metrics every 10 seconds
-    setInterval(() => {
-        visualizer.logPerformanceMetrics();
-    }, 10000);
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
