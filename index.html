@@ -116,6 +116,7 @@
         #three-container{width:100%;height:calc(100vh - 180px);background:linear-gradient(45deg,#0f0f23,#1a1a2e,#16213e);position:relative;overflow:hidden;z-index:2}
         .mobile-warning{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#0f0f23,#1a1a2e,#16213e);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
         .mobile-warning-shown .app-container{display:none}
+        /* PWA promotion modal styles removed */
     </style>
     <link rel="stylesheet" href="./scss/styles.min.css">
     <!-- Three.js preloaded for faster initialization -->
@@ -434,8 +435,9 @@
         </div>
     </div>
     
-    <!-- PWA Install Promotion Modal -->
-    <div id="pwa-promotion-modal" class="pwa-promotion-modal">
+    <!-- PWA Install Promotion Modal - 一時的に非表示 -->
+    <!-- 
+    <div id="pwa-promotion-modal" class="pwa-promotion-modal" style="display: none;">
         <div class="pwa-promotion-content">
             <div class="pwa-promotion-header">
                 <div class="pwa-promotion-icon">🎹</div>
@@ -465,6 +467,7 @@
             </div>
         </div>
     </div>
+    -->
 
     <!-- Custom Modal -->
     <div id="custom-modal" class="custom-modal" style="display: none;">
@@ -510,10 +513,17 @@
             });
         }
         
-        // PWAインストールプロンプト
+        // PWAインストールプロンプト  
         let deferredPrompt;
-        let pwaPromotionModal;
-        let pwaPromotionShown = false;
+        
+        // シンプルなPWAモード検出
+        function isPWAMode() {
+            const isStandalone = window.navigator.standalone === true;
+            const hasDisplayMode = window.matchMedia('(display-mode: standalone)').matches ||
+                                 window.matchMedia('(display-mode: fullscreen)').matches ||
+                                 window.matchMedia('(display-mode: minimal-ui)').matches;
+            return isStandalone || hasDisplayMode;
+        }
         
         window.addEventListener('beforeinstallprompt', (e) => {
             console.log('[PWA] beforeinstallprompt event fired');
@@ -522,30 +532,22 @@
             
             // ヘッダーのインストールボタンを表示
             showInstallButton();
-            
-            // プロモーションモーダルを遅延表示（5秒後）
-            setTimeout(() => {
-                if (!pwaPromotionShown && !isAppInstalled()) {
-                    showPWAPromotionModal();
-                }
-            }, 5000);
         });
         
         // PWAインストールボタンを常に表示する（beforeinstallpromptがない場合でも）
         document.addEventListener('DOMContentLoaded', () => {
-            // PWAが既にインストールされているかチェック
-            if (!isAppInstalled()) {
-                // 少し遅延させてからボタンを表示
+            // PWAモードではない場合のみインストールボタンを表示
+            if (!isPWAMode() && !isAppInstalled()) {
                 setTimeout(() => {
                     showInstallButton();
                 }, 1000);
             }
         });
         
+        
         window.addEventListener('appinstalled', (evt) => {
             console.log('[PWA] App was installed');
             hideInstallButton();
-            hidePWAPromotionModal();
             localStorage.setItem('pwa-installed', 'true');
         });
         
@@ -571,26 +573,7 @@
             }
         }
         
-        function showPWAPromotionModal() {
-            if (pwaPromotionShown || isAppInstalled()) return;
-            
-            pwaPromotionModal = document.getElementById('pwa-promotion-modal');
-            if (pwaPromotionModal) {
-                pwaPromotionModal.style.display = 'block';
-                pwaPromotionShown = true;
-                console.log('[PWA] Promotion modal shown');
-            }
-        }
-        
-        function hidePWAPromotionModal() {
-            if (pwaPromotionModal) {
-                pwaPromotionModal.classList.add('hide');
-                setTimeout(() => {
-                    pwaPromotionModal.style.display = 'none';
-                    pwaPromotionModal.classList.remove('hide');
-                }, 300);
-            }
-        }
+        // PWAプロモーションモーダル関連の関数は削除済み
         
         function isAppInstalled() {
             return localStorage.getItem('pwa-installed') === 'true' || 
@@ -598,43 +581,24 @@
                    window.matchMedia('(display-mode: standalone)').matches; // Desktop PWA
         }
         
+        
+        // PWAプロモーションモーダル関連のイベントハンドラーは削除済み
+        
         // PWAインストールボタンのクリックイベント
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('[PWA] Setting up event listeners');
+            
             const installBtn = document.getElementById('pwa-install-btn');
-            const promotionInstallBtn = document.getElementById('pwa-promotion-install');
-            const promotionLaterBtn = document.getElementById('pwa-promotion-later');
-            const promotionCloseBtn = document.getElementById('pwa-promotion-close');
+            
+            console.log('[PWA] Install button found:', !!installBtn);
             
             if (installBtn) {
                 installBtn.addEventListener('click', () => {
                     console.log('[PWA] Install button clicked');
                     installPWA();
                 });
-            } else {
-                console.error('[PWA] Install button element not found during event binding');
             }
             
-            if (promotionInstallBtn) {
-                promotionInstallBtn.addEventListener('click', () => {
-                    installPWA();
-                    hidePWAPromotionModal();
-                });
-            }
-            
-            if (promotionLaterBtn) {
-                promotionLaterBtn.addEventListener('click', () => {
-                    hidePWAPromotionModal();
-                    // 1日後に再表示を許可
-                    localStorage.setItem('pwa-promotion-dismissed', Date.now());
-                });
-            }
-            
-            if (promotionCloseBtn) {
-                promotionCloseBtn.addEventListener('click', () => {
-                    hidePWAPromotionModal();
-                    localStorage.setItem('pwa-promotion-dismissed', Date.now());
-                });
-            }
             
             // 全画面表示時の処理
             document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -656,12 +620,6 @@
                 attributes: true,
                 attributeFilter: ['class']
             });
-            
-            // 初期表示チェック
-            if (!isAppInstalled() && !wasPromotionRecentlyDismissed()) {
-                // ページロード時にプロモーションを準備
-                pwaPromotionModal = document.getElementById('pwa-promotion-modal');
-            }
         });
         
         function handleFullscreenChange() {
@@ -675,24 +633,8 @@
         }
         
         function handleAppFullscreenChange(isFullscreen) {
-            // PWAモーダルの表示/非表示制御
-            if (pwaPromotionModal) {
-                if (isFullscreen) {
-                    pwaPromotionModal.style.display = 'none';
-                    console.log('[PWA] Promotion modal hidden due to fullscreen mode');
-                } else if (pwaPromotionShown && !isAppInstalled() && !wasPromotionRecentlyDismissed()) {
-                    pwaPromotionModal.style.display = 'block';
-                    console.log('[PWA] Promotion modal shown after exiting fullscreen mode');
-                }
-            }
-        }
-        
-        function wasPromotionRecentlyDismissed() {
-            const dismissed = localStorage.getItem('pwa-promotion-dismissed');
-            if (!dismissed) return false;
-            
-            const oneDayMs = 24 * 60 * 60 * 1000;
-            return (Date.now() - parseInt(dismissed)) < oneDayMs;
+            // PWAモーダル関連の処理は削除済み
+            console.log('[PWA] Fullscreen mode changed:', isFullscreen);
         }
         
         // PWAインストール実行
