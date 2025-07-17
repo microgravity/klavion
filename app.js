@@ -4028,6 +4028,7 @@ class NewsBanner {
 
 document.addEventListener('DOMContentLoaded', () => {
     const visualizer = new PianoVisualizer();
+    window.visualizer = visualizer; // グローバル変数として設定
     const newsBanner = new NewsBanner();
     
     
