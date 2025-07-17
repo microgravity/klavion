@@ -8,9 +8,8 @@ const CACHE_URLS = [
   './src/img/ogp.png',
   './src/img/scr.jpg',
   './manifest.json',
-  // External CDN resources
-  'https://unpkg.com/three@0.149.0/build/three.min.js',
-  'https://www.googletagmanager.com/gtag/js?id=G-MNPNCFFTL1'
+  './icons/icon-192x192.svg',
+  './icons/icon-512x512.svg'
 ];
 
 // インストール時にリソースをキャッシュ
