@@ -102,9 +102,10 @@
     <link rel="manifest" href="manifest.json">
     
     <!-- PWA Icons for various devices -->
-    <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192x192.svg">
-    <link rel="icon" type="image/svg+xml" sizes="192x192" href="icons/icon-192x192.svg">
-    <link rel="icon" type="image/svg+xml" sizes="512x512" href="icons/icon-512x512.svg">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512x512.png">
     <!-- Critical CSS for initial render -->
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -575,18 +576,9 @@
         }
         
         function isAppInstalled() {
-            const isStandalone = window.navigator.standalone === true || // iOS
-                                 window.matchMedia('(display-mode: standalone)').matches; // Desktop PWA
-            const wasInstalled = localStorage.getItem('pwa-installed') === 'true';
-            
-            console.log('[PWA] Install status check:', {
-                isStandalone,
-                wasInstalled,
-                displayMode: window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser',
-                userAgent: navigator.userAgent.substring(0, 50) + '...'
-            });
-            
-            return wasInstalled || isStandalone;
+            return localStorage.getItem('pwa-installed') === 'true' || 
+                   window.navigator.standalone === true || // iOS
+                   window.matchMedia('(display-mode: standalone)').matches; // Desktop PWA
         }
         
         // PWAインストールボタンのクリックイベント
