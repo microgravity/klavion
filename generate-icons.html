@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PWA Icon Generator</title>
+</head>
+<body>
+    <h2>PWA Icon Generator</h2>
+    <canvas id="canvas" style="border: 1px solid #ccc;"></canvas>
+    <br><br>
+    <button onclick="generateAllIcons()">Generate All Icons</button>
+    
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function generateIcon(size) {
+            canvas.width = size;
+            canvas.height = size;
+            
+            // 背景色（manifest.jsonのtheme_colorに合わせる）
+            ctx.fillStyle = '#0f0f23';
+            ctx.fillRect(0, 0, size, size);
+            
+            // 🎹絵文字を描画
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🎹', size / 2, size / 2);
+            
+            // ダウンロード
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon-${size}x${size}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
+        
+        function generateAllIcons() {
+            sizes.forEach((size, index) => {
+                setTimeout(() => generateIcon(size), index * 500);
+            });
+        }
+        
+        // 初期表示
+        generateIcon(192);
+    </script>
+</body>
+</html>

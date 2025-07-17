@@ -1289,6 +1289,208 @@ body {
 }
 
 // ================================
+// PWA Promotion Modal
+// ================================
+.pwa-promotion-modal {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10000;
+    max-width: 320px;
+    animation: slideInUp 0.5s ease-out;
+    
+    // 全画面表示時は非表示
+    .fullscreen-mode & {
+        display: none;
+    }
+    
+    .pwa-promotion-content {
+        @include glass-effect;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        transform: translateZ(0); // GPU加速
+    }
+    
+    .pwa-promotion-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px 0;
+        
+        .pwa-promotion-icon {
+            font-size: 24px;
+        }
+        
+        .pwa-promotion-close {
+            background: none;
+            border: none;
+            color: $text-muted;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: $transition;
+            
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+                color: $text;
+            }
+        }
+    }
+    
+    .pwa-promotion-body {
+        padding: 12px 20px 16px;
+        
+        h3 {
+            color: $text;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        p {
+            color: $text-muted;
+            font-size: 13px;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        
+        .pwa-promotion-features {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 4px;
+            
+            .feature-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                flex: 1;
+                
+                .feature-icon {
+                    font-size: 16px;
+                    margin-bottom: 4px;
+                }
+                
+                span:last-child {
+                    font-size: 11px;
+                    color: $text-muted;
+                }
+            }
+        }
+    }
+    
+    .pwa-promotion-actions {
+        display: flex;
+        gap: 8px;
+        padding: 0 20px 20px;
+        
+        .pwa-promotion-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: $transition;
+            
+            &.primary {
+                background: linear-gradient(135deg, $primary, $blue);
+                color: white;
+                
+                &:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+                }
+            }
+            
+            &.secondary {
+                background: rgba(255, 255, 255, 0.1);
+                color: $text-muted;
+                
+                &:hover {
+                    background: rgba(255, 255, 255, 0.15);
+                    color: $text;
+                }
+            }
+        }
+    }
+}
+
+// アニメーション
+@keyframes slideInUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutDown {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+.pwa-promotion-modal.hide {
+    animation: slideOutDown 0.3s ease-in forwards;
+}
+
+// ================================
+// PWA Install Toggle
+// ================================
+.pwa-install-toggle {
+    position: fixed;
+    top: 20px;
+    right: 80px; // 全画面ボタンの左側に配置
+    z-index: 10001;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+    
+    &:hover {
+        opacity: 1;
+    }
+    
+    .pwa-install-btn {
+        width: 48px;
+        height: 48px;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        @include flex-center;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        background: linear-gradient(135deg, rgba(147, 51, 234, 0.9), rgba(79, 70, 229, 0.8));
+        color: white;
+        
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+        
+        &:active {
+            transform: translateY(0);
+        }
+        
+        svg {
+            width: 20px;
+            height: 20px;
+        }
+    }
+}
+
+// ================================
 // Fullscreen Mode Toggle
 // ================================
 .fullscreen-toggle {
