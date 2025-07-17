@@ -1304,6 +1304,19 @@ body {
         display: none;
     }
     
+    // PWA環境では非表示
+    @media (display-mode: standalone) {
+        display: none !important;
+    }
+    
+    @media (display-mode: fullscreen) {
+        display: none !important;
+    }
+    
+    @media (display-mode: minimal-ui) {
+        display: none !important;
+    }
+    
     .pwa-promotion-content {
         @include glass-effect;
         border-radius: 12px;
