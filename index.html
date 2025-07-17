@@ -531,6 +531,17 @@
             }, 5000);
         });
         
+        // PWAインストールボタンを常に表示する（beforeinstallpromptがない場合でも）
+        document.addEventListener('DOMContentLoaded', () => {
+            // PWAが既にインストールされているかチェック
+            if (!isAppInstalled()) {
+                // 少し遅延させてからボタンを表示
+                setTimeout(() => {
+                    showInstallButton();
+                }, 1000);
+            }
+        });
+        
         window.addEventListener('appinstalled', (evt) => {
             console.log('[PWA] App was installed');
             hideInstallButton();
@@ -543,6 +554,9 @@
             const installToggle = document.getElementById('pwa-install-toggle');
             if (installToggle) {
                 installToggle.style.display = 'block';
+                console.log('[PWA] Install button is now visible');
+            } else {
+                console.error('[PWA] Install button element not found');
             }
         }
         
@@ -551,6 +565,9 @@
             const installToggle = document.getElementById('pwa-install-toggle');
             if (installToggle) {
                 installToggle.style.display = 'none';
+                console.log('[PWA] Install button is now hidden');
+            } else {
+                console.error('[PWA] Install button element not found');
             }
         }
         
@@ -589,7 +606,12 @@
             const promotionCloseBtn = document.getElementById('pwa-promotion-close');
             
             if (installBtn) {
-                installBtn.addEventListener('click', installPWA);
+                installBtn.addEventListener('click', () => {
+                    console.log('[PWA] Install button clicked');
+                    installPWA();
+                });
+            } else {
+                console.error('[PWA] Install button element not found during event binding');
             }
             
             if (promotionInstallBtn) {
@@ -675,13 +697,49 @@
         
         // PWAインストール実行
         async function installPWA() {
+            console.log('[PWA] installPWA called', { deferredPrompt });
+            
             if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`[PWA] User response: ${outcome}`);
-                deferredPrompt = null;
-                hideInstallButton();
+                try {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`[PWA] User response: ${outcome}`);
+                    deferredPrompt = null;
+                    hideInstallButton();
+                    
+                    if (outcome === 'accepted') {
+                        console.log('[PWA] User accepted installation');
+                    } else {
+                        console.log('[PWA] User dismissed installation');
+                    }
+                } catch (error) {
+                    console.error('[PWA] Installation error:', error);
+                }
+            } else {
+                console.log('[PWA] No deferred prompt available');
+                // フォールバック: 手動インストール手順を表示
+                showManualInstallInstructions();
             }
+        }
+        
+        // 手動インストール手順を表示
+        function showManualInstallInstructions() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            let instructions = '';
+            
+            if (userAgent.includes('chrome') && !userAgent.includes('edg')) {
+                instructions = 'Chrome: 右上のメニュー → 「Klavionをインストール」をクリック';
+            } else if (userAgent.includes('firefox')) {
+                instructions = 'Firefox: アドレスバーのインストールアイコンをクリック';
+            } else if (userAgent.includes('safari')) {
+                instructions = 'Safari: 共有ボタン → 「ホーム画面に追加」をタップ';
+            } else if (userAgent.includes('edg')) {
+                instructions = 'Edge: 右上のメニュー → 「アプリをインストール」をクリック';
+            } else {
+                instructions = 'ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選択してください';
+            }
+            
+            alert(`PWAインストール手順:\n\n${instructions}`);
         }
     </script>
     
