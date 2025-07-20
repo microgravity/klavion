@@ -1,5 +1,33 @@
 {
+  "name": "klavion",
+  "version": "1.0.0",
+  "description": "Interactive MIDI Piano Visualizer with TDD Refactoring",
+  "main": "app.js",
+  "scripts": {
+    "test": "jest --config=tests/setup/jest.config.js",
+    "test:watch": "jest --config=tests/setup/jest.config.js --watch",
+    "test:coverage": "jest --config=tests/setup/jest.config.js --coverage",
+    "test:dom-cache": "jest --config=tests/setup/jest.config.js tests/unit/core/dom-cache.test.js",
+    "test:performance": "jest --config=tests/setup/jest.config.js --testNamePattern=\"🚀\"",
+    "tdd:red": "npm run test:dom-cache -- --verbose",
+    "tdd:green": "npm run test:dom-cache -- --watch",
+    "tdd:refactor": "npm run test:coverage",
+    "dev": "python3 -m http.server 8001",
+    "build": "echo 'Build process will be implemented in Phase 2'",
+    "lint": "echo 'Linting will be added in Phase 2'"
+  },
   "dependencies": {
     "puppeteer": "^24.14.0"
-  }
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-html-reporters": "^3.1.0",
+    "jsdom": "^22.1.0"
+  },
+  "keywords": [
+    "midi", "piano", "visualizer", "music", "3d", "tdd", "refactoring"
+  ],
+  "author": "microgravity",
+  "license": "MIT"
 }

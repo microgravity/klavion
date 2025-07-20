@@ -272,13 +272,14 @@ class PianoVisualizer {
         this.animationFrameId = null;
         this.clock = null;
         
-        
+        // 初期化フラグを明示的にfalseに設定
+        this.initialized = false;
         
         // Check for mobile device and show warning if needed
         this.checkMobileDevice();
         
         this.loadSettings();
-        this.init();
+        // init()はDOMContentLoadedで非同期に呼び出される
     }
     
     // Performance optimization: DOM element caching helper
@@ -479,11 +480,11 @@ class PianoVisualizer {
     }
     
     async init() {
-        // 重複初期化を防ぐ (一時的に無効化してテスト)
-        // if (this.initialized) {
-        //     console.log('[Init] すでに初期化済みです');
-        //     return;
-        // }
+        // 重複初期化を防ぐ
+        if (this.initialized) {
+            console.log('[Init] すでに初期化済みです');
+            return;
+        }
         
         try {
             console.log('[Init] PianoVisualizer初期化開始');
@@ -499,16 +500,33 @@ class PianoVisualizer {
                 console.warn('[Init] Audio初期化失敗:', error);
             }
             
+            // MIDI初期化（タイムアウト付き）
             try {
-                await this.initMIDI();
+                console.log('[Init] MIDI初期化開始...');
+                // 1秒のタイムアウトを設定
+                const midiPromise = this.initMIDI();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('MIDI initialization timeout')), 1000)
+                );
+                
+                await Promise.race([midiPromise, timeoutPromise]);
                 console.log('[Init] MIDI初期化完了');
             } catch (error) {
                 console.warn('[Init] MIDI初期化失敗:', error);
                 console.warn('[Init] MIDI初期化失敗の詳細:', error.stack);
             }
             
-            this.initThreeJS();
-            console.log('[Init] Three.js初期化完了');
+            // Three.js初期化（直接実行）
+            console.log('[Init] Three.js初期化開始...');
+            try {
+                this.initThreeJS();
+                console.log('[Init] Three.js初期化完了');
+            } catch (error) {
+                console.error('[Init] Three.js初期化失敗:', error);
+                console.error('[Init] Three.js初期化失敗詳細:', error.stack);
+                // Three.js初期化に失敗してもアプリケーションを継続
+            }
+            console.log('[Init] Three.js初期化セクション終了');
             
             this.createPianoKeyboard();
             console.log('[Init] ピアノキーボード作成完了');
@@ -540,16 +558,28 @@ class PianoVisualizer {
     }
     
     initThreeJS() {
+        console.log('[ThreeJS] Three.js初期化開始...');
+        
         // Check if THREE is available
         if (typeof THREE === 'undefined') {
+            console.error('[ThreeJS] THREE is undefined');
             return;
         }
+        console.log('[ThreeJS] THREE is available');
+        
+        if (!this.container) {
+            console.error('[ThreeJS] Container is not available');
+            return;
+        }
+        console.log('[ThreeJS] Container is available');
         
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
+        console.log(`[ThreeJS] Container size: ${width}x${height}`);
         
         // Scene
         this.scene = new THREE.Scene();
+        console.log('[ThreeJS] Scene created');
         
         // Set default background color (background image will be applied later)
         this.scene.background = new THREE.Color(0x0d1421);
@@ -706,6 +736,7 @@ class PianoVisualizer {
         
         
     }
+    
     
     async initAudio() {
         try {
