@@ -479,24 +479,59 @@ class PianoVisualizer {
     }
     
     async init() {
-        // Cache DOM elements early for performance
-        this.cacheCommonElements();
+        // 重複初期化を防ぐ (一時的に無効化してテスト)
+        // if (this.initialized) {
+        //     console.log('[Init] すでに初期化済みです');
+        //     return;
+        // }
         
-        await this.initAudio();
-        await this.initMIDI();
-        this.initThreeJS();
-        this.createPianoKeyboard();
-        this.setupEventListeners();
-        this.setupKeyboardListeners();
-        this.setupMidiControls();
-        this.setupMidiDeviceSelection();
-        this.setupAudioControls();
-        this.setupCollapsibleSections();
-        this.updateCustomColors(); // Initialize custom colors
-        this.setupWaveformDisplay();
-        
-        // Initialize with random retro palette after DOM is ready
-        this.initializeRetroColors();
+        try {
+            console.log('[Init] PianoVisualizer初期化開始');
+            this.initialized = true;
+            
+            // Cache DOM elements early for performance
+            this.cacheCommonElements();
+            
+            try {
+                await this.initAudio();
+                console.log('[Init] Audio初期化完了');
+            } catch (error) {
+                console.warn('[Init] Audio初期化失敗:', error);
+            }
+            
+            try {
+                await this.initMIDI();
+                console.log('[Init] MIDI初期化完了');
+            } catch (error) {
+                console.warn('[Init] MIDI初期化失敗:', error);
+                console.warn('[Init] MIDI初期化失敗の詳細:', error.stack);
+            }
+            
+            this.initThreeJS();
+            console.log('[Init] Three.js初期化完了');
+            
+            this.createPianoKeyboard();
+            console.log('[Init] ピアノキーボード作成完了');
+            
+            this.setupEventListeners();
+            console.log('[Init] イベントリスナー設定完了');
+            
+            this.setupKeyboardListeners();
+            this.setupMidiControls();
+            this.setupMidiDeviceSelection();
+            this.setupAudioControls();
+            this.setupCollapsibleSections();
+            this.updateCustomColors(); // Initialize custom colors
+            this.setupWaveformDisplay();
+            
+            // Initialize with random retro palette after DOM is ready
+            this.initializeRetroColors();
+            
+            console.log('[Init] PianoVisualizer初期化完了');
+        } catch (error) {
+            console.error('[Init] 初期化中にエラーが発生:', error);
+            this.initialized = false; // エラー時はフラグをリセット
+        }
         
         this.startVisualization();
         
@@ -1994,7 +2029,10 @@ class PianoVisualizer {
         // Color scale selector
         const colorScaleSelector = document.getElementById('color-scale');
         colorScaleSelector.addEventListener('change', (e) => {
+            console.log('[Color] カラースキーム変更:', e.target.value);
+            console.log('[Color] 変更前の設定:', this.settings.colorScale);
             this.settings.colorScale = e.target.value;
+            console.log('[Color] 変更後の設定:', this.settings.colorScale);
             
             // Show/hide custom color controls
             const customControls = document.getElementById('color-customization');
@@ -2007,8 +2045,14 @@ class PianoVisualizer {
             
             // Special handling for modern palettes
             if (e.target.value.startsWith('mono-') || e.target.value.startsWith('colorful-')) {
+                // Modern palettes are handled in getNoteColor method
             } else {
+                // Traditional palettes
             }
+            
+            // Update any currently displayed visual elements to reflect the new color scheme
+            this.updateDisplayedColors();
+            
             this.saveSettings();
         });
         
@@ -3021,6 +3065,36 @@ class PianoVisualizer {
         this.colorPalettes.custom = this.generateCustomColors(baseColor, scaleLength);
     }
     
+    /**
+     * カラースキーム変更時に現在表示されている視覚要素の色を更新
+     */
+    updateDisplayedColors() {
+        // ピアノキーボードの色は recreatePianoKeyboard で更新されるのでそのまま
+        // Three.js シーンの現在のオブジェクトの色を更新
+        if (this.scene) {
+            // 現在表示されているノート要素の色を新しいカラースキームで更新
+            this.scene.children.forEach(child => {
+                if (child.userData && child.userData.isNote && child.userData.midiNote !== undefined) {
+                    const newColor = this.getNoteColor(child.userData.midiNote, child.userData.velocity || 127);
+                    child.material.color.set(newColor);
+                }
+            });
+        }
+        
+        // アクティブなピアノキーの色も更新
+        const activeKeys = document.querySelectorAll('.piano-key.pressed');
+        activeKeys.forEach(key => {
+            const midiNote = parseInt(key.dataset.midiNote);
+            if (!isNaN(midiNote)) {
+                const newColor = this.getNoteColor(midiNote, 127);
+                // キーの背景色は CSS で管理されているので、ここでは特に何もしない
+                // 必要に応じて style.backgroundColor を設定することも可能
+            }
+        });
+        
+        console.log(`[Color] カラースキーム "${this.settings.colorScale}" に更新しました`);
+    }
+    
     updateKeyboardHelp() {
         const keyMappings = [
             { key: 'A', midiNote: 60 }, // C4
@@ -4026,11 +4100,14 @@ class NewsBanner {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const visualizer = new PianoVisualizer();
     window.visualizer = visualizer; // グローバル変数として設定
-    const newsBanner = new NewsBanner();
     
+    // PianoVisualizerを初期化
+    await visualizer.init();
+    
+    const newsBanner = new NewsBanner();
     
     // Setup SNS share buttons
     visualizer.setupSNSShareButtons();
