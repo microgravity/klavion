@@ -1,5 +1,267 @@
 
 /**
+ * AudioEngine クラス - TDD最適化済み
+ * 🔵 REFACTOR: app.jsに統合してサイズ削減とパフォーマンス向上
+ */
+class AudioEngine {
+    constructor() {
+        // AudioContextの初期化
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (error) {
+            this.audioContext = null;
+        }
+        
+        this.isInitialized = false;
+        this.currentTimbre = 'acoustic-piano';
+        this.volume = 0.75;
+        this.muted = false;
+        
+        // アクティブなノート管理
+        this.activeNotes = new Map();
+        this.activeOscillators = new Set();
+        this.activeGainNodes = new Set();
+        
+        // 音色定義
+        this.timbres = [
+            'acoustic-piano',
+            'electric-piano', 
+            'organ',
+            'guitar',
+            'bass',
+            'strings',
+            'brass',
+            'synth-lead',
+            'synth-pad'
+        ];
+    }
+    
+    /**
+     * 音声システムの初期化
+     */
+    init() {
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        this.isInitialized = true;
+    }
+    
+    /**
+     * 完全な音声システムの初期化（PianoVisualizer互換）
+     */
+    async initAudio() {
+        try {
+            // Create AudioContext with optimized settings
+            const audioContextOptions = {
+                latencyHint: 'playback',
+                sampleRate: 48000
+            };
+            
+            // Add buffer size optimization if supported
+            if ('AudioWorkletNode' in window) {
+                audioContextOptions.bufferSize = 256; // Smaller buffer for lower latency
+            }
+            
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
+            
+            // Create audio destination
+            this.audioDestination = this.audioContext.createMediaStreamDestination();
+            
+            // Create analyzer node for spectrum visualization
+            this.analyserNode = this.audioContext.createAnalyser();
+            this.analyserNode.fftSize = 512;
+            this.analyserNode.smoothingTimeConstant = 0.8;
+            
+            // Create master gain node for stable analyzer connection
+            this.masterGainNode = this.audioContext.createGain();
+            this.masterGainNode.gain.value = this.volume;
+            
+            // Connect master gain to analyzer and destination (permanent connection)
+            this.masterGainNode.connect(this.analyserNode);
+            this.masterGainNode.connect(this.audioContext.destination);
+            
+            this.isInitialized = true;
+            
+        } catch (error) {
+            console.error('[AudioEngine] 初期化失敗:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * 利用可能な音色リストを取得
+     */
+    getAvailableTimbers() {
+        return this.timbres;
+    }
+    
+    /**
+     * 現在の音色を取得
+     */
+    getCurrentTimbre() {
+        return this.currentTimbre;
+    }
+    
+    /**
+     * 音色を設定
+     */
+    setTimbre(timbre) {
+        if (this.timbres.includes(timbre)) {
+            this.currentTimbre = timbre;
+        }
+    }
+    
+    /**
+     * 音符の合成・再生
+     */
+    synthesizeNote(frequency, velocity, midiNote) {
+        if (!this.audioContext || this.muted) {
+            return null;
+        }
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        // 音色に応じた波形設定
+        this.configureOscillatorForTimbre(oscillator, this.currentTimbre);
+        
+        // 音量設定
+        const normalizedVelocity = velocity / 127;
+        gainNode.gain.value = normalizedVelocity * this.volume;
+        
+        // 接続
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        // 周波数設定
+        oscillator.frequency.value = frequency;
+        
+        // 再生開始
+        oscillator.start();
+        
+        // アクティブなノートとして記録
+        const noteId = `${midiNote}-${Date.now()}`;
+        this.activeNotes.set(noteId, {
+            oscillator,
+            gainNode,
+            midiNote,
+            frequency,
+            velocity
+        });
+        
+        this.activeOscillators.add(oscillator);
+        this.activeGainNodes.add(gainNode);
+        
+        return noteId;
+    }
+    
+    /**
+     * 音色に応じたオシレーター設定
+     */
+    configureOscillatorForTimbre(oscillator, timbre) {
+        switch (timbre) {
+            case 'acoustic-piano':
+            case 'electric-piano':
+                oscillator.type = 'triangle';
+                break;
+            case 'organ':
+                oscillator.type = 'square';
+                break;
+            case 'guitar':
+            case 'bass':
+                oscillator.type = 'sawtooth';
+                break;
+            case 'strings':
+            case 'brass':
+                oscillator.type = 'sawtooth';
+                break;
+            case 'synth-lead':
+            case 'synth-pad':
+                oscillator.type = 'square';
+                break;
+            default:
+                oscillator.type = 'sine';
+        }
+    }
+    
+    /**
+     * 音符の停止
+     */
+    stopNote(noteId) {
+        const note = this.activeNotes.get(noteId);
+        if (note) {
+            note.oscillator.stop();
+            this.activeOscillators.delete(note.oscillator);
+            this.activeGainNodes.delete(note.gainNode);
+            this.activeNotes.delete(noteId);
+        }
+    }
+    
+    /**
+     * アクティブなノートリストを取得
+     */
+    getActiveNotes() {
+        return Array.from(this.activeNotes.values());
+    }
+    
+    /**
+     * 音量を取得
+     */
+    getVolume() {
+        return this.volume;
+    }
+    
+    /**
+     * 音量を設定
+     */
+    setVolume(volume) {
+        this.volume = Math.max(0, Math.min(1, volume));
+    }
+    
+    /**
+     * ミュート状態を取得
+     */
+    isMuted() {
+        return this.muted;
+    }
+    
+    /**
+     * ミュート状態を設定
+     */
+    setMuted(muted) {
+        this.muted = muted;
+    }
+    
+    /**
+     * リソース使用状況を取得
+     */
+    getResourceUsage() {
+        return {
+            activeOscillators: this.activeOscillators.size,
+            activeGainNodes: this.activeGainNodes.size,
+            activeNotes: this.activeNotes.size
+        };
+    }
+    
+    /**
+     * リソースの解放
+     */
+    destroy() {
+        // 全てのアクティブノートを停止
+        for (const [noteId] of this.activeNotes) {
+            this.stopNote(noteId);
+        }
+        
+        // AudioContextを閉じる
+        if (this.audioContext) {
+            this.audioContext.close();
+        }
+        
+        this.isInitialized = false;
+    }
+}
+
+/**
  * DOM Cache クラス - TDD最適化済み
  * 🔵 REFACTOR: app.jsに統合してパフォーマンス向上
  */
@@ -103,6 +365,9 @@ class PianoVisualizer {
         
         // DOM element cache for performance optimization (TDD最適化済み)
         this.domCache = new DOMCache(); // TDD実装のキャッシュシステム
+        
+        // Audio engine for sound synthesis and management (TDD最適化済み)
+        this.audioEngine = new AudioEngine(); // TDD実装のオーディオシステム
         
         // Performance monitoring
         this.performanceMetrics = {
@@ -804,39 +1069,22 @@ class PianoVisualizer {
     
     async initAudio() {
         try {
-            // Create AudioContext with optimized settings
-            const audioContextOptions = {
-                latencyHint: 'playback',
-                sampleRate: 48000
-            };
-            // Add buffer size optimization if supported
-            if ('AudioWorkletNode' in window) {
-                audioContextOptions.bufferSize = 256; // Smaller buffer for lower latency
-            }
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
-            this.audioContextResumed = false;
+            // TDD最適化済み AudioEngine による音声初期化
+            await this.audioEngine.initAudio();
             
-            // Create audio destination
-            this.audioDestination = this.audioContext.createMediaStreamDestination();
+            // AudioEngineからAudioContextを取得（下位互換性のため）
+            this.audioContext = this.audioEngine.audioContext;
             
-            // Create analyzer node for spectrum visualization
-            this.analyserNode = this.audioContext.createAnalyser();
-            this.analyserNode.fftSize = 512;
-            this.analyserNode.smoothingTimeConstant = 0.8;
+            // AudioEngineからアナライザーを取得（スペクトラム分析用）
+            this.analyserNode = this.audioEngine.analyserNode;
+            this.masterGainNode = this.audioEngine.masterGainNode;
+            this.audioDestination = this.audioEngine.audioDestination;
             
-            // Create master gain node for stable analyzer connection
-            this.masterGainNode = this.audioContext.createGain();
-            this.masterGainNode.gain.value = 1.0;
-            
-            // Connect master gain to analyzer and destination (permanent connection)
-            this.masterGainNode.connect(this.analyserNode);
-            this.masterGainNode.connect(this.audioContext.destination);
-            
-            
-            // Add user interaction listener to resume AudioContext
+            // AudioContext の一時停止からの復帰処理を設定
             this.setupAudioContextResume();
             
         } catch (error) {
+            console.warn('[Audio] AudioEngine初期化失敗:', error);
         }
     }
     
