@@ -1,4 +1,69 @@
 
+/**
+ * DOM Cache クラス - TDD最適化済み
+ * 🔵 REFACTOR: app.jsに統合してパフォーマンス向上
+ */
+class DOMCache {
+    constructor() {
+        this.cache = new Map();
+        this.stats = {
+            totalQueries: 0,
+            cacheHits: 0,
+            domQueries: 0
+        };
+    }
+
+    /**
+     * DOM要素を取得（キャッシュ機能付き）
+     * @param {string} id - 要素のID
+     * @returns {Element|null} - DOM要素またはnull
+     */
+    getElement(id) {
+        this.stats.totalQueries++;
+
+        // キャッシュに存在する場合
+        if (this.cache.has(id)) {
+            this.stats.cacheHits++;
+            return this.cache.get(id);
+        }
+
+        // DOM から要素を取得
+        this.stats.domQueries++;
+        const element = document.getElementById(id);
+        
+        // 結果をキャッシュ（nullでもキャッシュして再クエリを防ぐ）
+        this.cache.set(id, element);
+        
+        return element;
+    }
+
+    /**
+     * キャッシュ統計情報を取得
+     * @returns {Object} - 統計情報
+     */
+    getStats() {
+        return {
+            totalQueries: this.stats.totalQueries,
+            cacheHits: this.stats.cacheHits,
+            domQueries: this.stats.domQueries,
+            hitRate: this.stats.totalQueries > 0 ? this.stats.cacheHits / this.stats.totalQueries : 0,
+            cacheSize: this.cache.size
+        };
+    }
+
+    /**
+     * キャッシュをクリア
+     */
+    clearCache() {
+        this.cache.clear();
+        this.stats = {
+            totalQueries: 0,
+            cacheHits: 0,
+            domQueries: 0
+        };
+    }
+}
+
 class PianoVisualizer {
     constructor() {
         this.container = document.getElementById('three-container');
@@ -36,8 +101,8 @@ class PianoVisualizer {
         this.maxPoolSize = 20; // Maximum cached objects
         this.lastNoteTime = 0; // Track last note activity for performance
         
-        // DOM element cache for performance optimization
-        this.domCache = new Map(); // Cache frequently accessed DOM elements
+        // DOM element cache for performance optimization (TDD最適化済み)
+        this.domCache = new DOMCache(); // TDD実装のキャッシュシステム
         
         // Performance monitoring
         this.performanceMetrics = {
@@ -282,15 +347,14 @@ class PianoVisualizer {
         // init()はDOMContentLoadedで非同期に呼び出される
     }
     
-    // Performance optimization: DOM element caching helper
+    // Performance optimization: DOM element caching helper (TDD最適化済み)
     getElement(id) {
-        if (!this.domCache.has(id)) {
-            const element = document.getElementById(id);
-            if (element) {
-                this.domCache.set(id, element);
-            }
-        }
-        return this.domCache.get(id) || null;
+        return this.domCache.getElement(id);
+    }
+    
+    // DOM Cache統計情報を取得（デバッグ・モニタリング用）
+    getDOMCacheStats() {
+        return this.domCache.getStats();
     }
     
     // Performance optimization: throttle function for events
