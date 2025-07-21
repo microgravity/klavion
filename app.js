@@ -1,265 +1,5 @@
 
-/**
- * AudioEngine クラス - TDD最適化済み
- * 🔵 REFACTOR: app.jsに統合してサイズ削減とパフォーマンス向上
- */
-class AudioEngine {
-    constructor() {
-        // AudioContextの初期化
-        try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (error) {
-            this.audioContext = null;
-        }
-        
-        this.isInitialized = false;
-        this.currentTimbre = 'acoustic-piano';
-        this.volume = 0.75;
-        this.muted = false;
-        
-        // アクティブなノート管理
-        this.activeNotes = new Map();
-        this.activeOscillators = new Set();
-        this.activeGainNodes = new Set();
-        
-        // 音色定義
-        this.timbres = [
-            'acoustic-piano',
-            'electric-piano', 
-            'organ',
-            'guitar',
-            'bass',
-            'strings',
-            'brass',
-            'synth-lead',
-            'synth-pad'
-        ];
-    }
-    
-    /**
-     * 音声システムの初期化
-     */
-    init() {
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
-        }
-        this.isInitialized = true;
-    }
-    
-    /**
-     * 完全な音声システムの初期化（PianoVisualizer互換）
-     */
-    async initAudio() {
-        try {
-            // Create AudioContext with optimized settings
-            const audioContextOptions = {
-                latencyHint: 'playback',
-                sampleRate: 48000
-            };
-            
-            // Add buffer size optimization if supported
-            if ('AudioWorkletNode' in window) {
-                audioContextOptions.bufferSize = 256; // Smaller buffer for lower latency
-            }
-            
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
-            
-            // Create audio destination
-            this.audioDestination = this.audioContext.createMediaStreamDestination();
-            
-            // Create analyzer node for spectrum visualization
-            this.analyserNode = this.audioContext.createAnalyser();
-            this.analyserNode.fftSize = 512;
-            this.analyserNode.smoothingTimeConstant = 0.8;
-            
-            // Create master gain node for stable analyzer connection
-            this.masterGainNode = this.audioContext.createGain();
-            this.masterGainNode.gain.value = this.volume;
-            
-            // Connect master gain to analyzer and destination (permanent connection)
-            this.masterGainNode.connect(this.analyserNode);
-            this.masterGainNode.connect(this.audioContext.destination);
-            
-            this.isInitialized = true;
-            
-        } catch (error) {
-            console.error('[AudioEngine] 初期化失敗:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * 利用可能な音色リストを取得
-     */
-    getAvailableTimbers() {
-        return this.timbres;
-    }
-    
-    /**
-     * 現在の音色を取得
-     */
-    getCurrentTimbre() {
-        return this.currentTimbre;
-    }
-    
-    /**
-     * 音色を設定
-     */
-    setTimbre(timbre) {
-        if (this.timbres.includes(timbre)) {
-            this.currentTimbre = timbre;
-        }
-    }
-    
-    /**
-     * 音符の合成・再生
-     */
-    synthesizeNote(frequency, velocity, midiNote) {
-        if (!this.audioContext || this.muted) {
-            return null;
-        }
-        
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        // 音色に応じた波形設定
-        this.configureOscillatorForTimbre(oscillator, this.currentTimbre);
-        
-        // 音量設定
-        const normalizedVelocity = velocity / 127;
-        gainNode.gain.value = normalizedVelocity * this.volume;
-        
-        // 接続
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
-        
-        // 周波数設定
-        oscillator.frequency.value = frequency;
-        
-        // 再生開始
-        oscillator.start();
-        
-        // アクティブなノートとして記録
-        const noteId = `${midiNote}-${Date.now()}`;
-        this.activeNotes.set(noteId, {
-            oscillator,
-            gainNode,
-            midiNote,
-            frequency,
-            velocity
-        });
-        
-        this.activeOscillators.add(oscillator);
-        this.activeGainNodes.add(gainNode);
-        
-        return noteId;
-    }
-    
-    /**
-     * 音色に応じたオシレーター設定
-     */
-    configureOscillatorForTimbre(oscillator, timbre) {
-        switch (timbre) {
-            case 'acoustic-piano':
-            case 'electric-piano':
-                oscillator.type = 'triangle';
-                break;
-            case 'organ':
-                oscillator.type = 'square';
-                break;
-            case 'guitar':
-            case 'bass':
-                oscillator.type = 'sawtooth';
-                break;
-            case 'strings':
-            case 'brass':
-                oscillator.type = 'sawtooth';
-                break;
-            case 'synth-lead':
-            case 'synth-pad':
-                oscillator.type = 'square';
-                break;
-            default:
-                oscillator.type = 'sine';
-        }
-    }
-    
-    /**
-     * 音符の停止
-     */
-    stopNote(noteId) {
-        const note = this.activeNotes.get(noteId);
-        if (note) {
-            note.oscillator.stop();
-            this.activeOscillators.delete(note.oscillator);
-            this.activeGainNodes.delete(note.gainNode);
-            this.activeNotes.delete(noteId);
-        }
-    }
-    
-    /**
-     * アクティブなノートリストを取得
-     */
-    getActiveNotes() {
-        return Array.from(this.activeNotes.values());
-    }
-    
-    /**
-     * 音量を取得
-     */
-    getVolume() {
-        return this.volume;
-    }
-    
-    /**
-     * 音量を設定
-     */
-    setVolume(volume) {
-        this.volume = Math.max(0, Math.min(1, volume));
-    }
-    
-    /**
-     * ミュート状態を取得
-     */
-    isMuted() {
-        return this.muted;
-    }
-    
-    /**
-     * ミュート状態を設定
-     */
-    setMuted(muted) {
-        this.muted = muted;
-    }
-    
-    /**
-     * リソース使用状況を取得
-     */
-    getResourceUsage() {
-        return {
-            activeOscillators: this.activeOscillators.size,
-            activeGainNodes: this.activeGainNodes.size,
-            activeNotes: this.activeNotes.size
-        };
-    }
-    
-    /**
-     * リソースの解放
-     */
-    destroy() {
-        // 全てのアクティブノートを停止
-        for (const [noteId] of this.activeNotes) {
-            this.stopNote(noteId);
-        }
-        
-        // AudioContextを閉じる
-        if (this.audioContext) {
-            this.audioContext.close();
-        }
-        
-        this.isInitialized = false;
-    }
-}
+// 🗑️ AudioEngineクラス削除済み - AudioEngine機能はPianoVisualizerクラス内に統合
 
 /**
  * DOM Cache クラス - TDD最適化済み
@@ -366,8 +106,8 @@ class PianoVisualizer {
         // DOM element cache for performance optimization (TDD最適化済み)
         this.domCache = new DOMCache(); // TDD実装のキャッシュシステム
         
-        // Audio engine for sound synthesis and management (TDD最適化済み)
-        this.audioEngine = new AudioEngine(); // TDD実装のオーディオシステム
+        // Audio engine properties integrated into PianoVisualizer (TDD最適化済み)
+        this.audioEngine = this.createIntegratedAudioEngine(); // 統合オーディオシステム
         
         // Performance monitoring
         this.performanceMetrics = {
@@ -610,6 +350,140 @@ class PianoVisualizer {
         
         this.loadSettings();
         // init()はDOMContentLoadedで非同期に呼び出される
+    }
+    
+    // 統合AudioEngineの作成（TDD最適化済み）
+    createIntegratedAudioEngine() {
+        return {
+            // プロパティ
+            audioContext: null,
+            isInitialized: false,
+            currentTimbre: 'acoustic-piano',
+            volume: 0.75,
+            muted: false,
+            activeNotes: new Map(),
+            activeOscillators: new Set(),
+            activeGainNodes: new Set(),
+            analyserNode: null,
+            masterGainNode: null,
+            audioDestination: null,
+            
+            // 音色定義
+            timbres: [
+                'acoustic-piano', 'electric-piano', 'organ', 'guitar', 'bass',
+                'strings', 'brass', 'synth-lead', 'synth-pad'
+            ],
+            
+            // メソッド
+            init: function() {
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                this.isInitialized = true;
+            },
+            
+            initAudio: async function() {
+                try {
+                    const audioContextOptions = {
+                        latencyHint: 'playback',
+                        sampleRate: 48000
+                    };
+                    
+                    if ('AudioWorkletNode' in window) {
+                        audioContextOptions.bufferSize = 256;
+                    }
+                    
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
+                    this.audioDestination = this.audioContext.createMediaStreamDestination();
+                    
+                    this.analyserNode = this.audioContext.createAnalyser();
+                    this.analyserNode.fftSize = 512;
+                    this.analyserNode.smoothingTimeConstant = 0.8;
+                    
+                    this.masterGainNode = this.audioContext.createGain();
+                    this.masterGainNode.gain.value = this.volume;
+                    
+                    this.masterGainNode.connect(this.analyserNode);
+                    this.masterGainNode.connect(this.audioContext.destination);
+                    
+                    this.isInitialized = true;
+                } catch (error) {
+                    console.error('[AudioEngine] 初期化失敗:', error);
+                    throw error;
+                }
+            },
+            
+            getAvailableTimbers: function() { return this.timbres; },
+            getCurrentTimbre: function() { return this.currentTimbre; },
+            setTimbre: function(timbre) {
+                if (this.timbres.includes(timbre)) {
+                    this.currentTimbre = timbre;
+                }
+            },
+            getVolume: function() { return this.volume; },
+            setVolume: function(volume) { this.volume = Math.max(0, Math.min(1, volume)); },
+            isMuted: function() { return this.muted; },
+            setMuted: function(muted) { this.muted = muted; },
+            getActiveNotes: function() { return Array.from(this.activeNotes.values()); },
+            getResourceUsage: function() {
+                return {
+                    activeOscillators: this.activeOscillators.size,
+                    activeGainNodes: this.activeGainNodes.size,
+                    activeNotes: this.activeNotes.size
+                };
+            },
+            
+            synthesizeNote: function(frequency, velocity, midiNote) {
+                if (!this.audioContext || this.muted) return null;
+                
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                // 音色設定
+                switch (this.currentTimbre) {
+                    case 'acoustic-piano':
+                    case 'electric-piano':
+                        oscillator.type = 'triangle'; break;
+                    case 'organ':
+                        oscillator.type = 'square'; break;
+                    case 'guitar':
+                    case 'bass':
+                    case 'strings':
+                    case 'brass':
+                        oscillator.type = 'sawtooth'; break;
+                    case 'synth-lead':
+                    case 'synth-pad':
+                        oscillator.type = 'square'; break;
+                    default:
+                        oscillator.type = 'sine';
+                }
+                
+                const normalizedVelocity = velocity / 127;
+                gainNode.gain.value = normalizedVelocity * this.volume;
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                oscillator.frequency.value = frequency;
+                oscillator.start();
+                
+                const noteId = `${midiNote}-${Date.now()}`;
+                this.activeNotes.set(noteId, { oscillator, gainNode, midiNote, frequency, velocity });
+                this.activeOscillators.add(oscillator);
+                this.activeGainNodes.add(gainNode);
+                
+                return noteId;
+            },
+            
+            stopNote: function(noteId) {
+                const note = this.activeNotes.get(noteId);
+                if (note) {
+                    note.oscillator.stop();
+                    this.activeOscillators.delete(note.oscillator);
+                    this.activeGainNodes.delete(note.gainNode);
+                    this.activeNotes.delete(noteId);
+                }
+            }
+        };
     }
     
     // Performance optimization: DOM element caching helper (TDD最適化済み)
@@ -1604,20 +1478,12 @@ class PianoVisualizer {
         let gainNode;
         switch (timbre) {
             case 'acoustic-piano':
-                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             case 'electric-piano':
-                gainNode = this.createElectricPiano(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             case 'harpsichord':
                 gainNode = this.createHarpsichord(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'organ':
-                gainNode = this.createOrgan(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             case 'strings':
-                gainNode = this.createStrings(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             case 'vibraphone':
                 gainNode = this.createVibraphone(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
@@ -1625,16 +1491,10 @@ class PianoVisualizer {
                 gainNode = this.createMusicBox(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
             case 'synthesizer':
-                gainNode = this.createSynthesizer(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             case 'bell':
-                gainNode = this.createBell(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             case 'flute':
-                gainNode = this.createFlute(frequency, volume, startTime, actualDuration, enableVisualization);
-                break;
             default:
-                gainNode = this.createAcousticPiano(frequency, volume, startTime, actualDuration, enableVisualization);
+                gainNode = this.createHarpsichord(frequency, volume, startTime, actualDuration, enableVisualization);
                 break;
         }
         
@@ -1806,76 +1666,7 @@ class PianoVisualizer {
         return durations[timbre] || 2.0;
     }
     
-    createAcousticPiano(frequency, volume, currentTime, duration, enableVisualization = true) {
-        // Acoustic piano with multiple harmonics
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency * 3, currentTime);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2000, currentTime);
-        filter.Q.setValueAtTime(1, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
-        gainNode.connect(filter);
-        this.connectAudioOutput(filter, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
-        
-        return gainNode;
-    }
     
-    createElectricPiano(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'triangle';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(1500, currentTime);
-        filter.Q.setValueAtTime(5, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        gainNode.connect(filter);
-        this.connectAudioOutput(filter, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        
-        return gainNode;
-    }
     
     createHarpsichord(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc = this.audioContext.createOscillator();
@@ -1902,63 +1693,7 @@ class PianoVisualizer {
         return gainNode;
     }
     
-    createOrgan(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency / 2, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.1);
-        gainNode.gain.linearRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
-        
-        return gainNode;
-    }
     
-    createStrings(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(frequency, currentTime);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1200, currentTime);
-        filter.Q.setValueAtTime(1, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.3);
-        gainNode.gain.linearRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc.connect(filter);
-        filter.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc.start(currentTime);
-        osc.stop(currentTime + duration);
-        
-        return gainNode;
-    }
     
     createVibraphone(frequency, volume, currentTime, duration, enableVisualization = true) {
         const osc1 = this.audioContext.createOscillator();
@@ -2010,96 +1745,6 @@ class PianoVisualizer {
         filter.Q.setValueAtTime(10, currentTime);
         
         gainNode.gain.setValueAtTime(volume, currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc.connect(filter);
-        filter.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc.start(currentTime);
-        osc.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createSynthesizer(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'square';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sawtooth';
-        osc2.frequency.setValueAtTime(frequency + 2, currentTime);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(800, currentTime);
-        filter.Q.setValueAtTime(5, currentTime);
-        
-        gainNode.gain.setValueAtTime(volume, currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        gainNode.connect(filter);
-        this.connectAudioOutput(filter, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createBell(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(frequency, currentTime);
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(frequency * 2.4, currentTime);
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(frequency * 3.8, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
-        
-        osc1.connect(gainNode);
-        osc2.connect(gainNode);
-        osc3.connect(gainNode);
-        this.connectAudioOutput(gainNode, enableVisualization);
-        
-        osc1.start(currentTime);
-        osc2.start(currentTime);
-        osc3.start(currentTime);
-        osc1.stop(currentTime + duration);
-        osc2.stop(currentTime + duration);
-        osc3.stop(currentTime + duration);
-        
-        return gainNode;
-    }
-    
-    createFlute(frequency, volume, currentTime, duration, enableVisualization = true) {
-        const osc = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(frequency, currentTime);
-        
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(1000, currentTime);
-        filter.Q.setValueAtTime(2, currentTime);
-        
-        gainNode.gain.setValueAtTime(0, currentTime);
-        gainNode.gain.linearRampToValueAtTime(volume, currentTime + 0.2);
-        gainNode.gain.linearRampToValueAtTime(volume * 0.8, currentTime + duration * 0.7);
         gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + duration);
         
         osc.connect(filter);
