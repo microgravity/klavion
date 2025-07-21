@@ -1,5 +1,5 @@
 // Klavion PWA Service Worker
-const CACHE_NAME = 'klavion-v1.0.0';
+const CACHE_NAME = 'klavion-v1.1.0';
 const CACHE_URLS = [
   './',
   './index.html',

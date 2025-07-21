@@ -1,0 +1,97 @@
+{
+  "timestamp": "2025-07-21T01:43:31.787Z",
+  "fileSizeKB": 171,
+  "baselineTest": {
+    "visualizerExists": true,
+    "audioEngineExists": true,
+    "audioContextExists": true,
+    "audioEngineInitialized": true,
+    "availableTimbers": [
+      "acoustic-piano",
+      "electric-piano",
+      "organ",
+      "guitar",
+      "bass",
+      "strings",
+      "brass",
+      "synth-lead",
+      "synth-pad"
+    ],
+    "currentTimbre": "acoustic-piano",
+    "currentVolume": 0.75,
+    "isMuted": false,
+    "legacyMethods": {
+      "createAcousticPiano": true,
+      "createElectricPiano": true,
+      "createOrgan": true,
+      "createStrings": true,
+      "createSynthesizer": true,
+      "createBell": true,
+      "createFlute": true
+    },
+    "domCacheExists": true,
+    "domCacheStats": {
+      "totalQueries": 23,
+      "cacheHits": 1,
+      "domQueries": 22,
+      "hitRate": 0.043478260869565216,
+      "cacheSize": 22
+    }
+  },
+  "timbreTest": {
+    "originalTimbre": "acoustic-piano",
+    "timbreList": [
+      "acoustic-piano",
+      "electric-piano",
+      "organ",
+      "guitar",
+      "bass",
+      "strings",
+      "brass",
+      "synth-lead",
+      "synth-pad"
+    ],
+    "timbreChanges": [
+      {
+        "requested": "electric-piano",
+        "actual": "electric-piano",
+        "success": true
+      },
+      {
+        "requested": "organ",
+        "actual": "organ",
+        "success": true
+      },
+      {
+        "requested": "strings",
+        "actual": "strings",
+        "success": true
+      }
+    ]
+  },
+  "volumeTest": {
+    "originalVolume": 0.75,
+    "volumeChanges": [
+      {
+        "requested": 0.3,
+        "actual": 0.3,
+        "success": true
+      },
+      {
+        "requested": 0.7,
+        "actual": 0.7,
+        "success": true
+      },
+      {
+        "requested": 1,
+        "actual": 1,
+        "success": true
+      }
+    ]
+  },
+  "resourceTest": {
+    "activeOscillators": 0,
+    "activeGainNodes": 0,
+    "activeNotes": 0
+  }
+}
