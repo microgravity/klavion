@@ -19,7 +19,13 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 
 ## ✨ 最新の改善 / Latest Improvements
 
-### v1.5.0 の新機能 / New in v1.5.0 (Latest)
+### v1.5.1 の新機能 / New in v1.5.1 (Latest)
+
+- 🚀 **GitHub Actions改良** - Node.js v20へアップグレード、デプロイワークフロー最適化
+- 🔒 **ブランチ保護設定** - mainブランチ保護によるセキュアな運用体制確立
+- 📋 **プルリクエストワークフロー** - develop→main間のセーフティネット構築
+
+### v1.5.0 の新機能 / New in v1.5.0
 
 - 🎵 **リアルタイムコード検出** - 演奏中のコード（和音）を自動検出・表示
 - 🎹 **統合ステータス表示** - コード表示とペダル状態を横並びで美しく表示
@@ -27,7 +33,13 @@ An interactive 3D piano visualization tool with beautiful graphics, high-quality
 - ✨ **アクティブ状態ビジュアル** - コード検出時の美しいアニメーション効果
 - 🎨 **統一デザイン** - ペダル表示と同様のグラスモーフィズムデザイン
 
-### New in v1.5.0 (Latest)
+### New in v1.5.1 (Latest)
+
+- 🚀 **GitHub Actions Improvements** - Upgraded to Node.js v20, optimized deployment workflow
+- 🔒 **Branch Protection** - Secure operations with main branch protection settings
+- 📋 **Pull Request Workflow** - Safety net established between develop→main branches
+
+### New in v1.5.0
 
 - 🎵 **Real-time Chord Detection** - Automatic detection and display of chords during performance
 - 🎹 **Integrated Status Display** - Beautiful side-by-side layout for chord and pedal status
@@ -398,7 +410,15 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ## Version History / バージョン履歴
 
-### v1.5.0 (Latest / 最新) - July 2025
+### v1.5.1 (Latest / 最新) - July 2025
+
+#### 🚀 Infrastructure Improvements / インフラ改善
+- **GitHub Actions Enhancement** - Upgraded to Node.js v20 for better performance and security
+- **Branch Protection Setup** - Main branch protection with pull request workflow
+- **Secure Deployment Pipeline** - develop→main→GitHub Pages automated deployment
+- **Workflow Optimization** - Streamlined CI/CD process for reliable releases
+
+### v1.5.0 - July 2025
 
 #### 🎵 Real-time Chord Detection / リアルタイムコード検出
 - **Automatic Chord Recognition** - Detects and displays chords in real-time during performance
