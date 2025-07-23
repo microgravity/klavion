@@ -15,15 +15,12 @@ const CACHE_URLS = [
 
 // インストール時にリソースをキャッシュ
 self.addEventListener('install', event => {
-  console.log('[SW] Install event');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('[SW] Caching app shell');
         return cache.addAll(CACHE_URLS);
       })
       .then(() => {
-        console.log('[SW] Skip waiting');
         return self.skipWaiting();
       })
       .catch(error => {
@@ -34,19 +31,16 @@ self.addEventListener('install', event => {
 
 // アクティベート時に古いキャッシュを削除
 self.addEventListener('activate', event => {
-  console.log('[SW] Activate event');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     }).then(() => {
-      console.log('[SW] Claiming clients');
       return self.clients.claim();
     })
   );
@@ -69,12 +63,10 @@ self.addEventListener('fetch', event => {
       .then(response => {
         // キャッシュにある場合はそれを返す
         if (response) {
-          console.log('[SW] Serving from cache:', event.request.url);
           return response;
         }
         
         // キャッシュにない場合はネットワークから取得
-        console.log('[SW] Fetching from network:', event.request.url);
         return fetch(event.request)
           .then(response => {
             // レスポンスが有効でない場合はそのまま返す
@@ -89,7 +81,6 @@ self.addEventListener('fetch', event => {
                 // 重要なリソースのみキャッシュ
                 if (shouldCache(event.request.url)) {
                   cache.put(event.request, responseToCache);
-                  console.log('[SW] Cached:', event.request.url);
                 }
               });
             
@@ -130,7 +121,6 @@ function shouldCache(url) {
 
 // メッセージハンドリング（将来の拡張用）
 self.addEventListener('message', event => {
-  console.log('[SW] Message received:', event.data);
   
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -146,4 +136,3 @@ self.addEventListener('unhandledrejection', event => {
   console.error('[SW] Unhandled rejection:', event.reason);
 });
 
-console.log('[SW] Service Worker loaded successfully');
