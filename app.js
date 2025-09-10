@@ -828,6 +828,13 @@ class PianoVisualizer {
         
         // Clear coordinate cache on resize
         this.coordinateCache.clear();
+        
+        // Warm up coordinates on the next frame to avoid first-note layout cost
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => this.warmupCoordinates());
+        } else {
+            setTimeout(() => this.warmupCoordinates(), 0);
+        }
     }
     
     // Get cached coordinate for a MIDI note
@@ -1160,7 +1167,8 @@ class PianoVisualizer {
         // Check if MIDI input is selected (not computer keyboard)
         if (this.selectedInputDevice === 'keyboard') {
             // コンピューターキーボード選択時もペダル操作は処理する
-            if (type === 'controlchange' && note === 64) {
+            // Accept only sustain pedal (Control Change 64) from external MIDI while keyboard is selected
+            if ((command & 0xF0) === 0xB0 && note === 64) {
                 this.handleSustainPedal(velocity >= 64);
             }
             return; // ペダル以外のMIDI入力は無視
@@ -1270,6 +1278,32 @@ class PianoVisualizer {
             this.pianoKeyboard.style.overflowX = 'visible';
             this.pianoKeyboard.style.minWidth = 'auto';
             this.pianoKeyboard.style.paddingBottom = '0';
+        }
+
+        // After DOM is updated, precompute key coordinates to avoid first-hit cost
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => this.warmupCoordinates());
+        } else {
+            setTimeout(() => this.warmupCoordinates(), 0);
+        }
+    }
+
+    // Pre-compute and cache all key X coordinates for current range
+    warmupCoordinates() {
+        if (!this.container || !this.pianoKeyboard) return;
+        try {
+            const containerRect = this.container.getBoundingClientRect();
+            // Iterate over cached key elements to avoid extra queries
+            this.pianoKeyElements.forEach((keyElement, midiNote) => {
+                if (!keyElement) return;
+                const keyRect = keyElement.getBoundingClientRect();
+                const relativeX = (keyRect.left + keyRect.width / 2 - containerRect.left) / containerRect.width;
+                const coordinate = (relativeX - 0.5) * 20;
+                this.coordinateCache.set(`note-${midiNote}`, coordinate);
+                this.performanceMetrics.coordinateCalculations++;
+            });
+        } catch (_) {
+            // ignore warming errors silently
         }
     }
     
