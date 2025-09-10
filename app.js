@@ -100,7 +100,8 @@ class PianoVisualizer {
         this.canvasPool = []; // Reusable canvas pool
         this.textureCache = new Map(); // Cache for text textures
         this.spritePool = []; // Reusable sprite pool
-        this.maxPoolSize = 20; // Maximum cached objects
+        this.maxPoolSize = 64; // Pool size for canvas/sprite
+        this.textureCacheLimit = 128; // Max cached textures
         this.lastNoteTime = 0; // Track last note activity for performance
         
         // DOM element cache for performance optimization (TDD最適化済み)
@@ -121,6 +122,12 @@ class PianoVisualizer {
             animationCalculations: 0
         };
         this.coordinateCache = new Map(); // Cache for coordinate calculations
+        
+        // Spectrum/Waveform drawing resources (Phase 2 allocation reduction)
+        this.analyserTimeDomainData = null;
+        this.analyserFreqData = null;
+        this.spectrumGradient = null;
+        this.waveformGradient = null;
         
         // Animation optimization: Pre-calculated lookup tables
         this.animationTables = {
@@ -1895,7 +1902,7 @@ class PianoVisualizer {
             texture.needsUpdate = true;
             
             // Cache texture for reuse (limit cache size)
-            if (this.textureCache.size < 50) {
+            if (this.textureCache.size < this.textureCacheLimit) {
                 this.textureCache.set(cacheKey, texture);
             }
             
@@ -3899,6 +3906,8 @@ class PianoVisualizer {
         
         // Set canvas size
         this.resizeSpectrumCanvas();
+        // Ensure analyser buffers are allocated
+        this.ensureAnalyserBuffers();
         
         // Set initial visibility based on display mode
         this.spectrumCanvas.style.display = this.settings.displayMode === 'none' ? 'none' : 'block';
@@ -3917,6 +3926,31 @@ class PianoVisualizer {
         const rect = this.container.getBoundingClientRect();
         this.spectrumCanvas.width = rect.width;
         this.spectrumCanvas.height = rect.height;
+        
+        // Rebuild cached gradients for current size
+        if (this.spectrumContext) {
+            const w = this.spectrumCanvas.width;
+            this.spectrumGradient = this.spectrumContext.createLinearGradient(0, 0, w, 0);
+            this.spectrumGradient.addColorStop(0, '#ff6b6b');
+            this.spectrumGradient.addColorStop(0.25, '#4ecdc4');
+            this.spectrumGradient.addColorStop(0.5, '#45b7d1');
+            this.spectrumGradient.addColorStop(0.75, '#96ceb4');
+            this.spectrumGradient.addColorStop(1, '#feca57');
+            this.waveformGradient = this.spectrumGradient; // 同一配色を共用
+        }
+    }
+    
+    // Allocate/reuse analyser buffers for time-domain and frequency data
+    ensureAnalyserBuffers() {
+        if (!this.analyserNode) return;
+        const timeSize = this.analyserNode.fftSize;
+        const freqSize = this.analyserNode.frequencyBinCount;
+        if (!this.analyserTimeDomainData || this.analyserTimeDomainData.length !== timeSize) {
+            this.analyserTimeDomainData = new Uint8Array(timeSize);
+        }
+        if (!this.analyserFreqData || this.analyserFreqData.length !== freqSize) {
+            this.analyserFreqData = new Uint8Array(freqSize);
+        }
     }
     
     startSpectrumAnimation() {
@@ -3942,8 +3976,9 @@ class PianoVisualizer {
     drawWaveformLine() {
         if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
+        this.ensureAnalyserBuffers();
         const bufferLength = this.analyserNode.fftSize;
-        const dataArray = new Uint8Array(bufferLength);
+        const dataArray = this.analyserTimeDomainData;
         this.analyserNode.getByteTimeDomainData(dataArray);
         
         const width = this.spectrumCanvas.width;
@@ -3952,13 +3987,8 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
-        // Create gradient for waveform
-        const gradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
-        gradient.addColorStop(0, '#ff6b6b');
-        gradient.addColorStop(0.25, '#4ecdc4');
-        gradient.addColorStop(0.5, '#45b7d1');
-        gradient.addColorStop(0.75, '#96ceb4');
-        gradient.addColorStop(1, '#feca57');
+        // Use cached gradient (rebuilt on resize)
+        const gradient = this.waveformGradient || this.spectrumContext.createLinearGradient(0, 0, width, 0);
         
         // Set line style
         this.spectrumContext.lineWidth = 3;
@@ -3991,8 +4021,9 @@ class PianoVisualizer {
     drawSpectrumBars() {
         if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
+        this.ensureAnalyserBuffers();
         const bufferLength = this.analyserNode.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+        const dataArray = this.analyserFreqData;
         this.analyserNode.getByteFrequencyData(dataArray);
         
         const width = this.spectrumCanvas.width;
@@ -4001,13 +4032,8 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
-        // Create main gradient for spectrum bars (same colors as waveform)
-        const mainGradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
-        mainGradient.addColorStop(0, '#ff6b6b');
-        mainGradient.addColorStop(0.25, '#4ecdc4');
-        mainGradient.addColorStop(0.5, '#45b7d1');
-        mainGradient.addColorStop(0.75, '#96ceb4');
-        mainGradient.addColorStop(1, '#feca57');
+        // Use cached gradient (rebuilt on resize)
+        const mainGradient = this.spectrumGradient || this.spectrumContext.createLinearGradient(0, 0, width, 0);
         
         // Set glow effect
         this.spectrumContext.shadowBlur = 10;
