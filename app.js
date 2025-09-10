@@ -741,17 +741,20 @@ class PianoVisualizer {
             this.setupWaveformDisplay();
             
             // Initialize with random retro palette after DOM is ready
-            this.initializeRetroColors();
-            
-        } catch (error) {
-            this.initialized = false; // エラー時はフラグをリセット
-        }
+        this.initializeRetroColors();
         
-        this.startVisualization();
-        
-        // Performance optimization: throttle resize events
-        window.addEventListener('resize', this.throttle(() => this.onWindowResize(), 100));
+    } catch (error) {
+        this.initialized = false; // エラー時はフラグをリセット
     }
+    
+    this.startVisualization();
+    
+    // Performance optimization: throttle resize events
+    window.addEventListener('resize', this.throttle(() => this.onWindowResize(), 100));
+
+    // フェーズ3: テクスチャの事前ウォーム（アイドル時に段階実行）
+    this.scheduleTextureWarmup();
+}
     
     initThreeJS() {
         
@@ -1311,6 +1314,83 @@ class PianoVisualizer {
             });
         } catch (_) {
             // ignore warming errors silently
+        }
+    }
+
+    // =========================
+    // フェーズ3: 事前ウォーム
+    // =========================
+    scheduleTextureWarmup() {
+        // Three.js が未初期化ならスキップ
+        if (typeof THREE === 'undefined') return;
+        // 過剰な事前生成を避ける（キャッシュ上限の8割で停止）
+        const capacity = Math.max(16, Math.floor((this.textureCacheLimit || 128) * 0.8));
+        const config = this.pianoConfigs[this.settings.pianoRange];
+        if (!config) return;
+        // 中心の1オクターブ（12音）のみを対象に、代表的なベロシティで作成
+        const center = Math.round((config.startNote + config.endNote) / 2);
+        const notes = [];
+        const start = Math.max(config.startNote, center - 6);
+        const end = Math.min(config.endNote, start + 11);
+        for (let n = start; n <= end; n++) notes.push(n);
+        const velocities = [24, 48, 64, 80, 96, 112]; // 6段階
+        const tasks = [];
+        for (const n of notes) {
+            for (const v of velocities) {
+                tasks.push({ n, v });
+            }
+        }
+        // idleで少量ずつ処理
+        const processBatch = (deadline) => {
+            if (!tasks.length) return;
+            if (this.textureCache && this.textureCache.size >= capacity) return;
+            let budget = 6; // 一回あたり最大6枚
+            while (budget > 0 && tasks.length) {
+                const t = tasks.shift();
+                this.prewarmTexture(t.n, t.v);
+                budget--;
+                if (this.textureCache && this.textureCache.size >= capacity) break;
+            }
+            // 残があれば次回へ
+            if (tasks.length && (!this.textureCache || this.textureCache.size < capacity)) {
+                this.requestIdle(processBatch);
+            }
+        };
+        this.requestIdle(processBatch);
+    }
+    
+    requestIdle(cb) {
+        if (typeof window !== 'undefined' && window.requestIdleCallback) {
+            window.requestIdleCallback(cb, { timeout: 500 });
+        } else if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => cb({ timeRemaining: () => 0 }));
+        } else {
+            setTimeout(() => cb({ timeRemaining: () => 0 }), 0);
+        }
+    }
+    
+    prewarmTexture(midiNote, velocity) {
+        try {
+            if (!this.scene || typeof THREE === 'undefined') return;
+            // 既に十分なキャッシュがある場合は省略
+            if (this.textureCache && this.textureCache.size >= (this.textureCacheLimit || 128)) return;
+            const noteName = this.midiNoteToNoteName(midiNote, velocity);
+            const color = this.getNoteColor(midiNote, velocity);
+            const size = this.getNoteSizeMultiplier(velocity);
+            const velocityRange = Math.floor(velocity / 10) * 10;
+            const cacheKey = `${midiNote}-${velocityRange}-${this.settings.showVelocityNumbers}-${this.settings.noteNameStyle}`;
+            if (this.textureCache.has(cacheKey)) return;
+            const canvas = this.getCanvasFromPool(size);
+            const context = canvas.getContext('2d');
+            this.renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            if (this.textureCache.size < (this.textureCacheLimit || 128)) {
+                this.textureCache.set(cacheKey, texture);
+                this.performanceMetrics.textureCreations++;
+            }
+        } catch (_) {
+            // 失敗時も黙ってスキップ
         }
     }
     
