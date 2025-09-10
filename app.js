@@ -345,6 +345,12 @@ class PianoVisualizer {
         // 初期化フラグを明示的にfalseに設定
         this.initialized = false;
         
+        // Baseline performance monitor (opt-in via ?perf=1 or localStorage.klavionPerf=1)
+        this.perf = this.createPerfMonitor();
+        if (this.perf && this.perf.enabled) {
+            this.perf.installOverlay();
+        }
+        
         // Check for mobile device and show warning if needed
         this.checkMobileDevice();
         
@@ -902,6 +908,94 @@ class PianoVisualizer {
     // Fast MIDI to frequency lookup
     fastMidiToFrequency(midiNote) {
         return this.animationTables.midiFrequencies[Math.max(0, Math.min(127, midiNote))];
+    }
+
+    // Lightweight performance monitor (no behavior change when disabled)
+    createPerfMonitor() {
+        try {
+            const enabled = (new URLSearchParams(window.location.search).get('perf') === '1')
+                || (localStorage.getItem('klavionPerf') === '1');
+            const state = {
+                enabled,
+                frames: 0,
+                frameTimes: [],
+                frameTimesMax: 1200,
+                inputLatencies: [],
+                inputLatenciesMax: 500,
+                recordFrame: (dtMs) => {
+                    state.frames++;
+                    state.frameTimes.push(dtMs);
+                    if (state.frameTimes.length > state.frameTimesMax) {
+                        state.frameTimes.splice(0, state.frameTimes.length - state.frameTimesMax);
+                    }
+                },
+                recordInputLatency: (ms) => {
+                    state.inputLatencies.push(ms);
+                    if (state.inputLatencies.length > state.inputLatenciesMax) {
+                        state.inputLatencies.splice(0, state.inputLatencies.length - state.inputLatenciesMax);
+                    }
+                },
+                summary: () => {
+                    const avg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+                    const p = (arr, q) => {
+                        if (!arr.length) return 0;
+                        const s = arr.slice().sort((a,b)=>a-b);
+                        const idx = Math.min(s.length-1, Math.floor(q*(s.length-1)));
+                        return s[idx];
+                    };
+                    const ft = state.frameTimes;
+                    const il = state.inputLatencies;
+                    return {
+                        frames: state.frames,
+                        fpsApprox: ft.length ? 1000/avg(ft) : 0,
+                        frameAvgMs: +avg(ft).toFixed(2),
+                        frameP95Ms: +p(ft,0.95).toFixed(2),
+                        frameMaxMs: +(ft.length ? Math.max(...ft) : 0).toFixed(2),
+                        inputLatencyAvgMs: +avg(il).toFixed(2),
+                        inputLatencyP95Ms: +p(il,0.95).toFixed(2),
+                        inputLatencyMaxMs: +(il.length ? Math.max(...il) : 0).toFixed(2),
+                    };
+                },
+                overlayEl: null,
+                overlayTimer: null,
+                installOverlay: () => {
+                    if (!state.enabled) return;
+                    const el = document.createElement('div');
+                    el.id = 'klavion-perf-overlay';
+                    el.style.cssText = 'position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,0.6);color:#d7e1ff;padding:8px 10px;border-radius:6px;font:12px/1.4 system-ui,sans-serif;z-index:99999;white-space:pre;backdrop-filter:blur(2px)';
+                    el.textContent = 'Perf: collecting...';
+                    const host = document.createElement('div');
+                    host.style.cssText = 'position:fixed;right:8px;bottom:8px;pointer-events:none;z-index:99998';
+                    host.appendChild(el);
+                    document.body.appendChild(host);
+                    const update = () => {
+                        const s = state.summary();
+                        el.textContent = `FPS≈${s.fpsApprox.toFixed(1)}\nFrame ms avg/p95/max: ${s.frameAvgMs}/${s.frameP95Ms}/${s.frameMaxMs}\nInput→setup ms avg/p95/max: ${s.inputLatencyAvgMs}/${s.inputLatencyP95Ms}/${s.inputLatencyMaxMs}`;
+                    };
+                    state.overlayTimer = window.setInterval(update, 1000);
+                    update();
+                }
+            };
+            window.klavionPerf = {
+                get enabled() { return state.enabled; },
+                getReport: () => ({
+                    ...state.summary(),
+                    textures: this?.performanceMetrics ? {
+                        created: this.performanceMetrics.textureCreations,
+                        cacheHits: this.performanceMetrics.textureCacheHits
+                    } : undefined,
+                    coordinates: this?.performanceMetrics ? {
+                        calculated: this.performanceMetrics.coordinateCalculations,
+                        cacheHits: this.performanceMetrics.coordinateCacheHits
+                    } : undefined
+                }),
+                runBurst: () => this.runBurstTest?.(),
+                reset: () => { state.frames=0; state.frameTimes=[]; state.inputLatencies=[]; }
+            };
+            return state;
+        } catch (_) {
+            return { enabled: false };
+        }
     }
     
     // Debug: Log performance metrics
@@ -1739,6 +1833,12 @@ class PianoVisualizer {
         // Update last note time for performance optimization
         this.lastNoteTime = performance.now();
         
+        // Baseline: record input→sprite setup latency
+        if (this.perf && this.perf.enabled && typeof timestamp === 'number') {
+            const delta = performance.now() - timestamp;
+            if (delta >= 0 && delta < 2000) this.perf.recordInputLatency(delta);
+        }
+        
         const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
@@ -1848,6 +1948,28 @@ class PianoVisualizer {
                 }
             }
         }
+    }
+    
+    // Burst test runner for baseline measurement (opt-in only)
+    runBurstTest(options = {}) {
+        const { bpm = 180, durationSec = 10, range = [60, 72], velocity = 96 } = options;
+        const intervalMs = Math.max(20, (60000 / bpm) / 4); // 16th notes
+        let t = 0;
+        const start = performance.now();
+        const timer = setInterval(() => {
+            const now = performance.now();
+            if (now - start >= durationSec * 1000) { clearInterval(timer); return; }
+            const span = range[1] - range[0] + 1;
+            const base = range[0] + (t % span);
+            const chord = [0, 4, 7].map(s => base + s).filter(n => n <= range[1]);
+            chord.forEach(n => {
+                const ts = performance.now();
+                this.playNote(n, velocity, ts);
+                setTimeout(() => this.stopNote(n, performance.now()), Math.max(80, intervalMs * 0.9));
+            });
+            t++;
+        }, intervalMs);
+        return timer;
     }
     
     getNoteColorThreeJS(midiNote, velocity) {
@@ -3208,6 +3330,9 @@ class PianoVisualizer {
             if (currentTime - lastFrameTime < frameTimeLimit) {
                 requestAnimationFrame(animate);
                 return;
+            }
+            if (this.perf && this.perf.enabled && lastFrameTime) {
+                this.perf.recordFrame(currentTime - lastFrameTime);
             }
             lastFrameTime = currentTime;
             
