@@ -24,7 +24,6 @@ self.addEventListener('install', event => {
         return self.skipWaiting();
       })
       .catch(error => {
-        console.error('[SW] Cache failed:', error);
       })
   );
 });
@@ -87,7 +86,6 @@ self.addEventListener('fetch', event => {
             return response;
           })
           .catch(error => {
-            console.error('[SW] Fetch failed:', error);
             
             // オフライン時のフォールバック
             if (event.request.destination === 'document') {
@@ -129,10 +127,8 @@ self.addEventListener('message', event => {
 
 // エラーハンドリング
 self.addEventListener('error', event => {
-  console.error('[SW] Error:', event.error);
 });
 
 self.addEventListener('unhandledrejection', event => {
-  console.error('[SW] Unhandled rejection:', event.reason);
 });
 

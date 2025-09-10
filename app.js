@@ -408,7 +408,6 @@ class PianoVisualizer {
                     
                     this.isInitialized = true;
                 } catch (error) {
-                    console.error('[AudioEngine] 初期化失敗:', error);
                     throw error;
                 }
             },
@@ -547,7 +546,6 @@ class PianoVisualizer {
                 this.updateUIFromSettings();
             }
         } catch (error) {
-            console.error('設定の読み込みに失敗しました:', error);
         }
     }
     
@@ -555,7 +553,6 @@ class PianoVisualizer {
         try {
             localStorage.setItem('klavionSettings', JSON.stringify(this.settings));
         } catch (error) {
-            console.error('設定の保存に失敗しました:', error);
         }
     }
     
@@ -697,7 +694,6 @@ class PianoVisualizer {
             try {
                 await this.initAudio();
             } catch (error) {
-                console.warn('[Init] Audio初期化失敗:', error);
             }
             
             // MIDI初期化（タイムアウト付き）
@@ -710,16 +706,12 @@ class PianoVisualizer {
                 
                 await Promise.race([midiPromise, timeoutPromise]);
             } catch (error) {
-                console.warn('[Init] MIDI初期化失敗:', error);
-                console.warn('[Init] MIDI初期化失敗の詳細:', error.stack);
             }
             
             // Three.js初期化（直接実行）
             try {
                 this.initThreeJS();
             } catch (error) {
-                console.error('[Init] Three.js初期化失敗:', error);
-                console.error('[Init] Three.js初期化失敗詳細:', error.stack);
                 // Three.js初期化に失敗してもアプリケーションを継続
             }
             
@@ -739,7 +731,6 @@ class PianoVisualizer {
             this.initializeRetroColors();
             
         } catch (error) {
-            console.error('[Init] 初期化中にエラーが発生:', error);
             this.initialized = false; // エラー時はフラグをリセット
         }
         
@@ -753,12 +744,10 @@ class PianoVisualizer {
         
         // Check if THREE is available
         if (typeof THREE === 'undefined') {
-            console.error('[ThreeJS] THREE is undefined');
             return;
         }
         
         if (!this.container) {
-            console.error('[ThreeJS] Container is not available');
             return;
         }
         
@@ -942,7 +931,6 @@ class PianoVisualizer {
             this.setupAudioContextResume();
             
         } catch (error) {
-            console.warn('[Audio] AudioEngine初期化失敗:', error);
         }
     }
     

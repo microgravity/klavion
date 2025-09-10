@@ -494,21 +494,18 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
                     .then(registration => {
-                        console.log('[PWA] Service Worker registered:', registration.scope);
                         
                         // Service Workerの更新チェック
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('[PWA] New Service Worker available');
                                     // 必要に応じてユーザーに更新を通知
                                 }
                             });
                         });
                     })
                     .catch(error => {
-                        console.error('[PWA] Service Worker registration failed:', error);
                     });
             });
         }
@@ -526,7 +523,6 @@
         }
         
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('[PWA] beforeinstallprompt event fired');
             e.preventDefault();
             deferredPrompt = e;
             
@@ -546,30 +542,23 @@
         
         
         window.addEventListener('appinstalled', (evt) => {
-            console.log('[PWA] App was installed');
             hideInstallButton();
             localStorage.setItem('pwa-installed', 'true');
         });
         
         function showInstallButton() {
-            console.log('[PWA] Show install button');
             const installToggle = document.getElementById('pwa-install-toggle');
             if (installToggle) {
                 installToggle.style.display = 'block';
-                console.log('[PWA] Install button is now visible');
             } else {
-                console.error('[PWA] Install button element not found');
             }
         }
         
         function hideInstallButton() {
-            console.log('[PWA] Hide install button');
             const installToggle = document.getElementById('pwa-install-toggle');
             if (installToggle) {
                 installToggle.style.display = 'none';
-                console.log('[PWA] Install button is now hidden');
             } else {
-                console.error('[PWA] Install button element not found');
             }
         }
         
@@ -586,15 +575,12 @@
         
         // PWAインストールボタンのクリックイベント
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('[PWA] Setting up event listeners');
             
             const installBtn = document.getElementById('pwa-install-btn');
             
-            console.log('[PWA] Install button found:', !!installBtn);
             
             if (installBtn) {
                 installBtn.addEventListener('click', () => {
-                    console.log('[PWA] Install button clicked');
                     installPWA();
                 });
             }
@@ -634,31 +620,24 @@
         
         function handleAppFullscreenChange(isFullscreen) {
             // PWAモーダル関連の処理は削除済み
-            console.log('[PWA] Fullscreen mode changed:', isFullscreen);
         }
         
         // PWAインストール実行
         async function installPWA() {
-            console.log('[PWA] installPWA called', { deferredPrompt });
             
             if (deferredPrompt) {
                 try {
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`[PWA] User response: ${outcome}`);
                     deferredPrompt = null;
                     hideInstallButton();
                     
                     if (outcome === 'accepted') {
-                        console.log('[PWA] User accepted installation');
                     } else {
-                        console.log('[PWA] User dismissed installation');
                     }
                 } catch (error) {
-                    console.error('[PWA] Installation error:', error);
                 }
             } else {
-                console.log('[PWA] No deferred prompt available');
                 // フォールバック: 手動インストール手順を表示
                 showManualInstallInstructions();
             }
