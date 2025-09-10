@@ -357,6 +357,12 @@ class PianoVisualizer {
         if (this.perf && this.perf.enabled) {
             this.perf.installOverlay();
         }
+
+        // Feature flags (default OFF). Example: ?bgReduce=1 or localStorage.klavionBgReduce='1'
+        this.flags = {
+            bgReduce: (new URLSearchParams(window.location.search).get('bgReduce') === '1')
+                || (localStorage.getItem('klavionBgReduce') === '1')
+        };
         
         // Check for mobile device and show warning if needed
         this.checkMobileDevice();
@@ -3558,8 +3564,10 @@ class PianoVisualizer {
                 }
             }
             
-            // Always update background (function internally checks if waveform should be drawn)
-            this.drawBackgroundWithWaveform();
+            // Background update reduction (Phase 4): skip per-frame update when flag enabled
+            if (!this.flags || !this.flags.bgReduce) {
+                this.drawBackgroundWithWaveform();
+            }
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
@@ -4036,7 +4044,14 @@ class PianoVisualizer {
     startSpectrumAnimation() {
         if (!this.analyserNode || !this.spectrumContext) return;
         
-        const drawVisualization = () => {
+        let lastTs = 0;
+        const capMs = this.flags && this.flags.bgReduce ? 33 : 0; // 30fps cap when reduced
+        const drawVisualization = (ts) => {
+            if (capMs && lastTs && (ts - lastTs) < capMs) {
+                this.animationFrameId = requestAnimationFrame(drawVisualization);
+                return;
+            }
+            lastTs = ts;
             if (this.analyserNode && this.spectrumContext && this.settings.displayMode !== 'none') {
                 if (this.settings.displayMode === 'spectrum') {
                     this.drawSpectrumBars();
@@ -4050,7 +4065,7 @@ class PianoVisualizer {
             this.animationFrameId = requestAnimationFrame(drawVisualization);
         };
         
-        drawVisualization();
+        this.animationFrameId = requestAnimationFrame(drawVisualization);
     }
     
     drawWaveformLine() {
