@@ -100,7 +100,8 @@ class PianoVisualizer {
         this.canvasPool = []; // Reusable canvas pool
         this.textureCache = new Map(); // Cache for text textures
         this.spritePool = []; // Reusable sprite pool
-        this.maxPoolSize = 20; // Maximum cached objects
+        this.maxPoolSize = 64; // Pool size for canvas/sprite
+        this.textureCacheLimit = 128; // Max cached textures
         this.lastNoteTime = 0; // Track last note activity for performance
         
         // DOM element cache for performance optimization (TDD最適化済み)
@@ -121,6 +122,12 @@ class PianoVisualizer {
             animationCalculations: 0
         };
         this.coordinateCache = new Map(); // Cache for coordinate calculations
+        
+        // Spectrum/Waveform drawing resources (Phase 2 allocation reduction)
+        this.analyserTimeDomainData = null;
+        this.analyserFreqData = null;
+        this.spectrumGradient = null;
+        this.waveformGradient = null;
         
         // Animation optimization: Pre-calculated lookup tables
         this.animationTables = {
@@ -344,6 +351,18 @@ class PianoVisualizer {
         
         // 初期化フラグを明示的にfalseに設定
         this.initialized = false;
+        
+        // Baseline performance monitor (opt-in via ?perf=1 or localStorage.klavionPerf=1)
+        this.perf = this.createPerfMonitor();
+        if (this.perf && this.perf.enabled) {
+            this.perf.installOverlay();
+        }
+
+        // Feature flags (default OFF). Example: ?bgReduce=1 or localStorage.klavionBgReduce='1'
+        this.flags = {
+            bgReduce: (new URLSearchParams(window.location.search).get('bgReduce') === '1')
+                || (localStorage.getItem('klavionBgReduce') === '1')
+        };
         
         // Check for mobile device and show warning if needed
         this.checkMobileDevice();
@@ -728,17 +747,20 @@ class PianoVisualizer {
             this.setupWaveformDisplay();
             
             // Initialize with random retro palette after DOM is ready
-            this.initializeRetroColors();
-            
-        } catch (error) {
-            this.initialized = false; // エラー時はフラグをリセット
-        }
+        this.initializeRetroColors();
         
-        this.startVisualization();
-        
-        // Performance optimization: throttle resize events
-        window.addEventListener('resize', this.throttle(() => this.onWindowResize(), 100));
+    } catch (error) {
+        this.initialized = false; // エラー時はフラグをリセット
     }
+    
+    this.startVisualization();
+    
+    // Performance optimization: throttle resize events
+    window.addEventListener('resize', this.throttle(() => this.onWindowResize(), 100));
+
+    // フェーズ3: テクスチャの事前ウォーム（アイドル時に段階実行）
+    this.scheduleTextureWarmup();
+}
     
     initThreeJS() {
         
@@ -822,6 +844,13 @@ class PianoVisualizer {
         
         // Clear coordinate cache on resize
         this.coordinateCache.clear();
+        
+        // Warm up coordinates on the next frame to avoid first-note layout cost
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => this.warmupCoordinates());
+        } else {
+            setTimeout(() => this.warmupCoordinates(), 0);
+        }
     }
     
     // Get cached coordinate for a MIDI note
@@ -902,6 +931,94 @@ class PianoVisualizer {
     // Fast MIDI to frequency lookup
     fastMidiToFrequency(midiNote) {
         return this.animationTables.midiFrequencies[Math.max(0, Math.min(127, midiNote))];
+    }
+
+    // Lightweight performance monitor (no behavior change when disabled)
+    createPerfMonitor() {
+        try {
+            const enabled = (new URLSearchParams(window.location.search).get('perf') === '1')
+                || (localStorage.getItem('klavionPerf') === '1');
+            const state = {
+                enabled,
+                frames: 0,
+                frameTimes: [],
+                frameTimesMax: 1200,
+                inputLatencies: [],
+                inputLatenciesMax: 500,
+                recordFrame: (dtMs) => {
+                    state.frames++;
+                    state.frameTimes.push(dtMs);
+                    if (state.frameTimes.length > state.frameTimesMax) {
+                        state.frameTimes.splice(0, state.frameTimes.length - state.frameTimesMax);
+                    }
+                },
+                recordInputLatency: (ms) => {
+                    state.inputLatencies.push(ms);
+                    if (state.inputLatencies.length > state.inputLatenciesMax) {
+                        state.inputLatencies.splice(0, state.inputLatencies.length - state.inputLatenciesMax);
+                    }
+                },
+                summary: () => {
+                    const avg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+                    const p = (arr, q) => {
+                        if (!arr.length) return 0;
+                        const s = arr.slice().sort((a,b)=>a-b);
+                        const idx = Math.min(s.length-1, Math.floor(q*(s.length-1)));
+                        return s[idx];
+                    };
+                    const ft = state.frameTimes;
+                    const il = state.inputLatencies;
+                    return {
+                        frames: state.frames,
+                        fpsApprox: ft.length ? 1000/avg(ft) : 0,
+                        frameAvgMs: +avg(ft).toFixed(2),
+                        frameP95Ms: +p(ft,0.95).toFixed(2),
+                        frameMaxMs: +(ft.length ? Math.max(...ft) : 0).toFixed(2),
+                        inputLatencyAvgMs: +avg(il).toFixed(2),
+                        inputLatencyP95Ms: +p(il,0.95).toFixed(2),
+                        inputLatencyMaxMs: +(il.length ? Math.max(...il) : 0).toFixed(2),
+                    };
+                },
+                overlayEl: null,
+                overlayTimer: null,
+                installOverlay: () => {
+                    if (!state.enabled) return;
+                    const el = document.createElement('div');
+                    el.id = 'klavion-perf-overlay';
+                    el.style.cssText = 'position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,0.6);color:#d7e1ff;padding:8px 10px;border-radius:6px;font:12px/1.4 system-ui,sans-serif;z-index:99999;white-space:pre;backdrop-filter:blur(2px)';
+                    el.textContent = 'Perf: collecting...';
+                    const host = document.createElement('div');
+                    host.style.cssText = 'position:fixed;right:8px;bottom:8px;pointer-events:none;z-index:99998';
+                    host.appendChild(el);
+                    document.body.appendChild(host);
+                    const update = () => {
+                        const s = state.summary();
+                        el.textContent = `FPS≈${s.fpsApprox.toFixed(1)}\nFrame ms avg/p95/max: ${s.frameAvgMs}/${s.frameP95Ms}/${s.frameMaxMs}\nInput→setup ms avg/p95/max: ${s.inputLatencyAvgMs}/${s.inputLatencyP95Ms}/${s.inputLatencyMaxMs}`;
+                    };
+                    state.overlayTimer = window.setInterval(update, 1000);
+                    update();
+                }
+            };
+            window.klavionPerf = {
+                get enabled() { return state.enabled; },
+                getReport: () => ({
+                    ...state.summary(),
+                    textures: this?.performanceMetrics ? {
+                        created: this.performanceMetrics.textureCreations,
+                        cacheHits: this.performanceMetrics.textureCacheHits
+                    } : undefined,
+                    coordinates: this?.performanceMetrics ? {
+                        calculated: this.performanceMetrics.coordinateCalculations,
+                        cacheHits: this.performanceMetrics.coordinateCacheHits
+                    } : undefined
+                }),
+                runBurst: () => this.runBurstTest?.(),
+                reset: () => { state.frames=0; state.frameTimes=[]; state.inputLatencies=[]; }
+            };
+            return state;
+        } catch (_) {
+            return { enabled: false };
+        }
     }
     
     // Debug: Log performance metrics
@@ -1066,7 +1183,8 @@ class PianoVisualizer {
         // Check if MIDI input is selected (not computer keyboard)
         if (this.selectedInputDevice === 'keyboard') {
             // コンピューターキーボード選択時もペダル操作は処理する
-            if (type === 'controlchange' && note === 64) {
+            // Accept only sustain pedal (Control Change 64) from external MIDI while keyboard is selected
+            if ((command & 0xF0) === 0xB0 && note === 64) {
                 this.handleSustainPedal(velocity >= 64);
             }
             return; // ペダル以外のMIDI入力は無視
@@ -1176,6 +1294,109 @@ class PianoVisualizer {
             this.pianoKeyboard.style.overflowX = 'visible';
             this.pianoKeyboard.style.minWidth = 'auto';
             this.pianoKeyboard.style.paddingBottom = '0';
+        }
+
+        // After DOM is updated, precompute key coordinates to avoid first-hit cost
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => this.warmupCoordinates());
+        } else {
+            setTimeout(() => this.warmupCoordinates(), 0);
+        }
+    }
+
+    // Pre-compute and cache all key X coordinates for current range
+    warmupCoordinates() {
+        if (!this.container || !this.pianoKeyboard) return;
+        try {
+            const containerRect = this.container.getBoundingClientRect();
+            // Iterate over cached key elements to avoid extra queries
+            this.pianoKeyElements.forEach((keyElement, midiNote) => {
+                if (!keyElement) return;
+                const keyRect = keyElement.getBoundingClientRect();
+                const relativeX = (keyRect.left + keyRect.width / 2 - containerRect.left) / containerRect.width;
+                const coordinate = (relativeX - 0.5) * 20;
+                this.coordinateCache.set(`note-${midiNote}`, coordinate);
+                this.performanceMetrics.coordinateCalculations++;
+            });
+        } catch (_) {
+            // ignore warming errors silently
+        }
+    }
+
+    // =========================
+    // フェーズ3: 事前ウォーム
+    // =========================
+    scheduleTextureWarmup() {
+        // Three.js が未初期化ならスキップ
+        if (typeof THREE === 'undefined') return;
+        // 過剰な事前生成を避ける（キャッシュ上限の8割で停止）
+        const capacity = Math.max(16, Math.floor((this.textureCacheLimit || 128) * 0.8));
+        const config = this.pianoConfigs[this.settings.pianoRange];
+        if (!config) return;
+        // 中心の1オクターブ（12音）のみを対象に、代表的なベロシティで作成
+        const center = Math.round((config.startNote + config.endNote) / 2);
+        const notes = [];
+        const start = Math.max(config.startNote, center - 6);
+        const end = Math.min(config.endNote, start + 11);
+        for (let n = start; n <= end; n++) notes.push(n);
+        const velocities = [24, 48, 64, 80, 96, 112]; // 6段階
+        const tasks = [];
+        for (const n of notes) {
+            for (const v of velocities) {
+                tasks.push({ n, v });
+            }
+        }
+        // idleで少量ずつ処理
+        const processBatch = (deadline) => {
+            if (!tasks.length) return;
+            if (this.textureCache && this.textureCache.size >= capacity) return;
+            let budget = 6; // 一回あたり最大6枚
+            while (budget > 0 && tasks.length) {
+                const t = tasks.shift();
+                this.prewarmTexture(t.n, t.v);
+                budget--;
+                if (this.textureCache && this.textureCache.size >= capacity) break;
+            }
+            // 残があれば次回へ
+            if (tasks.length && (!this.textureCache || this.textureCache.size < capacity)) {
+                this.requestIdle(processBatch);
+            }
+        };
+        this.requestIdle(processBatch);
+    }
+    
+    requestIdle(cb) {
+        if (typeof window !== 'undefined' && window.requestIdleCallback) {
+            window.requestIdleCallback(cb, { timeout: 500 });
+        } else if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => cb({ timeRemaining: () => 0 }));
+        } else {
+            setTimeout(() => cb({ timeRemaining: () => 0 }), 0);
+        }
+    }
+    
+    prewarmTexture(midiNote, velocity) {
+        try {
+            if (!this.scene || typeof THREE === 'undefined') return;
+            // 既に十分なキャッシュがある場合は省略
+            if (this.textureCache && this.textureCache.size >= (this.textureCacheLimit || 128)) return;
+            const noteName = this.midiNoteToNoteName(midiNote, velocity);
+            const color = this.getNoteColor(midiNote, velocity);
+            const size = this.getNoteSizeMultiplier(velocity);
+            const velocityRange = Math.floor(velocity / 10) * 10;
+            const cacheKey = `${midiNote}-${velocityRange}-${this.settings.showVelocityNumbers}-${this.settings.noteNameStyle}`;
+            if (this.textureCache.has(cacheKey)) return;
+            const canvas = this.getCanvasFromPool(size);
+            const context = canvas.getContext('2d');
+            this.renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            if (this.textureCache.size < (this.textureCacheLimit || 128)) {
+                this.textureCache.set(cacheKey, texture);
+                this.performanceMetrics.textureCreations++;
+            }
+        } catch (_) {
+            // 失敗時も黙ってスキップ
         }
     }
     
@@ -1739,6 +1960,12 @@ class PianoVisualizer {
         // Update last note time for performance optimization
         this.lastNoteTime = performance.now();
         
+        // Baseline: record input→sprite setup latency
+        if (this.perf && this.perf.enabled && typeof timestamp === 'number') {
+            const delta = performance.now() - timestamp;
+            if (delta >= 0 && delta < 2000) this.perf.recordInputLatency(delta);
+        }
+        
         const color = this.getNoteColor(midiNote, velocity);
         const size = this.getNoteSizeMultiplier(velocity);
         
@@ -1761,7 +1988,7 @@ class PianoVisualizer {
             texture.needsUpdate = true;
             
             // Cache texture for reuse (limit cache size)
-            if (this.textureCache.size < 50) {
+            if (this.textureCache.size < this.textureCacheLimit) {
                 this.textureCache.set(cacheKey, texture);
             }
             
@@ -1848,6 +2075,28 @@ class PianoVisualizer {
                 }
             }
         }
+    }
+    
+    // Burst test runner for baseline measurement (opt-in only)
+    runBurstTest(options = {}) {
+        const { bpm = 180, durationSec = 10, range = [60, 72], velocity = 96 } = options;
+        const intervalMs = Math.max(20, (60000 / bpm) / 4); // 16th notes
+        let t = 0;
+        const start = performance.now();
+        const timer = setInterval(() => {
+            const now = performance.now();
+            if (now - start >= durationSec * 1000) { clearInterval(timer); return; }
+            const span = range[1] - range[0] + 1;
+            const base = range[0] + (t % span);
+            const chord = [0, 4, 7].map(s => base + s).filter(n => n <= range[1]);
+            chord.forEach(n => {
+                const ts = performance.now();
+                this.playNote(n, velocity, ts);
+                setTimeout(() => this.stopNote(n, performance.now()), Math.max(80, intervalMs * 0.9));
+            });
+            t++;
+        }, intervalMs);
+        return timer;
     }
     
     getNoteColorThreeJS(midiNote, velocity) {
@@ -3209,6 +3458,9 @@ class PianoVisualizer {
                 requestAnimationFrame(animate);
                 return;
             }
+            if (this.perf && this.perf.enabled && lastFrameTime) {
+                this.perf.recordFrame(currentTime - lastFrameTime);
+            }
             lastFrameTime = currentTime;
             
             // Skip rendering if no active sprites and no recent activity
@@ -3312,8 +3564,10 @@ class PianoVisualizer {
                 }
             }
             
-            // Always update background (function internally checks if waveform should be drawn)
-            this.drawBackgroundWithWaveform();
+            // Background update reduction (Phase 4): skip per-frame update when flag enabled
+            if (!this.flags || !this.flags.bgReduce) {
+                this.drawBackgroundWithWaveform();
+            }
             
             // Render the scene
             this.renderer.render(this.scene, this.camera);
@@ -3740,6 +3994,8 @@ class PianoVisualizer {
         
         // Set canvas size
         this.resizeSpectrumCanvas();
+        // Ensure analyser buffers are allocated
+        this.ensureAnalyserBuffers();
         
         // Set initial visibility based on display mode
         this.spectrumCanvas.style.display = this.settings.displayMode === 'none' ? 'none' : 'block';
@@ -3758,12 +4014,44 @@ class PianoVisualizer {
         const rect = this.container.getBoundingClientRect();
         this.spectrumCanvas.width = rect.width;
         this.spectrumCanvas.height = rect.height;
+        
+        // Rebuild cached gradients for current size
+        if (this.spectrumContext) {
+            const w = this.spectrumCanvas.width;
+            this.spectrumGradient = this.spectrumContext.createLinearGradient(0, 0, w, 0);
+            this.spectrumGradient.addColorStop(0, '#ff6b6b');
+            this.spectrumGradient.addColorStop(0.25, '#4ecdc4');
+            this.spectrumGradient.addColorStop(0.5, '#45b7d1');
+            this.spectrumGradient.addColorStop(0.75, '#96ceb4');
+            this.spectrumGradient.addColorStop(1, '#feca57');
+            this.waveformGradient = this.spectrumGradient; // 同一配色を共用
+        }
+    }
+    
+    // Allocate/reuse analyser buffers for time-domain and frequency data
+    ensureAnalyserBuffers() {
+        if (!this.analyserNode) return;
+        const timeSize = this.analyserNode.fftSize;
+        const freqSize = this.analyserNode.frequencyBinCount;
+        if (!this.analyserTimeDomainData || this.analyserTimeDomainData.length !== timeSize) {
+            this.analyserTimeDomainData = new Uint8Array(timeSize);
+        }
+        if (!this.analyserFreqData || this.analyserFreqData.length !== freqSize) {
+            this.analyserFreqData = new Uint8Array(freqSize);
+        }
     }
     
     startSpectrumAnimation() {
         if (!this.analyserNode || !this.spectrumContext) return;
         
-        const drawVisualization = () => {
+        let lastTs = 0;
+        const capMs = this.flags && this.flags.bgReduce ? 33 : 0; // 30fps cap when reduced
+        const drawVisualization = (ts) => {
+            if (capMs && lastTs && (ts - lastTs) < capMs) {
+                this.animationFrameId = requestAnimationFrame(drawVisualization);
+                return;
+            }
+            lastTs = ts;
             if (this.analyserNode && this.spectrumContext && this.settings.displayMode !== 'none') {
                 if (this.settings.displayMode === 'spectrum') {
                     this.drawSpectrumBars();
@@ -3777,14 +4065,15 @@ class PianoVisualizer {
             this.animationFrameId = requestAnimationFrame(drawVisualization);
         };
         
-        drawVisualization();
+        this.animationFrameId = requestAnimationFrame(drawVisualization);
     }
     
     drawWaveformLine() {
         if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
+        this.ensureAnalyserBuffers();
         const bufferLength = this.analyserNode.fftSize;
-        const dataArray = new Uint8Array(bufferLength);
+        const dataArray = this.analyserTimeDomainData;
         this.analyserNode.getByteTimeDomainData(dataArray);
         
         const width = this.spectrumCanvas.width;
@@ -3793,13 +4082,8 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
-        // Create gradient for waveform
-        const gradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
-        gradient.addColorStop(0, '#ff6b6b');
-        gradient.addColorStop(0.25, '#4ecdc4');
-        gradient.addColorStop(0.5, '#45b7d1');
-        gradient.addColorStop(0.75, '#96ceb4');
-        gradient.addColorStop(1, '#feca57');
+        // Use cached gradient (rebuilt on resize)
+        const gradient = this.waveformGradient || this.spectrumContext.createLinearGradient(0, 0, width, 0);
         
         // Set line style
         this.spectrumContext.lineWidth = 3;
@@ -3832,8 +4116,9 @@ class PianoVisualizer {
     drawSpectrumBars() {
         if (!this.analyserNode || !this.spectrumContext || !this.spectrumCanvas) return;
         
+        this.ensureAnalyserBuffers();
         const bufferLength = this.analyserNode.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+        const dataArray = this.analyserFreqData;
         this.analyserNode.getByteFrequencyData(dataArray);
         
         const width = this.spectrumCanvas.width;
@@ -3842,13 +4127,8 @@ class PianoVisualizer {
         // Clear canvas
         this.spectrumContext.clearRect(0, 0, width, height);
         
-        // Create main gradient for spectrum bars (same colors as waveform)
-        const mainGradient = this.spectrumContext.createLinearGradient(0, 0, width, 0);
-        mainGradient.addColorStop(0, '#ff6b6b');
-        mainGradient.addColorStop(0.25, '#4ecdc4');
-        mainGradient.addColorStop(0.5, '#45b7d1');
-        mainGradient.addColorStop(0.75, '#96ceb4');
-        mainGradient.addColorStop(1, '#feca57');
+        // Use cached gradient (rebuilt on resize)
+        const mainGradient = this.spectrumGradient || this.spectrumContext.createLinearGradient(0, 0, width, 0);
         
         // Set glow effect
         this.spectrumContext.shadowBlur = 10;
