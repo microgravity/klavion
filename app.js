@@ -98,10 +98,10 @@ class PianoVisualizer {
         
         // Performance optimization: Canvas and texture caching
         this.canvasPool = []; // Reusable canvas pool
-        this.textureCache = new Map(); // Cache for text textures
+        this.textureCache = new Map(); // Cache for text textures (LRU)
         this.spritePool = []; // Reusable sprite pool
         this.maxPoolSize = 64; // Pool size for canvas/sprite
-        this.textureCacheLimit = 128; // Max cached textures
+        this.textureCacheLimit = 128; // Max cached textures (LRU eviction)
         this.lastNoteTime = 0; // Track last note activity for performance
         
         // DOM element cache for performance optimization (TDD最適化済み)
@@ -128,6 +128,10 @@ class PianoVisualizer {
         this.analyserFreqData = null;
         this.spectrumGradient = null;
         this.waveformGradient = null;
+        
+        // Warmup control
+        this.warmupTasks = [];
+        this.warmupScheduled = false;
         
         // Animation optimization: Pre-calculated lookup tables
         this.animationTables = {
@@ -968,15 +972,21 @@ class PianoVisualizer {
                     };
                     const ft = state.frameTimes;
                     const il = state.inputLatencies;
+                    const ftTrim = ft.filter(x => x >= 0 && x < 1000); // remove long tab-sleep outliers
+                    const ilTrim = il.filter(x => x >= 0 && x < 1000);
                     return {
                         frames: state.frames,
                         fpsApprox: ft.length ? 1000/avg(ft) : 0,
                         frameAvgMs: +avg(ft).toFixed(2),
                         frameP95Ms: +p(ft,0.95).toFixed(2),
                         frameMaxMs: +(ft.length ? Math.max(...ft) : 0).toFixed(2),
+                        frameAvgTrimMs: +avg(ftTrim).toFixed(2),
+                        frameP95TrimMs: +p(ftTrim,0.95).toFixed(2),
                         inputLatencyAvgMs: +avg(il).toFixed(2),
                         inputLatencyP95Ms: +p(il,0.95).toFixed(2),
                         inputLatencyMaxMs: +(il.length ? Math.max(...il) : 0).toFixed(2),
+                        inputLatencyAvgTrimMs: +avg(ilTrim).toFixed(2),
+                        inputLatencyP95TrimMs: +p(ilTrim,0.95).toFixed(2)
                     };
                 },
                 overlayEl: null,
@@ -993,7 +1003,7 @@ class PianoVisualizer {
                     document.body.appendChild(host);
                     const update = () => {
                         const s = state.summary();
-                        el.textContent = `FPS≈${s.fpsApprox.toFixed(1)}\nFrame ms avg/p95/max: ${s.frameAvgMs}/${s.frameP95Ms}/${s.frameMaxMs}\nInput→setup ms avg/p95/max: ${s.inputLatencyAvgMs}/${s.inputLatencyP95Ms}/${s.inputLatencyMaxMs}`;
+                        el.textContent = `FPS≈${s.fpsApprox.toFixed(1)}\nFrame ms avg/p95/max: ${s.frameAvgMs}/${s.frameP95Ms}/${s.frameMaxMs}\nFrame ms trim avg/p95: ${s.frameAvgTrimMs}/${s.frameP95TrimMs}\nInput→setup ms avg/p95/max: ${s.inputLatencyAvgMs}/${s.inputLatencyP95Ms}/${s.inputLatencyMaxMs}`;
                     };
                     state.overlayTimer = window.setInterval(update, 1000);
                     update();
@@ -1329,40 +1339,50 @@ class PianoVisualizer {
     scheduleTextureWarmup() {
         // Three.js が未初期化ならスキップ
         if (typeof THREE === 'undefined') return;
-        // 過剰な事前生成を避ける（キャッシュ上限の8割で停止）
-        const capacity = Math.max(16, Math.floor((this.textureCacheLimit || 128) * 0.8));
+        if (this.warmupScheduled) return;
+        this.buildWarmupTasksIfNeeded();
+        this.warmupScheduled = true;
+        const loop = () => {
+            if (!this.warmupTasks.length) { this.warmupScheduled = false; return; }
+            if (this.isBusyForWarmup()) { this.requestIdle(()=>loop()); return; }
+            const capacity = Math.max(16, Math.floor((this.textureCacheLimit || 128) * 0.8));
+            if (this.textureCache && this.textureCache.size >= capacity) { this.warmupScheduled = false; return; }
+            // 一回あたり最大6枚
+            let budget = 6;
+            while (budget > 0 && this.warmupTasks.length) {
+                const t = this.warmupTasks.shift();
+                this.prewarmTexture(t.n, t.v);
+                budget--;
+                if (this.textureCache && this.textureCache.size >= capacity) break;
+            }
+            if (this.warmupTasks.length && (!this.textureCache || this.textureCache.size < capacity)) {
+                this.requestIdle(()=>loop());
+            } else {
+                this.warmupScheduled = false;
+            }
+        };
+        this.requestIdle(()=>loop());
+    }
+    
+    buildWarmupTasksIfNeeded() {
+        if (this.warmupTasks && this.warmupTasks.length) return;
         const config = this.pianoConfigs[this.settings.pianoRange];
         if (!config) return;
-        // 中心の1オクターブ（12音）のみを対象に、代表的なベロシティで作成
         const center = Math.round((config.startNote + config.endNote) / 2);
         const notes = [];
         const start = Math.max(config.startNote, center - 6);
         const end = Math.min(config.endNote, start + 11);
         for (let n = start; n <= end; n++) notes.push(n);
-        const velocities = [24, 48, 64, 80, 96, 112]; // 6段階
-        const tasks = [];
-        for (const n of notes) {
-            for (const v of velocities) {
-                tasks.push({ n, v });
-            }
-        }
-        // idleで少量ずつ処理
-        const processBatch = (deadline) => {
-            if (!tasks.length) return;
-            if (this.textureCache && this.textureCache.size >= capacity) return;
-            let budget = 6; // 一回あたり最大6枚
-            while (budget > 0 && tasks.length) {
-                const t = tasks.shift();
-                this.prewarmTexture(t.n, t.v);
-                budget--;
-                if (this.textureCache && this.textureCache.size >= capacity) break;
-            }
-            // 残があれば次回へ
-            if (tasks.length && (!this.textureCache || this.textureCache.size < capacity)) {
-                this.requestIdle(processBatch);
-            }
-        };
-        this.requestIdle(processBatch);
+        const velocities = [24, 48, 64, 80, 96, 112];
+        this.warmupTasks = [];
+        for (const n of notes) for (const v of velocities) this.warmupTasks.push({ n, v });
+    }
+    
+    isBusyForWarmup() {
+        const now = performance.now();
+        const recentActivity = now - (this.lastNoteTime || 0) < 250;
+        const activeSprites = (this.noteObjects && this.noteObjects.length) ? 1 : 0;
+        return recentActivity || activeSprites;
     }
     
     requestIdle(cb) {
@@ -1391,10 +1411,8 @@ class PianoVisualizer {
             this.renderTextToCanvas(canvas, context, noteName, midiNote, velocity, color, size);
             const texture = new THREE.CanvasTexture(canvas);
             texture.needsUpdate = true;
-            if (this.textureCache.size < (this.textureCacheLimit || 128)) {
-                this.textureCache.set(cacheKey, texture);
-                this.performanceMetrics.textureCreations++;
-            }
+            this.putTextureInCache(cacheKey, texture);
+            this.performanceMetrics.textureCreations++;
         } catch (_) {
             // 失敗時も黙ってスキップ
         }
@@ -1754,6 +1772,31 @@ class PianoVisualizer {
             this.canvasPool.push(canvas);
         }
     }
+
+    // Texture cache helpers (LRU)
+    getTextureFromCache(key) {
+        const val = this.textureCache.get(key);
+        if (val) {
+            // refresh recency
+            this.textureCache.delete(key);
+            this.textureCache.set(key, val);
+        }
+        return val;
+    }
+    putTextureInCache(key, texture) {
+        if (this.textureCache.has(key)) {
+            this.textureCache.delete(key);
+        }
+        this.textureCache.set(key, texture);
+        while (this.textureCache.size > this.textureCacheLimit) {
+            const oldestKey = this.textureCache.keys().next().value;
+            const oldestTex = this.textureCache.get(oldestKey);
+            if (oldestTex && typeof oldestTex.dispose === 'function') {
+                try { oldestTex.dispose(); } catch (_) {}
+            }
+            this.textureCache.delete(oldestKey);
+        }
+    }
     
     // Sprite pool management for performance
     getSpriteFromPool() {
@@ -1973,7 +2016,7 @@ class PianoVisualizer {
         // Use MIDI note and velocity range for more consistent caching
         const velocityRange = Math.floor(velocity / 10) * 10; // Round to nearest 10
         const cacheKey = `${midiNote}-${velocityRange}-${this.settings.showVelocityNumbers}-${this.settings.noteNameStyle}`;
-        let texture = this.textureCache.get(cacheKey);
+        let texture = this.getTextureFromCache(cacheKey);
         
         if (!texture) {
             // Create dedicated canvas for this texture with dynamic sizing
@@ -1987,10 +2030,8 @@ class PianoVisualizer {
             texture = new THREE.CanvasTexture(canvas);
             texture.needsUpdate = true;
             
-            // Cache texture for reuse (limit cache size)
-            if (this.textureCache.size < this.textureCacheLimit) {
-                this.textureCache.set(cacheKey, texture);
-            }
+            // Cache texture with LRU eviction
+            this.putTextureInCache(cacheKey, texture);
             
             // Performance metrics
             this.performanceMetrics.textureCreations++;
